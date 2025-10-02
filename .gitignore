@@ -1,0 +1,52 @@
+# Environment variables (contains secrets!)
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Database
+*.db
+*.sqlite3
+postgresql_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node modules (for frontend)
+node_modules/
+frontend/node_modules/
+
+# Build files
+dist/
+build/
+*.egg-info/
+
+# Alembic
+alembic.ini
+
+# Scripts (may contain sensitive setup)
+setup_*.sh
+setup_*.py
+test_db_connection.py
+validate_config.py

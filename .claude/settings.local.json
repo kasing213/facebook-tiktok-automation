@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sudo systemctl status:*)",
+      "Bash(service postgresql:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker:*)",
+      "Bash(pg_isready:*)",
+      "Bash(psql:*)",
+      "Bash(createdb:*)",
+      "Bash(postgres:16)",
+      "Bash(source:*)",
+      "Bash(alembic upgrade:*)",
+      "Read(//etc/postgresql/**)",
+      "Bash(cat:*)",
+      "Bash(sudo:*)",
+      "Bash(bash:*)",
+      "Bash(alembic current:*)",
+      "Bash(alembic:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

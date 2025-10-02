@@ -1,0 +1,71 @@
+version: "3.9"
+
+name: fbauto
+
+x-healthcheck-postgres: &hc_pg
+  test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-app_db}"]
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 10s
+
+x-healthcheck-redis: &hc_redis
+  test: ["CMD", "redis-cli", "ping"]
+  interval: 5s
+  timeout: 3s
+  retries: 20
+  start_period: 5s
+
+services:
+  db:
+    image: postgres:16
+    container_name: fbauto-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-app_db}
+    ports:
+      - "5432:5432"           # optional for local psql; remove in prod
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck: *hc_pg
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: fbauto-redis
+    ports:
+      - "6379:6379"           # optional; remove in prod
+    command: ["redis-server","--save","","--appendonly","no"]
+    healthcheck: *hc_redis
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fbauto-api
+    env_file: .env
+    environment:
+      # Force container-to-container URLs (not localhost)
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-app_db}
+      REDIS_URL: redis://redis:6379/0
+      TZ: Asia/Phnom_Penh
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app                # dev only; remove for prod images
+    command: >
+      /bin/sh -c "
+      alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    restart: unless-stopped
+
+volumes:
+  pgdata:
