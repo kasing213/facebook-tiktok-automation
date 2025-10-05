@@ -95,7 +95,7 @@ API_HOST=0.0.0.0
 API_PORT=8000
 
 # Bot Configuration
-TELEGRAM_BOT_TOKEN=8331745179:AAFbjfvcXh2jiiOxiAxWGjzll37eB5WRSN0
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
 # Social Media API Configuration (Ready for OAuth)
 FB_APP_ID=1234567890
