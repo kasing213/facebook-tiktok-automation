@@ -35,8 +35,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          # Upload tiktok-site directory
+          path: 'tiktok-site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
