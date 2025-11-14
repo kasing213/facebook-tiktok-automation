@@ -7,11 +7,30 @@
 - **Version**: 0.2.0
 
 ## Development Setup
+- **Python Version**: 3.12.3 (REQUIRED - pandas 2.2.2 has build issues with Python 3.13+)
 - **Python Environment**: Use the existing `.venv/`
 - **Activate venv (Windows)**: `.\.venv\Scripts\activate`
 - **Activate venv (WSL/Linux/macOS)**: `source .venv/bin/activate`
-- **Dependencies**: `pip install -r app/tests/requirements.txt`
+- **Dependencies**: `pip install -r requirements.txt`
 - **Database**: PostgreSQL managed through SQLAlchemy and Alembic
+
+### Creating Fresh Virtual Environment
+If you need to recreate the virtual environment:
+```bash
+# Remove old environment
+rm -rf .venv
+
+# Create with Python 3.12 (IMPORTANT: must use 3.12, not 3.13+)
+python3.12 -m venv .venv
+
+# Activate
+source .venv/bin/activate  # Linux/macOS/WSL
+# OR
+.\.venv\Scripts\activate  # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+```
 
 ## Key Commands
 ```bash
