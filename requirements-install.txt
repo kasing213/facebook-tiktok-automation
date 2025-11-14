@@ -1,0 +1,11 @@
+uvicorn
+fastapi
+sqlalchemy
+alembic
+psycopg2-binary
+python-dotenv
+cryptography
+httpx
+pydantic-settings
+redis
+python-multipart

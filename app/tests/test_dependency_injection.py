@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 
 from app.main import app
 from app.deps import (
@@ -81,20 +81,32 @@ class TestDependencyInjection:
 
     def test_integration_dependency_resolution(self):
         """Test that integration services are properly resolved"""
-        # Test token encryptor (cached)
-        encryptor = get_token_encryptor()
-        assert isinstance(encryptor, TokenEncryptor)
+        # Generate valid test keys
+        from cryptography.fernet import Fernet
+        test_master_key = Fernet.generate_key().decode()
 
-        # Test OAuth providers
-        settings = get_settings_dep()
+        with patch.dict('os.environ', {
+            'MASTER_SECRET_KEY': test_master_key,
+            'OAUTH_STATE_SECRET': 'test-oauth-state-secret'
+        }):
+            # Clear settings cache to use new env vars
+            from app.core.config import get_settings
+            get_settings.cache_clear()
 
-        fb_oauth = get_facebook_oauth(settings)
-        assert isinstance(fb_oauth, FacebookOAuth)
-        assert fb_oauth.s == settings
+            # Test OAuth providers
+            settings = get_settings_dep()
 
-        tiktok_oauth = get_tiktok_oauth(settings)
-        assert isinstance(tiktok_oauth, TikTokOAuth)
-        assert tiktok_oauth.s == settings
+            # Test token encryptor (cached)
+            encryptor = get_token_encryptor(settings)
+            assert isinstance(encryptor, TokenEncryptor)
+
+            fb_oauth = get_facebook_oauth(settings)
+            assert isinstance(fb_oauth, FacebookOAuth)
+            assert fb_oauth.s == settings
+
+            tiktok_oauth = get_tiktok_oauth(settings)
+            assert isinstance(tiktok_oauth, TikTokOAuth)
+            assert tiktok_oauth.s == settings
 
     def test_fastapi_route_dependency_injection(self):
         """Test that FastAPI routes can resolve dependencies"""
@@ -136,22 +148,39 @@ class TestDependencyInjection:
         assert isinstance(user_repo, UserRepository)
         assert user_repo.db == mock_db
 
-    @patch('app.core.crypto.load_encryptor')
-    def test_cached_dependencies(self, mock_load_encryptor):
+    def test_cached_dependencies(self):
         """Test that cached dependencies are properly reused"""
-        mock_encryptor = Mock(spec=TokenEncryptor)
-        mock_load_encryptor.return_value = mock_encryptor
+        import app.deps
 
-        # First call should load
-        enc1 = get_token_encryptor()
-        assert enc1 == mock_encryptor
-        assert mock_load_encryptor.call_count == 1
+        # Clear cache before test
+        original_cache = app.deps._encryptor_cache
+        app.deps._encryptor_cache = None
 
-        # Second call should use cache
-        enc2 = get_token_encryptor()
-        assert enc2 == mock_encryptor
-        assert enc2 is enc1  # Same instance
-        assert mock_load_encryptor.call_count == 1  # Not called again
+        try:
+            # Generate a valid Fernet key for testing
+            from cryptography.fernet import Fernet
+            test_key = Fernet.generate_key().decode()
+
+            with patch.dict('os.environ', {
+                'MASTER_SECRET_KEY': test_key
+            }):
+                # Clear settings cache to use new env vars
+                from app.core.config import get_settings
+                get_settings.cache_clear()
+
+                settings = get_settings_dep()
+
+                # First call should load and cache
+                enc1 = get_token_encryptor(settings)
+                assert isinstance(enc1, TokenEncryptor)
+
+                # Second call should use cache
+                enc2 = get_token_encryptor(settings)
+                assert enc2 is enc1  # Same instance from cache
+
+        finally:
+            # Restore original cache
+            app.deps._encryptor_cache = original_cache
 
     def test_type_annotations_work_with_di(self):
         """Test that type annotations work correctly with DI"""
@@ -213,7 +242,7 @@ class TestDependencyOverrides:
         test_app.dependency_overrides[get_db] = mock_get_db
 
         @test_app.get("/test")
-        def test_endpoint(db: Session = get_db()):
+        def test_endpoint(db: Session = Depends(get_db)):
             return {"db_type": type(db).__name__}
 
         client = TestClient(test_app)

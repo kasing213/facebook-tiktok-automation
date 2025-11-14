@@ -52,7 +52,7 @@ class AutomationService:
         """Get all automations that are due to run"""
         return self.automation_repo.get_due_automations(current_time)
 
-    def execute_automation(self, automation_id: UUID) -> AutomationRun:
+    async def execute_automation(self, automation_id: UUID) -> AutomationRun:
         """Execute an automation and create a run record"""
         automation = self.automation_repo.get_by_id(automation_id)
         if not automation:
@@ -75,14 +75,34 @@ class AutomationService:
                 next_run=next_run
             )
 
-            # TODO: Implement actual automation execution logic here
-            # This would delegate to specific automation handlers based on type
+            # Execute automation using the appropriate handler
+            from app.services.automation_handlers import get_automation_handler
+            handler = get_automation_handler(self.db, automation)
+            result = await handler.execute()
+
+            # Send results to destination if configured
+            if automation.destination_id:
+                from app.services.destination_sender import DestinationSenderService
+                sender = DestinationSenderService(self.db)
+
+                formatted_output = result.get("formatted_output", "")
+                send_result = await sender.send_to_destination(
+                    automation.destination_id,
+                    formatted_output,
+                    metadata={
+                        "automation_id": str(automation_id),
+                        "automation_name": automation.name,
+                        "timestamp": now.isoformat()
+                    }
+                )
+
+                result["delivery"] = send_result
 
             # Mark run as completed
             self.run_repo.complete_run(
                 run.id,
                 status="completed",
-                result={"status": "success", "message": "Automation executed successfully"}
+                result=result
             )
 
             self.db.commit()

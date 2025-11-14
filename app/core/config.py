@@ -1,8 +1,13 @@
 from functools import lru_cache
 from typing import Literal
+from pathlib import Path
 
-from pydantic import AnyHttpUrl, Field, SecretStr
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Get the project root directory (2 levels up from this file)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+ENV_FILE = PROJECT_ROOT / ".env"
 
 class Settings(BaseSettings):
     """
@@ -15,7 +20,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="allow"  # Allow extra env vars for flexibility
@@ -24,6 +29,7 @@ class Settings(BaseSettings):
     # Application settings
     ENV: Literal["dev", "staging", "prod"] = "dev"
     BASE_URL: AnyHttpUrl = Field(default="http://localhost:8000", description="Base URL for the application")
+    FRONTEND_URL: AnyHttpUrl = Field(default="http://localhost:3000", description="Frontend base URL for redirects")
 
     # Database configuration
     DATABASE_URL: str = Field(..., description="PostgreSQL database connection string")
@@ -41,14 +47,50 @@ class Settings(BaseSettings):
     # TikTok integration
     TIKTOK_CLIENT_KEY: str = Field(..., description="TikTok Client Key")
     TIKTOK_CLIENT_SECRET: SecretStr = Field(..., description="TikTok Client Secret")
-    TIKTOK_SCOPES: str = Field(default="user.info.basic", description="TikTok API scopes")
+    TIKTOK_SCOPES: str = Field(default="user.info.basic,video.upload,video.publish", description="TikTok API scopes")
 
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: SecretStr = Field(..., description="Telegram Bot Token")
 
+    # Webhook configuration
+    FACEBOOK_WEBHOOK_VERIFY_TOKEN: SecretStr = Field(default="my_facebook_verify_token_change_me", description="Facebook webhook verification token")
+    TIKTOK_WEBHOOK_VERIFY_TOKEN: SecretStr = Field(default="my_tiktok_verify_token_change_me", description="TikTok webhook verification token")
+
     # API Server settings
     API_HOST: str = Field(default="0.0.0.0", description="API server host")
-    API_PORT: int = Field(default=8000, description="API server port")
+    API_PORT: int = Field(default=8000, description="API server port", ge=1024, le=65535)
+
+    # Background Job Configuration
+    TOKEN_REFRESH_INTERVAL: int = Field(default=3600, description="Token refresh check interval in seconds (default: 1 hour)", ge=60)
+    AUTOMATION_CHECK_INTERVAL: int = Field(default=60, description="Automation scheduler check interval in seconds (default: 1 minute)", ge=10)
+    CLEANUP_INTERVAL: int = Field(default=86400, description="Cleanup job interval in seconds (default: 24 hours)", ge=3600)
+
+    @field_validator('DATABASE_URL')
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        """Validate DATABASE_URL format"""
+        if not v.startswith(('postgresql://', 'postgresql+psycopg2://')):
+            raise ValueError('DATABASE_URL must be a valid PostgreSQL connection string')
+        return v
+
+    @field_validator('FB_SCOPES', 'TIKTOK_SCOPES')
+    @classmethod
+    def validate_scopes(cls, v: str) -> str:
+        """Validate and normalize OAuth scopes"""
+        if not v:
+            raise ValueError('OAuth scopes cannot be empty')
+        # Normalize scopes by removing extra whitespace
+        return ','.join(scope.strip() for scope in v.split(',') if scope.strip())
+
+    @property
+    def database_url_safe(self) -> str:
+        """Get database URL with credentials masked for logging"""
+        if '@' in self.DATABASE_URL:
+            protocol, rest = self.DATABASE_URL.split('://', 1)
+            if '@' in rest:
+                credentials, host_db = rest.split('@', 1)
+                return f"{protocol}://<credentials>@{host_db}"
+        return self.DATABASE_URL
 
 @lru_cache()
 def get_settings() -> Settings:

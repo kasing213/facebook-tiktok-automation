@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
-import { useAuth } from '../hooks/useAuth'
+import { useAuth, useOAuth } from '../hooks/useAuth'
 import { LoadingSpinner } from './LoadingSpinner'
 import { ErrorMessage } from './ErrorMessage'
 
@@ -178,18 +178,70 @@ const RefreshButton = styled.button`
   }
 `
 
+const ConnectButton = styled.button<{ platform: 'facebook' | 'tiktok' }>`
+  ${props => props.platform === 'facebook' ? `
+    background: #4267b2;
+    &:hover:not(:disabled) {
+      background: #365899;
+    }
+  ` : `
+    background: #000;
+    &:hover:not(:disabled) {
+      background: #333;
+    }
+  `}
+  color: white;
+  border: none;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+`
+
 const Dashboard: React.FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const [tenantId, setTenantId] = useState<string>('')
   const [successMessage, setSuccessMessage] = useState<string>('')
 
-  // Extract tenant ID and success message from navigation state
+  // Extract tenant ID and success message from navigation state or URL params
   useEffect(() => {
+    const urlParams = new URLSearchParams(location.search)
+    const urlTenantId = urlParams.get('tenant_id')
+    const urlSuccess = urlParams.get('success')
+
     if (location.state) {
       const { tenantId: stateTenantId, message } = location.state as any
       if (stateTenantId) setTenantId(stateTenantId)
       if (message) setSuccessMessage(message)
+    } else if (urlTenantId) {
+      // Handle OAuth redirect from backend
+      setTenantId(urlTenantId)
+      if (urlSuccess) {
+        const platform = urlSuccess === 'facebook' ? 'Facebook' : 'TikTok'
+        setSuccessMessage(`${platform} account connected successfully!`)
+
+        // Clean up URL parameters
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('success')
+        newUrl.searchParams.delete('tenant_id')
+        window.history.replaceState({}, '', newUrl.pathname)
+      }
     }
 
     // Clear success message after 5 seconds
@@ -197,12 +249,33 @@ const Dashboard: React.FC = () => {
       const timer = setTimeout(() => setSuccessMessage(''), 5000)
       return () => clearTimeout(timer)
     }
-  }, [location.state, successMessage])
+  }, [location.state, location.search, successMessage])
 
   const { authStatus, loading, error, refreshAuthStatus } = useAuth(tenantId || null)
+  const { initiating, errors: oauthErrors, clearErrors, initiateFacebookOAuth, initiateTikTokOAuth } = useOAuth()
 
   const handleRefresh = () => {
     refreshAuthStatus()
+  }
+
+  const handleConnectFacebook = async () => {
+    if (!tenantId) return
+    clearErrors()
+    try {
+      await initiateFacebookOAuth(tenantId)
+    } catch (error) {
+      console.error('Failed to initiate Facebook OAuth:', error)
+    }
+  }
+
+  const handleConnectTikTok = async () => {
+    if (!tenantId) return
+    clearErrors()
+    try {
+      await initiateTikTokOAuth(tenantId)
+    } catch (error) {
+      console.error('Failed to initiate TikTok OAuth:', error)
+    }
   }
 
   const handleBackToLogin = () => {
@@ -292,9 +365,31 @@ const Dashboard: React.FC = () => {
             )}
 
             {!authStatus.facebook?.connected && (
-              <p style={{ margin: 0, color: '#666', fontSize: '0.9rem' }}>
-                Connect your Facebook account to manage Facebook campaigns.
-              </p>
+              <div>
+                <p style={{ margin: '0 0 1rem 0', color: '#666', fontSize: '0.9rem' }}>
+                  Connect your Facebook account to manage Facebook campaigns.
+                </p>
+                <ConnectButton
+                  platform="facebook"
+                  onClick={handleConnectFacebook}
+                  disabled={initiating.facebook}
+                >
+                  <span>📘</span>
+                  {initiating.facebook ? (
+                    <>
+                      <LoadingSpinner size="small" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect Facebook'
+                  )}
+                </ConnectButton>
+                {oauthErrors.facebook && (
+                  <div style={{ marginTop: '0.5rem', color: '#dc3545', fontSize: '0.8rem' }}>
+                    Error: {oauthErrors.facebook}
+                  </div>
+                )}
+              </div>
             )}
           </PlatformCard>
 
@@ -333,9 +428,31 @@ const Dashboard: React.FC = () => {
             )}
 
             {!authStatus.tiktok?.connected && (
-              <p style={{ margin: 0, color: '#666', fontSize: '0.9rem' }}>
-                Connect your TikTok account to manage TikTok campaigns.
-              </p>
+              <div>
+                <p style={{ margin: '0 0 1rem 0', color: '#666', fontSize: '0.9rem' }}>
+                  Connect your TikTok account to manage TikTok campaigns.
+                </p>
+                <ConnectButton
+                  platform="tiktok"
+                  onClick={handleConnectTikTok}
+                  disabled={initiating.tiktok}
+                >
+                  <span>🎵</span>
+                  {initiating.tiktok ? (
+                    <>
+                      <LoadingSpinner size="small" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect TikTok'
+                  )}
+                </ConnectButton>
+                {oauthErrors.tiktok && (
+                  <div style={{ marginTop: '0.5rem', color: '#dc3545', fontSize: '0.8rem' }}>
+                    Error: {oauthErrors.tiktok}
+                  </div>
+                )}
+              </div>
             )}
           </PlatformCard>
         </StatusGrid>

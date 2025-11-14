@@ -128,14 +128,15 @@ def init_db() -> None:
                 print(f"✅ Database schema validated. Found {table_count} tables.")
 
     except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
-        print(f"   Connection string: {_settings.DATABASE_URL.split('://')[0]}://<credentials>@{_settings.DATABASE_URL.split('@')[1] if '@' in _settings.DATABASE_URL else 'N/A'}")
+        # Avoid Unicode emojis on Windows console
+        print(f"[ERROR] Database initialization failed: {e}")
+        print(f"   Connection string: {_settings.database_url_safe}")
         print("   Please ensure:")
         print("   1. PostgreSQL is running")
-        print("   2. Database 'app_db' exists")
-        print("   3. User 'app' exists with correct password")
+        print("   2. Database exists and is accessible")
+        print("   3. Database user exists with correct password")
         print("   4. User has permission to access the database")
-        print("   5. pg_hba.conf allows password authentication for 'app' user")
+        print("   5. pg_hba.conf allows password authentication for the database user")
         raise
 
 def dispose_engine() -> None:

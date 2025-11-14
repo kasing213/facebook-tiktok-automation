@@ -19,7 +19,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # import your Base
-from app.core.db import Base  # Base = DeclarativeBase subclass
+from app.core.models import Base  # Base = DeclarativeBase subclass
 target_metadata = Base.metadata
 
 def run_migrations_offline():

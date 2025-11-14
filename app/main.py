@@ -1,16 +1,47 @@
 # app/main.py
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from app.deps import get_logger, get_settings_dep, SettingsDep, TenantSvc, AuthSvc
 from app.core.config import get_settings
 from app.core.db import init_db, dispose_engine
 from app.routes import oauth_router
+from app.routes.webhooks import router as webhook_router
+from app.routes.auth import router as auth_router
+
+
+# Request/Response models
+class CreateTenantRequest(BaseModel):
+    name: str = Field(..., description="Organization/tenant name", min_length=2, max_length=100)
+    slug: str = Field(..., description="Unique URL-safe identifier", min_length=2, max_length=50, pattern=r'^[a-z0-9-]+$')
+    admin_telegram_id: str | None = Field(None, description="Admin Telegram user ID")
+    admin_email: str | None = Field(None, description="Admin email address")
+    admin_username: str | None = Field(None, description="Admin username")
+    settings: dict | None = Field(None, description="Optional tenant settings")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "name": "Acme Corporation",
+                    "slug": "acme-corp",
+                    "admin_email": "admin@acme.com",
+                    "admin_username": "acme_admin"
+                }
+            ]
+        }
+    }
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
+    import asyncio
+    from app.jobs.token_refresh import run_token_refresh_scheduler, run_daily_cleanup_scheduler
+    from app.jobs.automation_scheduler import run_automation_scheduler
+
     log = get_logger()
     s = get_settings()
 
@@ -21,9 +52,40 @@ async def lifespan(app: FastAPI):
     init_db()
     log.info("🚀 FB/TikTok Automation API started (env=%s)", s.ENV)
 
+    # Start background tasks
+    token_refresh_task = None
+    cleanup_task = None
+    automation_task = None
+
     try:
+        # Start token refresh and cleanup tasks
+        token_refresh_task = asyncio.create_task(run_token_refresh_scheduler())
+        cleanup_task = asyncio.create_task(run_daily_cleanup_scheduler())
+        log.info("✅ Background token refresh and cleanup tasks started")
+
+        # Start automation scheduler with configurable interval
+        automation_task = asyncio.create_task(
+            run_automation_scheduler(check_interval=s.AUTOMATION_CHECK_INTERVAL)
+        )
+        log.info(f"✅ Automation scheduler started (check interval: {s.AUTOMATION_CHECK_INTERVAL}s)")
+
         yield
     finally:
+        # Cancel background tasks gracefully
+        tasks_to_cancel = [
+            ("Token Refresh", token_refresh_task),
+            ("Cleanup", cleanup_task),
+            ("Automation Scheduler", automation_task)
+        ]
+
+        for task_name, task in tasks_to_cancel:
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    log.info(f"✅ {task_name} task stopped")
+
         dispose_engine()
         log.info("🛑 API shutting down")
 
@@ -45,7 +107,34 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth_router)
 app.include_router(oauth_router)
+app.include_router(webhook_router)
+
+# Mount static files for policy pages
+app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")
+
+# Root endpoint
+@app.get("/", tags=["system"])
+def root():
+    """API root endpoint with links to documentation"""
+    return {
+        "message": "Facebook/TikTok Automation API",
+        "version": "0.2.0",
+        "status": "running",
+        "documentation": {
+            "swagger": "/docs",
+            "redoc": "/redoc",
+            "openapi_json": "/openapi.json"
+        },
+        "endpoints": {
+            "health": "/health",
+            "auth": "/auth",
+            "oauth": "/oauth",
+            "tenants": "/api/tenants",
+            "webhooks": "/api/webhooks"
+        }
+    }
 
 # Health check endpoint with enhanced information
 @app.get("/health", tags=["system"])
@@ -64,6 +153,30 @@ def health_check(settings: SettingsDep):
     }
 
 # Tenant management endpoints
+@app.post("/api/tenants", tags=["tenants"])
+def create_tenant(request: CreateTenantRequest, tenant_service: TenantSvc):
+    """Create a new tenant"""
+    try:
+        tenant = tenant_service.create_tenant(
+            name=request.name,
+            slug=request.slug,
+            admin_telegram_id=request.admin_telegram_id,
+            admin_email=request.admin_email,
+            admin_username=request.admin_username,
+            settings=request.settings or {}
+        )
+        return {
+            "id": str(tenant.id),
+            "name": tenant.name,
+            "slug": tenant.slug,
+            "is_active": tenant.is_active,
+            "created_at": tenant.created_at.isoformat(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to create tenant")
+
 @app.get("/api/tenants", tags=["tenants"])
 def list_tenants(tenant_service: TenantSvc):
     """List all active tenants"""
@@ -84,7 +197,6 @@ def get_tenant(tenant_id: str, tenant_service: TenantSvc):
     """Get tenant details by ID"""
     tenant = tenant_service.get_tenant_by_id(tenant_id)
     if not tenant:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     users = tenant_service.get_tenant_users(tenant.id)

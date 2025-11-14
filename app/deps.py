@@ -1,5 +1,5 @@
 # app/deps.py
-from typing import Generator, Annotated
+from typing import Generator, Annotated, Optional
 import logging
 from functools import lru_cache
 
@@ -19,7 +19,8 @@ from app.repositories import (
 )
 
 # Integration imports
-from app.integrations.oauth import FacebookOAuth, TikTokOAuth, OAuthProvider
+from app.integrations.oauth import FacebookOAuth, TikTokOAuth, OAuthProvider, FacebookAPIClient
+from app.integrations.tiktok import TikTokService
 from app.core.crypto import load_encryptor, TokenEncryptor
 
 # --- Logging ---
@@ -66,24 +67,31 @@ def get_automation_repository(db: Session = Depends(get_db)) -> AutomationReposi
     """Get automation repository"""
     return AutomationRepository(db)
 
+# --- Integration Services ---
+_encryptor_cache: Optional[TokenEncryptor] = None
+
+def get_token_encryptor(settings: Settings = Depends(get_settings_dep)) -> TokenEncryptor:
+    """Get cached token encryptor"""
+    global _encryptor_cache
+    if _encryptor_cache is None:
+        _encryptor_cache = load_encryptor(settings.MASTER_SECRET_KEY.get_secret_value())
+    return _encryptor_cache
+
 # --- Services ---
 def get_tenant_service(db: Session = Depends(get_db)) -> TenantService:
     """Get tenant service"""
     return TenantService(db)
 
-def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+def get_auth_service(
+    db: Session = Depends(get_db),
+    encryptor: TokenEncryptor = Depends(get_token_encryptor)
+) -> AuthService:
     """Get authentication service"""
-    return AuthService(db)
+    return AuthService(db, encryptor)
 
 def get_automation_service(db: Session = Depends(get_db)) -> AutomationService:
     """Get automation service"""
     return AutomationService(db)
-
-# --- Integration Services ---
-@lru_cache()
-def get_token_encryptor() -> TokenEncryptor:
-    """Get cached token encryptor"""
-    return load_encryptor()
 
 def get_oauth_provider(settings: Settings = Depends(get_settings_dep)) -> OAuthProvider:
     """Get base OAuth provider"""
@@ -96,6 +104,10 @@ def get_facebook_oauth(settings: Settings = Depends(get_settings_dep)) -> Facebo
 def get_tiktok_oauth(settings: Settings = Depends(get_settings_dep)) -> TikTokOAuth:
     """Get TikTok OAuth provider"""
     return TikTokOAuth(settings)
+
+def get_tiktok_service(db: Session = Depends(get_db)) -> TikTokService:
+    """Get TikTok service"""
+    return TikTokService(db)
 
 # --- Type aliases for easier imports ---
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -118,3 +130,4 @@ AutomationSvc = Annotated[AutomationService, Depends(get_automation_service)]
 TokenEnc = Annotated[TokenEncryptor, Depends(get_token_encryptor)]
 FacebookOAuthProvider = Annotated[FacebookOAuth, Depends(get_facebook_oauth)]
 TikTokOAuthProvider = Annotated[TikTokOAuth, Depends(get_tiktok_oauth)]
+TikTokSvc = Annotated[TikTokService, Depends(get_tiktok_service)]

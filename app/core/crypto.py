@@ -12,8 +12,13 @@ class TokenEncryptor:
     def dec(self, s: str) -> str:
         return self._fernet.decrypt(s.encode()).decode()
 
-def load_encryptor() -> TokenEncryptor:
-    key = os.environ.get("MASTER_SECRET_KEY")
+def load_encryptor(master_key: str | None = None) -> TokenEncryptor:
+    """
+    Load encryptor with master key.
+    Args:
+        master_key: Master secret key. If not provided, will try to load from environment.
+    """
+    key = master_key or os.environ.get("MASTER_SECRET_KEY")
     if not key:
         raise RuntimeError("MASTER_SECRET_KEY missing")
     # accept both raw key and base64-encoded

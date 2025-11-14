@@ -1,0 +1,180 @@
+{
+  "examples": [
+    {
+      "name": "Daily Facebook Performance Report",
+      "description": "Generates a daily report with Facebook ad account and page metrics",
+      "automation_type": "scheduled_report",
+      "schedule_config": {
+        "type": "daily",
+        "hour": 9,
+        "comment": "Run every day at 9 AM UTC"
+      },
+      "automation_config": {
+        "period": "daily",
+        "days": 7,
+        "metric_types": ["ad_account", "pages"],
+        "format": "text"
+      },
+      "platforms": ["facebook"]
+    },
+    {
+      "name": "Weekly Social Media Summary",
+      "description": "Weekly report combining Facebook and TikTok metrics",
+      "automation_type": "scheduled_report",
+      "schedule_config": {
+        "type": "weekly",
+        "weekday": 0,
+        "hour": 9,
+        "comment": "Run every Monday at 9 AM UTC"
+      },
+      "automation_config": {
+        "period": "weekly",
+        "days": 7,
+        "metric_types": ["ad_account", "pages"],
+        "format": "text"
+      },
+      "platforms": ["facebook", "tiktok"]
+    },
+    {
+      "name": "Hourly Ad Spend Alert",
+      "description": "Monitor ad spend and alert if it exceeds threshold",
+      "automation_type": "alert",
+      "schedule_config": {
+        "type": "interval",
+        "interval_minutes": 60,
+        "comment": "Check every hour"
+      },
+      "automation_config": {
+        "thresholds": {
+          "max_daily_spend": 500.00,
+          "comment": "Alert if daily spend exceeds $500"
+        }
+      },
+      "platforms": ["facebook"]
+    },
+    {
+      "name": "Performance Alert - Low CTR",
+      "description": "Alert when CTR drops below acceptable levels",
+      "automation_type": "alert",
+      "schedule_config": {
+        "type": "interval",
+        "interval_minutes": 120,
+        "comment": "Check every 2 hours"
+      },
+      "automation_config": {
+        "thresholds": {
+          "min_ctr": 1.0,
+          "max_cpc": 2.50,
+          "comment": "Alert if CTR < 1% or CPC > $2.50"
+        }
+      },
+      "platforms": ["facebook"]
+    },
+    {
+      "name": "Real-time Data Sync",
+      "description": "Sync metrics to external webhook every hour",
+      "automation_type": "data_sync",
+      "schedule_config": {
+        "type": "interval",
+        "interval_minutes": 60,
+        "comment": "Sync hourly"
+      },
+      "automation_config": {
+        "sync_type": "webhook",
+        "sync_frequency": "hourly"
+      },
+      "platforms": ["facebook", "tiktok"]
+    },
+    {
+      "name": "Morning Performance Digest",
+      "description": "Comprehensive morning report with all platforms",
+      "automation_type": "scheduled_report",
+      "schedule_config": {
+        "type": "daily",
+        "hour": 8,
+        "comment": "Run every morning at 8 AM UTC"
+      },
+      "automation_config": {
+        "period": "daily",
+        "days": 1,
+        "metric_types": ["ad_account", "pages"],
+        "format": "html",
+        "include_trends": true,
+        "comment": "Previous day's performance"
+      },
+      "platforms": ["facebook", "tiktok"]
+    }
+  ],
+  "destination_examples": [
+    {
+      "name": "Marketing Team Telegram",
+      "type": "telegram_chat",
+      "config": {
+        "chat_id": "123456789",
+        "chat_title": "Marketing Team",
+        "chat_type": "private",
+        "comment": "Replace chat_id with your actual Telegram chat ID"
+      }
+    },
+    {
+      "name": "Analytics Dashboard Webhook",
+      "type": "webhook",
+      "config": {
+        "webhook_url": "https://your-dashboard.com/api/webhook",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-API-Key": "your-api-key"
+        },
+        "auth_config": {
+          "type": "bearer",
+          "token": "your-bearer-token"
+        },
+        "timeout": 30,
+        "comment": "Replace with your actual webhook URL and credentials"
+      }
+    },
+    {
+      "name": "Slack Webhook",
+      "type": "webhook",
+      "config": {
+        "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "timeout": 30,
+        "comment": "Slack incoming webhook for notifications"
+      }
+    },
+    {
+      "name": "Email Notification",
+      "type": "email",
+      "config": {
+        "email": "team@example.com",
+        "subject_prefix": "[Marketing Automation]",
+        "comment": "Email destination (not yet fully implemented)"
+      }
+    },
+    {
+      "name": "Test Webhook (webhook.site)",
+      "type": "webhook",
+      "config": {
+        "webhook_url": "https://webhook.site/your-unique-id",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "timeout": 30,
+        "comment": "Use webhook.site for testing - create a unique URL at https://webhook.site"
+      }
+    }
+  ],
+  "usage_notes": [
+    "Replace placeholder values (chat_id, webhook_url, tokens) with actual credentials",
+    "Test destinations using the send_test_message function before creating automations",
+    "Start with simple automations and gradually add complexity",
+    "Monitor execution logs in the automation_run table",
+    "Use webhook.site for testing webhook deliveries",
+    "Adjust schedule_config based on your timezone and needs",
+    "Consider API rate limits when setting interval_minutes",
+    "Review threshold values based on your actual campaign performance"
+  ]
+}

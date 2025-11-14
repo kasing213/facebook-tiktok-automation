@@ -27,12 +27,22 @@ class UserRepository(BaseRepository[User]):
             filters["is_active"] = True
         return self.find_by(**filters)
 
+    def get_by_username(self, tenant_id: UUID, username: str) -> Optional[User]:
+        """Get user by tenant and username"""
+        return self.find_one_by(tenant_id=tenant_id, username=username)
+
+    def get_by_username_global(self, username: str) -> Optional[User]:
+        """Get user by username across all tenants (for login)"""
+        return self.db.query(User).filter(User.username == username).first()
+
     def create_user(
         self,
         tenant_id: UUID,
         telegram_user_id: str = None,
         email: str = None,
         username: str = None,
+        password_hash: str = None,
+        email_verified: bool = False,
         role: UserRole = UserRole.user
     ) -> User:
         """Create a new user with validation"""
@@ -42,11 +52,16 @@ class UserRepository(BaseRepository[User]):
         if email and self.get_by_email(tenant_id, email):
             raise ValueError(f"User with email '{email}' already exists in this tenant")
 
+        if username and self.get_by_username(tenant_id, username):
+            raise ValueError(f"User with username '{username}' already exists in this tenant")
+
         return self.create(
             tenant_id=tenant_id,
             telegram_user_id=telegram_user_id,
             email=email,
             username=username,
+            password_hash=password_hash,
+            email_verified=email_verified,
             role=role,
             is_active=True
         )
@@ -59,3 +74,7 @@ class UserRepository(BaseRepository[User]):
     def get_admins(self, tenant_id: UUID) -> List[User]:
         """Get all admin users for a tenant"""
         return self.find_by(tenant_id=tenant_id, role=UserRole.admin, is_active=True)
+
+    def update_password(self, user_id: UUID, password_hash: str) -> Optional[User]:
+        """Update user's password hash"""
+        return self.update(user_id, password_hash=password_hash)

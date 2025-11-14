@@ -23,13 +23,7 @@ export interface AuthStatus {
   tiktok?: PlatformStatus
 }
 
-export interface OAuthResult {
-  status: string
-  platform: 'facebook' | 'tiktok'
-  tenant_id: string
-  token_id: string
-  expires_at: string | null
-}
+// OAuthResult interface removed - OAuth now redirects directly to dashboard
 
 export interface Tenant {
   id: string

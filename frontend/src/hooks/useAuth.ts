@@ -1,6 +1,17 @@
+import axios from 'axios'
 import { useState, useEffect, useCallback } from 'react'
 import { authService } from '../services/api'
 import { AuthStatus, Tenant } from '../types/auth'
+
+const DEMO_TENANTS: Tenant[] = [
+  {
+    id: 'demo-tenant',
+    name: 'Demo Organization',
+    slug: 'demo-organization',
+    is_active: true,
+    created_at: '2024-01-01T00:00:00.000Z'
+  }
+]
 
 export const useAuth = (tenantId: string | null) => {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
@@ -14,7 +25,8 @@ export const useAuth = (tenantId: string | null) => {
     setError(null)
 
     try {
-      const status = await authService.getAuthStatus(tenantId)
+      // Use the main API endpoint which provides proper data format
+      const status = await authService.getTenantAuthStatus(tenantId)
       setAuthStatus(status)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch auth status'
@@ -54,8 +66,19 @@ export const useTenants = () => {
       const tenantsData = await authService.getTenants()
       setTenants(tenantsData)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch tenants'
-      setError(errorMessage)
+      if (axios.isAxiosError(err)) {
+        if (!err.response) {
+          setTenants(DEMO_TENANTS)
+          setError('Backend API is unreachable. Using demo organization data until the server is available.')
+        } else if (err.response.status === 404) {
+          setError('No tenants found. Create an organization in the backend to continue.')
+        } else {
+          const detail = (err.response.data as { detail?: string })?.detail
+          setError(detail || err.message || 'Failed to fetch tenants')
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch tenants')
+      }
       console.error('Error fetching tenants:', err)
     } finally {
       setLoading(false)

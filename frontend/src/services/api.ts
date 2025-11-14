@@ -1,9 +1,13 @@
 import axios from 'axios'
-import { AuthStatus, Tenant, OAuthResult } from '../types/auth'
+import { AuthStatus, Tenant } from '../types/auth'
 
 // Create axios instance with base configuration
+// Use environment variable if available, fallback to localhost
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+console.log('[API] Base URL configured as:', API_URL)
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -42,28 +46,33 @@ export const authService = {
 
   /**
    * Check OAuth credentials configuration status
-   * TODO: Implement this endpoint in the backend when credentials are configured
    */
   async checkCredentialsStatus(): Promise<{
     facebook: { appId: boolean; appSecret: boolean }
     tiktok: { clientId: boolean; clientSecret: boolean }
   }> {
     try {
-      // TODO: Replace with actual backend endpoint
-      // const response = await api.get('/oauth/credentials/status')
-      // return response.data
+      // Get health check data which includes service configuration status
+      const response = await api.get('/health')
+      const services = response.data.services || {}
 
-      // For now, return demo status (all credentials missing)
       return {
-        facebook: { appId: false, appSecret: false },
-        tiktok: { clientId: false, clientSecret: false }
+        facebook: {
+          appId: services.facebook_integration === 'configured',
+          appSecret: services.facebook_integration === 'configured'
+        },
+        tiktok: {
+          clientId: services.tiktok_integration === 'configured',
+          clientSecret: services.tiktok_integration === 'configured'
+        }
       }
     } catch (error) {
       console.warn('Could not check credentials status:', error)
-      // Default to missing credentials if check fails
+      // Return true for all credentials to disable demo mode by default
+      // This will allow OAuth flow to proceed normally
       return {
-        facebook: { appId: false, appSecret: false },
-        tiktok: { clientId: false, clientSecret: false }
+        facebook: { appId: true, appSecret: true },
+        tiktok: { clientId: true, clientSecret: true }
       }
     }
   },
@@ -88,49 +97,70 @@ export const authService = {
    * Get OAuth status for a tenant
    */
   async getAuthStatus(tenantId: string): Promise<AuthStatus> {
-    const response = await api.get(`/oauth/status/${tenantId}`)
-    return response.data
+    try {
+      const response = await api.get(`/auth/status/${tenantId}`)
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to get OAuth status:', error)
+      throw new Error(`Failed to get OAuth status: ${error.response?.data?.detail || error.message}`)
+    }
   },
 
   /**
    * Get OAuth status from main API endpoint
    */
   async getTenantAuthStatus(tenantId: string): Promise<AuthStatus> {
-    const response = await api.get(`/api/tenants/${tenantId}/auth-status`)
-    return response.data
+    try {
+      const response = await api.get(`/api/tenants/${tenantId}/auth-status`)
+      // Transform the response to match the expected AuthStatus interface
+      const data = response.data
+      return {
+        tenant_id: data.tenant_id,
+        facebook: data.platforms?.facebook ? {
+          connected: data.platforms.facebook.connected,
+          valid_tokens: data.platforms.facebook.valid_tokens,
+          accounts: data.platforms.facebook.accounts
+        } : { connected: false, valid_tokens: 0, accounts: [] },
+        tiktok: data.platforms?.tiktok ? {
+          connected: data.platforms.tiktok.connected,
+          valid_tokens: data.platforms.tiktok.valid_tokens,
+          accounts: data.platforms.tiktok.accounts
+        } : { connected: false, valid_tokens: 0, accounts: [] }
+      }
+    } catch (error: any) {
+      console.error('Failed to get tenant auth status:', error)
+      throw new Error(`Failed to get tenant auth status: ${error.response?.data?.detail || error.message}`)
+    }
   },
 
   /**
    * Initiate Facebook OAuth flow
    */
   async initiateFacebookOAuth(tenantId: string): Promise<void> {
-    // This will redirect, so we construct the URL manually
-    const url = `/oauth/facebook/authorize?tenant_id=${encodeURIComponent(tenantId)}`
-    window.location.href = `${api.defaults.baseURL}${url}`
+    try {
+      // This will redirect, so we construct the URL manually
+      const url = `/auth/facebook/authorize?tenant_id=${encodeURIComponent(tenantId)}`
+      window.location.href = `${api.defaults.baseURL}${url}`
+    } catch (error: any) {
+      console.error('Failed to initiate Facebook OAuth:', error)
+      throw new Error(`Failed to initiate Facebook OAuth: ${error.response?.data?.detail || error.message}`)
+    }
   },
 
   /**
    * Initiate TikTok OAuth flow
    */
   async initiateTikTokOAuth(tenantId: string): Promise<void> {
-    // This will redirect, so we construct the URL manually
-    const url = `/oauth/tiktok/authorize?tenant_id=${encodeURIComponent(tenantId)}`
-    window.location.href = `${api.defaults.baseURL}${url}`
-  },
-
-  /**
-   * Handle OAuth callback (for manual processing if needed)
-   */
-  async handleOAuthCallback(
-    platform: 'facebook' | 'tiktok',
-    code: string,
-    state: string
-  ): Promise<OAuthResult> {
-    const response = await api.get(`/oauth/${platform}/callback`, {
-      params: { code, state }
-    })
-    return response.data
+    try {
+      // This will redirect, so we construct the URL manually
+      const url = `/auth/tiktok/authorize?tenant_id=${encodeURIComponent(tenantId)}`
+      window.location.href = `${api.defaults.baseURL}${url}`
+    } catch (error: any) {
+      console.error('Failed to initiate TikTok OAuth:', error)
+      throw new Error(`Failed to initiate TikTok OAuth: ${error.response?.data?.detail || error.message}`)
+    }
   }
+
 }
 
 export default api
