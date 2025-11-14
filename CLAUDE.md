@@ -278,6 +278,7 @@ CLEANUP_INTERVAL=86400          # Run cleanup daily
 - **Authentication**: ✅ Username/password + JWT + OAuth
 - **Webhooks**: ✅ Configured and ready for events
 - **Automation Scheduler**: ✅ Running and executing automations
+- **Railway Deployment**: ⚠️ Build successful, needs environment variables - See [RAILWAY_DEPLOYMENT.md](RAILWAY_DEPLOYMENT.md)
 
 ## Next Steps & Improvements
 
