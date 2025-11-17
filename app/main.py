@@ -99,10 +99,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware for development
+# Add CORS middleware
+# Allow localhost for development and production domains from environment
+settings = get_settings()
+allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+# Add frontend URL from environment if configured
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in allowed_origins:
+    allowed_origins.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React dev server
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -160,7 +170,7 @@ def health_check(settings: SettingsDep):
 def create_tenant(request: CreateTenantRequest, tenant_service: TenantSvc):
     """Create a new tenant"""
     try:
-        tenant = tenant_service.create_tenant(
+        tenant, admin_user = tenant_service.create_tenant_with_admin(
             name=request.name,
             slug=request.slug,
             admin_telegram_id=request.admin_telegram_id,
@@ -217,17 +227,33 @@ def get_tenant(tenant_id: str, tenant_service: TenantSvc):
 
 # Authentication status endpoint
 @app.get("/api/tenants/{tenant_id}/auth-status", tags=["authentication"])
-def get_auth_status(tenant_id: str, auth_service: AuthSvc):
-    """Get authentication status for a tenant"""
+def get_auth_status(tenant_id: str, auth_service: AuthSvc, tenant_service: TenantSvc):
+    """Get authentication status for a tenant (accepts UUID or slug)"""
     from app.core.models import Platform
+    from uuid import UUID
+
+    # Try to resolve tenant_id (could be UUID or slug)
+    try:
+        # First try as UUID
+        tenant_uuid = UUID(tenant_id)
+        tenant = tenant_service.get_tenant_by_id(tenant_uuid)
+    except ValueError:
+        # If not a valid UUID, try as slug
+        tenant = tenant_service.get_tenant_by_slug(tenant_id)
+        if not tenant:
+            raise HTTPException(status_code=404, detail=f"Tenant not found: {tenant_id}")
+        tenant_uuid = tenant.id
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail=f"Tenant not found: {tenant_id}")
 
     platforms = {
-        Platform.facebook: auth_service.get_tenant_tokens(tenant_id, Platform.facebook),
-        Platform.tiktok: auth_service.get_tenant_tokens(tenant_id, Platform.tiktok),
+        Platform.facebook: auth_service.get_tenant_tokens(str(tenant_uuid), Platform.facebook),
+        Platform.tiktok: auth_service.get_tenant_tokens(str(tenant_uuid), Platform.tiktok),
     }
 
     return {
-        "tenant_id": tenant_id,
+        "tenant_id": str(tenant_uuid),
         "platforms": {
             platform.value: {
                 "connected": len(tokens) > 0,
