@@ -164,7 +164,7 @@ export const authService = {
   /**
    * Handle OAuth callback (mock implementation - actual OAuth is handled by backend redirect)
    */
-  async handleOAuthCallback(platform: string, code: string, state: string): Promise<any> {
+  async handleOAuthCallback(platform: string, _code: string, _state: string): Promise<any> {
     try {
       // The backend already handles the OAuth callback and redirects
       // This is a placeholder for any frontend processing needed

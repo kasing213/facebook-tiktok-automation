@@ -28,6 +28,9 @@ export interface OAuthResult {
   platform: string
   message?: string
   error?: string
+  tenant_id?: string
+  token_id?: string
+  expires_at?: string
 }
 
 export interface Tenant {
