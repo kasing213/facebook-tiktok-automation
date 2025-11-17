@@ -159,6 +159,24 @@ export const authService = {
       console.error('Failed to initiate TikTok OAuth:', error)
       throw new Error(`Failed to initiate TikTok OAuth: ${error.response?.data?.detail || error.message}`)
     }
+  },
+
+  /**
+   * Handle OAuth callback (mock implementation - actual OAuth is handled by backend redirect)
+   */
+  async handleOAuthCallback(platform: string, code: string, state: string): Promise<any> {
+    try {
+      // The backend already handles the OAuth callback and redirects
+      // This is a placeholder for any frontend processing needed
+      return {
+        success: true,
+        platform,
+        message: `${platform} OAuth completed successfully`
+      }
+    } catch (error: any) {
+      console.error('Failed to handle OAuth callback:', error)
+      throw new Error(`Failed to handle OAuth callback: ${error.response?.data?.detail || error.message}`)
+    }
   }
 
 }

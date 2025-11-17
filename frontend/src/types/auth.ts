@@ -23,7 +23,12 @@ export interface AuthStatus {
   tiktok?: PlatformStatus
 }
 
-// OAuthResult interface removed - OAuth now redirects directly to dashboard
+export interface OAuthResult {
+  success: boolean
+  platform: string
+  message?: string
+  error?: string
+}
 
 export interface Tenant {
   id: string
