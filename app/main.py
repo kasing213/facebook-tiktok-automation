@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.deps import get_logger, get_settings_dep, SettingsDep, TenantSvc, AuthSvc
 from app.core.config import get_settings
 from app.core.db import init_db, dispose_engine
+from app.core.monitoring import collect_monitoring_snapshot, log_monitoring_snapshot
 from app.routes import oauth_router
 from app.routes.webhooks import router as webhook_router
 from app.routes.auth import router as auth_router
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
     # Initialize database and validate schema
     init_db()
     log.info("🚀 FB/TikTok Automation API started (env=%s)", s.ENV)
+    log_monitoring_snapshot(log, collect_monitoring_snapshot(s), context="startup")
 
     # Start background tasks
     token_refresh_task = None
@@ -140,16 +142,17 @@ def root():
 @app.get("/health", tags=["system"])
 def health_check(settings: SettingsDep):
     """System health check endpoint"""
+    snapshot = collect_monitoring_snapshot(settings)
+
+    if settings.ENV == "dev":
+        log_monitoring_snapshot(get_logger(), snapshot, context="health")
+
     return {
-        "status": "healthy",
+        "status": snapshot["overall_status"],
         "environment": settings.ENV,
         "version": "0.2.0",
-        "services": {
-            "database": "connected",
-            "telegram_bot": "configured" if settings.TELEGRAM_BOT_TOKEN else "not_configured",
-            "facebook_integration": "configured" if settings.FB_APP_ID else "not_configured",
-            "tiktok_integration": "configured" if settings.TIKTOK_CLIENT_KEY else "not_configured",
-        }
+        "timestamp": snapshot["timestamp"],
+        "services": snapshot["services"],
     }
 
 # Tenant management endpoints
