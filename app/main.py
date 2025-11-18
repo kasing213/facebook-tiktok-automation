@@ -108,7 +108,7 @@ allowed_origins = [
 ]
 # Add frontend URL from environment if configured
 if settings.FRONTEND_URL:
-    frontend_url = str(settings.FRONTEND_URL).strip()
+    frontend_url = str(settings.FRONTEND_URL).strip().rstrip('/')
     if frontend_url not in allowed_origins:
         allowed_origins.append(frontend_url)
     print(f"[CORS] Frontend URL loaded: {frontend_url}")
