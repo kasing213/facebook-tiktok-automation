@@ -133,6 +133,13 @@ app.include_router(webhook_router)
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")
 
+# TikTok verification file endpoint
+@app.get("/tiktokfIJT8p1JssnSfzGv35JP2RYDl3O7u5q0.txt", tags=["system"])
+def tiktok_verification():
+    """TikTok domain verification file"""
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("tiktok-developers-site-verification=fIJT8p1JssnSfzGv35JP2RYDl3O7u5q0")
+
 # Root endpoint
 @app.get("/", tags=["system"])
 def root():
