@@ -107,8 +107,15 @@ allowed_origins = [
     "http://127.0.0.1:3000",
 ]
 # Add frontend URL from environment if configured
-if settings.FRONTEND_URL and settings.FRONTEND_URL not in allowed_origins:
-    allowed_origins.append(settings.FRONTEND_URL)
+if settings.FRONTEND_URL:
+    frontend_url = settings.FRONTEND_URL.strip()
+    if frontend_url not in allowed_origins:
+        allowed_origins.append(frontend_url)
+    print(f"[CORS] Frontend URL loaded: {frontend_url}")
+else:
+    print("[CORS] WARNING: FRONTEND_URL not set in environment!")
+
+print(f"[CORS] Allowed origins: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,
