@@ -150,10 +150,11 @@ def oauth_status(
             "facebook": {
                 "connected": len(facebook_tokens) > 0,
                 "valid_tokens": len([t for t in facebook_tokens if t.is_valid]),
-                "tokens": [
+                "accounts": [
                     {
                         "id": str(token.id),
                         "account_ref": token.account_ref,
+                        "account_name": token.account_name,
                         "is_valid": token.is_valid,
                         "expires_at": token.expires_at.isoformat() if token.expires_at else None
                     }
@@ -163,10 +164,11 @@ def oauth_status(
             "tiktok": {
                 "connected": len(tiktok_tokens) > 0,
                 "valid_tokens": len([t for t in tiktok_tokens if t.is_valid]),
-                "tokens": [
+                "accounts": [
                     {
                         "id": str(token.id),
                         "account_ref": token.account_ref,
+                        "account_name": token.account_name,
                         "is_valid": token.is_valid,
                         "expires_at": token.expires_at.isoformat() if token.expires_at else None
                     }
