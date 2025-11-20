@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 import { authService } from '../services/api'
+import { getDefaultTenant } from '../services/tenant'
 
 // Modern register page based on Figma design
 // Colors: Light blue (#91DDFF to #769EAD gradient), White background
@@ -266,9 +267,23 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [tenantId, setTenantId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Get default tenant on component mount
+  useEffect(() => {
+    const fetchTenant = async () => {
+      try {
+        const defaultTenantId = await getDefaultTenant()
+        setTenantId(defaultTenantId)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load organization')
+      }
+    }
+    fetchTenant()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -276,6 +291,16 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
     setSuccess(null)
 
     // Validation
+    if (!tenantId) {
+      setError('Organization not loaded. Please refresh the page.')
+      return
+    }
+
+    if (!email) {
+      setError('Email is required')
+      return
+    }
+
     if (!username || !password) {
       setError('Username and password are required')
       return
@@ -286,12 +311,12 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
       return
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long')
       return
     }
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Please enter a valid email address')
       return
     }
@@ -299,9 +324,10 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
     setLoading(true)
     try {
       await authService.register({
+        tenant_id: tenantId,
         username,
         password,
-        email: email || undefined
+        email
       })
       setSuccess('Account created successfully! Redirecting to login...')
       // Redirect to login after 2 seconds
@@ -337,10 +363,11 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
               </InputIcon>
               <Input
                 type="email"
-                placeholder="Email (optional)"
+                placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
+                required
               />
             </InputWithIcon>
           </InputGroup>
