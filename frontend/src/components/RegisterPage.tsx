@@ -298,7 +298,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
 
     setLoading(true)
     try {
-      const response = await authService.register({
+      await authService.register({
         username,
         password,
         email: email || undefined
