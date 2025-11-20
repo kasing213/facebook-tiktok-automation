@@ -6,30 +6,43 @@
 **Problem:** Frontend couldn't connect to backend
 **Cause:** Vercel was trying to reach `http://localhost:8000` instead of Railway
 **Fix:** Created `frontend/.env.production` with Railway URL
-**Status:** 🔄 Deploying to Vercel now (triggered by git push)
+**Status:** ✅ FIXED - Vercel deployed
 
-### Issue 2: OAuth Buttons Not Clickable ❌ → ⏳
+### Issue 2: Backend bcrypt Library Error ❌ → ✅
+**Problem:** 500 Internal Server Error on registration
+**Error:** `ValueError: password cannot be longer than 72 bytes` from passlib/bcrypt incompatibility
+**Cause:** Outdated passlib library (1.7.4) incompatible with newer bcrypt versions
+**Fix:** Replaced passlib with bcrypt 4.1.2, updated security.py to use bcrypt directly
+**Status:** 🔄 Railway redeploying now (triggered by git push)
+
+### Issue 3: OAuth Buttons Not Clickable ❌ → ⏳
 **Problem:** Facebook/TikTok buttons not working
-**Cause:** Same as Issue 1 - backend not reachable
-**Status:** Will work after Vercel redeploys with new environment variable
+**Cause:** Backend not reachable (Issue 1)
+**Status:** Should work after Railway finishes redeploying
 
-### Issue 3: Supabase Tenant Creation ✅
+### Issue 4: Supabase Tenant Creation ✅
 **Problem:** SQL error "null value in column 'id'"
 **Fix:** Added `gen_random_uuid()` to generate UUID
-**Status:** ✅ FIXED - You ran the SQL and it created tenant successfully
+**Status:** ✅ FIXED - Tenant created successfully
 **Tenant ID:** `1bdbca28-46a1-4102-8686-a6e93ecd9052`
 
 ---
 
 ## 🚀 What's Happening Now
 
-### Vercel Deployment in Progress
-Vercel is rebuilding your frontend with the new configuration:
-- File added: `frontend/.env.production`
-- Contains: `VITE_API_URL=https://web-production-3ed15.up.railway.app`
-- This tells frontend where to find the backend
+### Railway Backend Redeploying 🔄
+Railway is rebuilding your backend with the bcrypt fix:
+- Removed: `passlib[bcrypt]==1.7.4`
+- Added: `bcrypt==4.1.2`
+- Updated: `app/core/security.py` to use bcrypt directly
+- This fixes the 500 error on registration
 
-**Wait Time:** ~2-3 minutes for Vercel to build and deploy
+**Wait Time:** ~3-5 minutes for Railway to build and deploy
+
+### Vercel Frontend Already Deployed ✅
+- Frontend can now reach backend at Railway URL
+- Environment variable `VITE_API_URL` is configured
+- Ready to test once Railway finishes
 
 ---
 
