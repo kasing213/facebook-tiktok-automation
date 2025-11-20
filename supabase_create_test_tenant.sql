@@ -17,8 +17,9 @@ SELECT COUNT(*) as tenant_count FROM tenant;
 
 -- Step 3: Create a test tenant if none exists
 -- This will be the default tenant for user registration
-INSERT INTO tenant (name, slug, is_active, settings, created_at, updated_at)
+INSERT INTO tenant (id, name, slug, is_active, settings, created_at, updated_at)
 SELECT
+    gen_random_uuid(),  -- Generate UUID for id
     'Test Organization',
     'test-org',
     true,
