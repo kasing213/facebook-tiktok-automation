@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { AuthStatus, Tenant } from '../types/auth'
+import { AuthStatus, Tenant, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, User } from '../types/auth'
 
 // Create axios instance with base configuration
 // Use environment variable if available, fallback to localhost
@@ -17,7 +17,11 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // Add any auth tokens or headers here if needed
+    // Add JWT token to requests if available
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   (error) => {
@@ -177,6 +181,74 @@ export const authService = {
       console.error('Failed to handle OAuth callback:', error)
       throw new Error(`Failed to handle OAuth callback: ${error.response?.data?.detail || error.message}`)
     }
+  },
+
+  /**
+   * Login with username and password
+   */
+  async login(credentials: LoginRequest): Promise<LoginResponse> {
+    try {
+      // Backend expects form data for OAuth2 password flow
+      const formData = new URLSearchParams()
+      formData.append('username', credentials.username)
+      formData.append('password', credentials.password)
+
+      const response = await api.post('/auth/login', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      })
+
+      // Store token in localStorage
+      if (response.data.access_token) {
+        localStorage.setItem('access_token', response.data.access_token)
+      }
+
+      return response.data
+    } catch (error: any) {
+      console.error('Login failed:', error)
+      throw new Error(`Login failed: ${error.response?.data?.detail || error.message}`)
+    }
+  },
+
+  /**
+   * Register a new user
+   */
+  async register(userData: RegisterRequest): Promise<RegisterResponse> {
+    try {
+      const response = await api.post('/auth/register', userData)
+      return response.data
+    } catch (error: any) {
+      console.error('Registration failed:', error)
+      throw new Error(`Registration failed: ${error.response?.data?.detail || error.message}`)
+    }
+  },
+
+  /**
+   * Get current user information
+   */
+  async getCurrentUser(): Promise<User> {
+    try {
+      const response = await api.get('/auth/me')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to get current user:', error)
+      throw new Error(`Failed to get current user: ${error.response?.data?.detail || error.message}`)
+    }
+  },
+
+  /**
+   * Logout - clear stored token
+   */
+  logout() {
+    localStorage.removeItem('access_token')
+  },
+
+  /**
+   * Check if user is authenticated
+   */
+  isAuthenticated(): boolean {
+    return !!localStorage.getItem('access_token')
   }
 
 }

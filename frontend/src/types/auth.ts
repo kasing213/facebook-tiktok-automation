@@ -40,3 +40,43 @@ export interface Tenant {
   is_active: boolean
   created_at: string
 }
+
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface LoginResponse {
+  access_token: string
+  token_type: string
+  user?: {
+    id: string
+    username: string
+    email?: string
+    tenant_id: string
+  }
+}
+
+export interface RegisterRequest {
+  email?: string
+  username: string
+  password: string
+  tenant_id?: string
+}
+
+export interface RegisterResponse {
+  id: string
+  username: string
+  email?: string
+  tenant_id: string
+  message?: string
+}
+
+export interface User {
+  id: string
+  username: string
+  email?: string
+  tenant_id: string
+  role: string
+  is_active: boolean
+}
