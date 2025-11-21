@@ -297,8 +297,12 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
     setLoading(true)
     try {
       await authService.login({ username, password })
-      // Redirect to dashboard on successful login
-      navigate('/dashboard')
+      // Get user info to extract tenant_id
+      const user = await authService.getCurrentUser()
+      // Redirect to dashboard with tenant_id
+      navigate('/dashboard', {
+        state: { tenantId: user.tenant_id }
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
