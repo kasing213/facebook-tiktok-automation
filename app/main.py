@@ -206,6 +206,38 @@ def create_tenant(request: CreateTenantRequest, tenant_service: TenantSvc):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to create tenant")
 
+@app.get("/api/tenants/default", tags=["tenants"])
+def get_default_tenant(tenant_service: TenantSvc):
+    """Get or create a default tenant for registration"""
+    tenants = tenant_service.get_active_tenants()
+
+    # If we have tenants, return the first one
+    if tenants:
+        tenant = tenants[0]
+        return {
+            "id": str(tenant.id),
+            "name": tenant.name,
+            "slug": tenant.slug,
+        }
+
+    # If no tenants exist, create a default one
+    try:
+        tenant, _ = tenant_service.create_tenant_with_admin(
+            name="Default Organization",
+            slug="default",
+            admin_telegram_id=None,
+            admin_email="admin@example.com",
+            admin_username="defaultadmin",
+            settings={}
+        )
+        return {
+            "id": str(tenant.id),
+            "name": tenant.name,
+            "slug": tenant.slug,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create default tenant: {str(e)}")
+
 @app.get("/api/tenants", tags=["tenants"])
 def list_tenants(tenant_service: TenantSvc):
     """List all active tenants"""

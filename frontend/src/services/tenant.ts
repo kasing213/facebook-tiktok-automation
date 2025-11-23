@@ -3,21 +3,18 @@ import { Tenant } from '../types/auth'
 
 /**
  * Get or create a default tenant for user registration
- * This is a temporary solution until we implement proper tenant selection
+ * This will automatically create a default tenant if none exists
  */
 export const getDefaultTenant = async (): Promise<string> => {
   try {
-    // Try to get list of tenants
-    const response = await api.get<Tenant[]>('/api/tenants')
+    // Use the new default tenant endpoint that auto-creates if needed
+    const response = await api.get<{ id: string; name: string; slug: string }>('/api/tenants/default')
 
-    // If we have tenants, return the first one
-    if (response.data && response.data.length > 0) {
-      return response.data[0].id
+    if (response.data && response.data.id) {
+      return response.data.id
     }
 
-    // If no tenants exist, we need to create one
-    // For now, we'll throw an error as tenant creation should be done via admin
-    throw new Error('No tenants available. Please contact administrator.')
+    throw new Error('Failed to get default tenant ID')
 
   } catch (error) {
     console.error('Failed to get default tenant:', error)
