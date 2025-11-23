@@ -11,7 +11,7 @@ import json
 from datetime import datetime
 from sqlalchemy import select, delete
 from app.core.config import get_settings
-from app.core.db import get_session
+from app.core.db import get_db_session
 from app.core.models import AdToken, Platform
 import logging
 
@@ -107,17 +107,20 @@ async def facebook_data_deletion(request: Request):
         logger.info(f"Data deletion request for Facebook user: {user_id}")
 
         # Delete user's Facebook data from database
-        async with get_session() as session:
+        db = next(get_db_session())
+        try:
             # Delete all Facebook tokens for this user
             stmt = delete(AdToken).where(
                 AdToken.platform == Platform.facebook,
                 AdToken.account_ref == user_id
             )
-            result = await session.execute(stmt)
+            result = db.execute(stmt)
             deleted_count = result.rowcount
-            await session.commit()
+            db.commit()
 
             logger.info(f"Deleted {deleted_count} Facebook tokens for user {user_id}")
+        finally:
+            db.close()
 
         # Generate confirmation code
         confirmation_code = f"fb_{user_id}_{int(datetime.utcnow().timestamp())}"
