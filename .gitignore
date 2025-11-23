@@ -50,3 +50,4 @@ setup_*.sh
 setup_*.py
 test_db_connection.py
 validate_config.py
+.vercel

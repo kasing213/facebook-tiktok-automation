@@ -17,16 +17,21 @@ This guide covers the complete user workflow from registration to connecting Fac
 #### Facebook Scopes
 **Current Configuration** (in Railway):
 ```
-FB_SCOPES=public_profile,user_friends
+FB_SCOPES=public_profile
 ```
 
 **Scope Breakdown**:
-- ✅ `public_profile` - Access to user ID, name, profile picture (NO review needed - DEFAULT)
-- ✅ `user_friends` - Access to user's friends list (NO review needed)
+- ✅ `public_profile` - Access to user ID, name, profile picture (ONLY scope that works without review)
 
-**Important**: Facebook OAuth requires **at least 2 scopes**. Using just `public_profile` will show "app needs at least one supported permission" error.
+**Important Changes in 2024**:
+- `email`, `user_friends`, `pages_read_engagement` ALL require app review now
+- ONLY `public_profile` works without review for regular users
+- `pages_show_list` is deprecated
 
-**Note**: As of 2024, `pages_read_engagement`, `email`, and other advanced scopes require app review. `pages_show_list` is deprecated.
+**For Testing as Admin/Developer**:
+- You are added as Administrator in the App Dashboard
+- As admin, you can test with ANY scope without app review
+- For screencast/full testing, use: `public_profile,pages_read_engagement,pages_manage_posts`
 
 **For Testing with Test Users**:
 - Test users can use ALL scopes without app review

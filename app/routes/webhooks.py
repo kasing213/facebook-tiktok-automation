@@ -50,7 +50,7 @@ async def facebook_webhook_verify(
     # Facebook sends these parameters for verification
     if hub_mode == "subscribe":
         # Verify the token matches what we configured
-        expected_token = settings.FACEBOOK_WEBHOOK_VERIFY_TOKEN
+        expected_token = settings.FACEBOOK_WEBHOOK_VERIFY_TOKEN.get_secret_value()
         if hub_verify_token == expected_token:
             logger.info("Facebook webhook verification successful")
             # Respond with the challenge to complete verification
@@ -92,7 +92,7 @@ async def facebook_webhook_event(
     body_str = body_bytes.decode('utf-8')
 
     # Verify the request signature
-    if not verify_facebook_signature(body_bytes, x_hub_signature_256, settings.FB_APP_SECRET):
+    if not verify_facebook_signature(body_bytes, x_hub_signature_256, settings.FB_APP_SECRET.get_secret_value()):
         logger.error("Facebook webhook signature verification failed")
         raise HTTPException(status_code=403, detail="Invalid signature")
 
@@ -264,7 +264,7 @@ async def tiktok_webhook_event(
 
     # Verify the request signature (if TikTok provides one)
     if x_tiktok_signature:
-        if not verify_tiktok_signature(body_bytes, x_tiktok_signature, settings.TIKTOK_CLIENT_SECRET):
+        if not verify_tiktok_signature(body_bytes, x_tiktok_signature, settings.TIKTOK_CLIENT_SECRET.get_secret_value()):
             logger.error("TikTok webhook signature verification failed")
             raise HTTPException(status_code=403, detail="Invalid signature")
 
