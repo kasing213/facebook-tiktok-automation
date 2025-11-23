@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 const DataDeletion = () => {
-  const [confirmationUrl, setConfirmationUrl] = useState('')
+  // Confirmation URL would be set by backend callback - leaving as placeholder
+  const confirmationUrl = ''
 
   return (
     <div style={{
