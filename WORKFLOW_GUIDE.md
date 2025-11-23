@@ -15,15 +15,15 @@ This guide covers the complete user workflow from registration to connecting Fac
 ### 2. OAuth Scopes for Testing (Before App Review)
 
 #### Facebook Scopes
-**Current Configuration** (in `.env`):
+**Current Configuration** (in Railway):
 ```
-FB_SCOPES=public_profile,email,pages_show_list
+FB_SCOPES=public_profile
 ```
 
 **Scope Breakdown**:
-- ✅ `public_profile` - Access to user ID, name, profile picture (NO review needed)
-- ✅ `email` - Access to user email (NO review needed)
-- ✅ `pages_show_list` - List pages the user manages (Limited review needed)
+- ✅ `public_profile` - Access to user ID, name, profile picture (NO review needed - DEFAULT)
+
+**Note**: As of 2024, Facebook now requires app review for `email` and deprecated `pages_show_list`. The basic `public_profile` scope works without review.
 
 **For Testing with Test Users**:
 - Test users can use ALL scopes without app review
