@@ -2,9 +2,11 @@ import axios from 'axios'
 import { AuthStatus, Tenant, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, User } from '../types/auth'
 
 // Create axios instance with base configuration
-// Use environment variable if available, fallback to localhost
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Use environment variable if available, fallback to production backend
+const API_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://web-production-3ed15.up.railway.app' : 'http://localhost:8000')
 console.log('[API] Base URL configured as:', API_URL)
+console.log('[API] Environment:', import.meta.env.MODE)
 
 const api = axios.create({
   baseURL: API_URL,

@@ -277,8 +277,10 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
     const fetchTenant = async () => {
       try {
         const defaultTenantId = await getDefaultTenant()
+        console.log('[RegisterPage] Received tenant ID:', defaultTenantId)
         setTenantId(defaultTenantId)
       } catch (err) {
+        console.error('[RegisterPage] Failed to get tenant:', err)
         setError(err instanceof Error ? err.message : 'Failed to load organization')
       }
     }
