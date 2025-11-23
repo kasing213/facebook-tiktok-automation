@@ -12,6 +12,16 @@ https://facebooktiktokautomation.vercel.app/privacy-policy
 https://facebooktiktokautomation.vercel.app/terms-of-service
 ```
 
+### User Data Deletion Callback URL (REQUIRED for App Review)
+```
+https://web-production-3ed15.up.railway.app/data-deletion/facebook
+```
+
+### Data Deletion Instructions URL
+```
+https://facebooktiktokautomation.vercel.app/data-deletion
+```
+
 ### App Domain
 ```
 facebooktiktokautomation.vercel.app

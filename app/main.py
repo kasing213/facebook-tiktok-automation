@@ -12,6 +12,7 @@ from app.core.monitoring import collect_monitoring_snapshot, log_monitoring_snap
 from app.routes import oauth_router
 from app.routes.webhooks import router as webhook_router
 from app.routes.auth import router as auth_router
+from app.routes.data_deletion import router as data_deletion_router
 
 
 # Request/Response models
@@ -129,6 +130,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(oauth_router)
 app.include_router(webhook_router)
+app.include_router(data_deletion_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")

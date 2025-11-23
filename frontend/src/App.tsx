@@ -6,6 +6,7 @@ import OAuthLoginPage from './components/OAuthLoginPage'
 import Dashboard from './components/Dashboard'
 import PrivacyPolicy from './components/PrivacyPolicy'
 import TermsOfService from './components/TermsOfService'
+import DataDeletion from './components/DataDeletion'
 import { authService } from './services/api'
 
 // Protected Route component
@@ -25,6 +26,7 @@ function App() {
         <Route path="/oauth" element={<OAuthLoginPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-of-service" element={<TermsOfService />} />
+        <Route path="/data-deletion" element={<DataDeletion />} />
 
         {/* Protected routes */}
         <Route
