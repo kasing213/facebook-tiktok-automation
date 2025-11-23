@@ -1,5 +1,4 @@
 import api from './api'
-import { Tenant } from '../types/auth'
 
 /**
  * Get or create a default tenant for user registration
