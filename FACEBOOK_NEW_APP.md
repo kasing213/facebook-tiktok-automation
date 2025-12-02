@@ -18,8 +18,13 @@
 - **Site URL**: `https://facebooktiktokautomation.vercel.app/`
 
 ### Scopes
-- **Current**: `public_profile` (only scope that works without Advanced Access)
-- **Future**: Will need to request Advanced Access for `email`, `pages_read_engagement`, `pages_manage_posts` for full features
+- **Use Case Selected**: "Create & manage ads" (Marketing API, Ads Management)
+- **Permissions Enabled**:
+  - ✅ `ads_read` - Read ad account data, campaigns, insights
+  - ✅ `pages_read_engagement` - Read page engagement metrics
+  - ✅ `email` - User email address
+- **Current Testing**: `FB_SCOPES=public_profile,ads_read,pages_read_engagement,email`
+- **Note**: These permissions are enabled through the "Use cases" feature in the new app structure
 
 ## Next Steps
 
