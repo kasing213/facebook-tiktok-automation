@@ -25,7 +25,7 @@ const DecorativeShape1 = styled.div`
   right: -100px;
   width: 340px;
   height: 245px;
-  background: #8CD6F7;
+  background: #4a90e2;
   border-radius: 26px;
   transform: rotate(-15deg);
   opacity: 0.8;
@@ -38,7 +38,7 @@ const DecorativeShape2 = styled.div`
   right: -150px;
   width: 320px;
   height: 239px;
-  background: #769EAD;
+  background: #2a5298;
   border-radius: 26px;
   transform: rotate(-15deg);
   opacity: 0.9;
@@ -148,7 +148,7 @@ const RegisterButton = styled.button`
   font-weight: 700;
   font-size: 16px;
   color: #FFFFFF;
-  background: linear-gradient(180deg, #8EDDFF 0%, #769DAD 100%);
+  background: linear-gradient(180deg, #4a90e2 0%, #2a5298 100%);
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0px 5px 7px rgba(0, 0, 0, 0.19);

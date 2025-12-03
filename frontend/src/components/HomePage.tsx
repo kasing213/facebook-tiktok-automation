@@ -6,7 +6,7 @@ const PageContainer = styled.div`
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e8ba3 100%);
 `
 
 const Header = styled.header`
@@ -47,7 +47,7 @@ const NavButton = styled.button<{ primary?: boolean }>`
   font-family: 'Roboto', sans-serif;
   font-size: 1rem;
   font-weight: 600;
-  color: ${props => props.primary ? '#667eea' : 'white'};
+  color: ${props => props.primary ? '#1e3c72' : 'white'};
   background: ${props => props.primary ? 'white' : 'transparent'};
   cursor: pointer;
   transition: all 0.3s ease;
@@ -144,7 +144,7 @@ const CTAButton = styled.button<{ primary?: boolean }>`
   font-family: 'Roboto', sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
-  color: ${props => props.primary ? '#667eea' : 'white'};
+  color: ${props => props.primary ? '#1e3c72' : 'white'};
   background: ${props => props.primary ? 'white' : 'transparent'};
   cursor: pointer;
   transition: all 0.3s ease;

@@ -24,7 +24,7 @@ const DecorativeShape1 = styled.div`
   left: -100px;
   width: 340px;
   height: 245px;
-  background: #8CD6F7;
+  background: #4a90e2;
   border-radius: 26px;
   transform: rotate(15deg);
   opacity: 0.8;
@@ -37,7 +37,7 @@ const DecorativeShape2 = styled.div`
   left: -150px;
   width: 320px;
   height: 239px;
-  background: #769EAD;
+  background: #2a5298;
   border-radius: 26px;
   transform: rotate(15deg);
   opacity: 0.9;
@@ -62,12 +62,12 @@ const Logo = styled.h1`
   font-family: 'Prime', 'Roboto', sans-serif;
   font-size: 80px;
   font-weight: 400;
-  background: linear-gradient(180deg, #91DDFF 0%, #7A9EAE 100%);
+  background: linear-gradient(180deg, #4a90e2 0%, #2a5298 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin: 0 0 3rem 0;
-  text-align: left;
+  text-align: center;
   line-height: 61px;
 `
 
@@ -175,7 +175,7 @@ const LoginButton = styled.button`
   font-weight: 700;
   font-size: 16px;
   color: #FFFFFF;
-  background: linear-gradient(180deg, #8EDDFF 0%, #769DAD 100%);
+  background: linear-gradient(180deg, #4a90e2 0%, #2a5298 100%);
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0px 5px 7px rgba(0, 0, 0, 0.19);
