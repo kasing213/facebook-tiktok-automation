@@ -40,7 +40,8 @@ EXCEPTION
   WHEN OTHERS THEN
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path = public;
 
 -- ============================================================================
 -- STEP 3: Create RLS Policies for TENANT table
@@ -234,7 +235,8 @@ RETURNS VOID AS $$
 BEGIN
   PERFORM set_config('app.current_tenant_id', p_tenant_id::text, false);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public;
 
 GRANT EXECUTE ON FUNCTION public.set_tenant_context(UUID) TO authenticated;
 
