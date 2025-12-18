@@ -2,102 +2,143 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-const PageContainer = styled.div`
+// OpenAI-style landing page with blue color scheme
+// Colors: #4a90e2 (light blue), #2a5298 (dark blue), #1e3c72 (deeper blue)
+
+const PageWrapper = styled.div`
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #7e8ba3 100%);
+  background: #ffffff;
 `
 
-const Header = styled.header`
-  padding: 1.5rem 3rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+const StickyHeader = styled.header`
+  position: sticky;
+  top: 0;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  z-index: 100;
+  padding: 1rem 2rem;
 
   @media (max-width: 768px) {
     padding: 1rem 1.5rem;
   }
 `
 
-const Logo = styled.h1`
-  font-family: 'Roboto', sans-serif;
-  font-size: 2rem;
-  font-weight: 700;
-  color: white;
-  margin: 0;
+const NavContainer = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 48px;
 `
 
-const Nav = styled.nav`
+const NavLogo = styled.h1`
+  font-family: 'Roboto', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(180deg, #4a90e2 0%, #2a5298 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+  cursor: pointer;
+`
+
+const NavCenter = styled.div`
   display: flex;
-  gap: 1.5rem;
+  gap: 2rem;
   align-items: center;
 
-  @media (max-width: 480px) {
-    gap: 1rem;
+  @media (max-width: 768px) {
+    display: none;
   }
 `
 
-const NavButton = styled.button<{ primary?: boolean }>`
-  padding: ${props => props.primary ? '0.75rem 2rem' : '0.75rem 1.5rem'};
-  border: ${props => props.primary ? 'none' : '2px solid white'};
-  border-radius: 50px;
+const NavLink = styled.a`
   font-family: 'Roboto', sans-serif;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: #2a5298;
+  }
+`
+
+const AuthButtons = styled.div`
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+`
+
+const LoginButton = styled.button`
+  padding: 0.625rem 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7280;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #2a5298;
+    color: #2a5298;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+`
+
+const SignUpButton = styled.button`
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 0.95rem;
   font-weight: 600;
-  color: ${props => props.primary ? '#1e3c72' : 'white'};
-  background: ${props => props.primary ? 'white' : 'transparent'};
+  color: white;
+  background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    background: ${props => props.primary ? '#f8f8f8' : 'rgba(255, 255, 255, 0.1)'};
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
   }
 
   @media (max-width: 480px) {
-    padding: ${props => props.primary ? '0.6rem 1.5rem' : '0.6rem 1rem'};
-    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
   }
 `
 
-const Main = styled.main`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem;
+const HeroSection = styled.section`
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 4rem 2rem 3rem;
   text-align: center;
-`
 
-const Hero = styled.div`
-  max-width: 800px;
-  animation: fadeIn 0.8s ease-out;
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  @media (max-width: 768px) {
+    padding: 3rem 1.5rem 2rem;
   }
 `
 
-const Title = styled.h2`
+const HeroTitle = styled.h2`
   font-family: 'Roboto', sans-serif;
   font-size: 3.5rem;
   font-weight: 700;
-  color: white;
-  margin: 0 0 1.5rem 0;
-  line-height: 1.2;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+  line-height: 1.1;
 
   @media (max-width: 768px) {
     font-size: 2.5rem;
@@ -108,13 +149,15 @@ const Title = styled.h2`
   }
 `
 
-const Subtitle = styled.p`
+const HeroSubtitle = styled.p`
   font-family: 'Roboto', sans-serif;
   font-size: 1.25rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0 0 3rem 0;
+  color: #6b7280;
+  margin: 0;
   line-height: 1.6;
+  max-width: 700px;
+  margin: 0 auto;
 
   @media (max-width: 768px) {
     font-size: 1.1rem;
@@ -125,143 +168,286 @@ const Subtitle = styled.p`
   }
 `
 
-const CTAButtons = styled.div`
-  display: flex;
-  gap: 1.5rem;
-  justify-content: center;
-  margin-bottom: 4rem;
+const QuickstartSection = styled.section`
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 3rem 2rem;
+  background: #f5f8fb;
+  border-radius: 12px;
 
-  @media (max-width: 480px) {
-    flex-direction: column;
-    gap: 1rem;
+  @media (max-width: 768px) {
+    padding: 2rem 1.5rem;
+    margin: 2rem 1.5rem;
   }
 `
 
-const CTAButton = styled.button<{ primary?: boolean }>`
-  padding: 1rem 2.5rem;
-  border: ${props => props.primary ? 'none' : '2px solid white'};
-  border-radius: 50px;
+const SectionTitle = styled.h3`
   font-family: 'Roboto', sans-serif;
-  font-size: 1.1rem;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+  text-align: center;
+
+  @media (max-width: 768px) {
+    font-size: 1.75rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.5rem;
+  }
+`
+
+const Description = styled.p`
+  font-family: 'Roboto', sans-serif;
+  font-size: 1.125rem;
+  font-weight: 400;
+  color: #4b5563;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.7;
+  text-align: center;
+
+  @media (max-width: 480px) {
+    font-size: 1rem;
+  }
+`
+
+const CTAButton = styled.button`
+  padding: 0.875rem 2rem;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Roboto', sans-serif;
+  font-size: 1rem;
   font-weight: 600;
-  color: ${props => props.primary ? '#1e3c72' : 'white'};
-  background: ${props => props.primary ? 'white' : 'transparent'};
+  color: white;
+  background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: ${props => props.primary ? '0 4px 15px rgba(0, 0, 0, 0.2)' : 'none'};
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+  display: block;
+  margin: 0 auto;
 
   &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-    background: ${props => props.primary ? '#f8f8f8' : 'rgba(255, 255, 255, 0.1)'};
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(74, 144, 226, 0.4);
   }
 
   @media (max-width: 480px) {
-    width: 100%;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.95rem;
   }
 `
 
-const Features = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 2rem;
-  max-width: 1000px;
-  width: 100%;
-`
+const ExampleSection = styled.section`
+  max-width: 900px;
+  margin: 3rem auto;
+  padding: 0 2rem;
 
-const FeatureCard = styled.div`
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: translateY(-5px);
-    background: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  @media (max-width: 768px) {
+    padding: 0 1.5rem;
   }
 `
 
-const FeatureIcon = styled.div`
-  font-size: 3rem;
-  margin-bottom: 1rem;
-`
-
-const FeatureTitle = styled.h3`
+const ExampleHeader = styled.h3`
   font-family: 'Roboto', sans-serif;
   font-size: 1.5rem;
   font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+  text-align: center;
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
+`
+
+const CodeBlock = styled.pre`
+  background: #1f2937;
+  color: #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 0;
+
+  @media (max-width: 480px) {
+    font-size: 0.8rem;
+    padding: 1rem;
+  }
+`
+
+const FeaturesSection = styled.section`
+  max-width: 1200px;
+  margin: 4rem auto;
+  padding: 0 2rem 4rem;
+
+  @media (max-width: 768px) {
+    padding: 0 1.5rem 3rem;
+  }
+`
+
+const SectionHeader = styled.h3`
+  font-family: 'Roboto', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 3rem 0;
+  text-align: center;
+
+  @media (max-width: 768px) {
+    font-size: 1.75rem;
+    margin: 0 0 2rem 0;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.5rem;
+  }
+`
+
+const FeaturesGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+`
+
+const FeatureCard = styled.div`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 2rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(74, 144, 226, 0.15);
+    border-color: #4a90e2;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1.5rem;
+  }
+`
+
+const IconWrapper = styled.div`
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: white;
+  font-size: 1.75rem;
+  margin-bottom: 1.25rem;
+`
+
+const FeatureTitle = styled.h4`
+  font-family: 'Roboto', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
   margin: 0 0 0.75rem 0;
 `
 
 const FeatureDescription = styled.p`
   font-family: 'Roboto', sans-serif;
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #6b7280;
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.6;
 `
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate()
 
   return (
-    <PageContainer>
-      <Header>
-        <Logo>LOGO</Logo>
-        <Nav>
-          <NavButton onClick={() => navigate('/login')}>Login</NavButton>
-          <NavButton primary onClick={() => navigate('/register')}>Sign Up</NavButton>
-        </Nav>
-      </Header>
+    <PageWrapper>
+      <StickyHeader>
+        <NavContainer>
+          <NavLogo>LOGO</NavLogo>
+          <NavCenter>
+            <NavLink>Dashboard</NavLink>
+            <NavLink>Facebook</NavLink>
+            <NavLink>TikTok</NavLink>
+            <NavLink>Settings</NavLink>
+          </NavCenter>
+          <AuthButtons>
+            <LoginButton onClick={() => navigate('/login')}>Login</LoginButton>
+            <SignUpButton onClick={() => navigate('/register')}>Sign Up</SignUpButton>
+          </AuthButtons>
+        </NavContainer>
+      </StickyHeader>
 
-      <Main>
-        <Hero>
-          <Title>Automate Your Social Media Marketing</Title>
-          <Subtitle>
-            Streamline your Facebook and TikTok advertising campaigns with powerful automation tools.
-            Save time, increase efficiency, and grow your business.
-          </Subtitle>
+      <HeroSection>
+        <HeroTitle>Social Media Automation Platform</HeroTitle>
+        <HeroSubtitle>
+          Streamline your Facebook and TikTok campaigns with powerful automation tools. Built for marketers and developers.
+        </HeroSubtitle>
+      </HeroSection>
 
-          <CTAButtons>
-            <CTAButton primary onClick={() => navigate('/register')}>
-              Get Started Free
-            </CTAButton>
-            <CTAButton onClick={() => navigate('/login')}>
-              Sign In
-            </CTAButton>
-          </CTAButtons>
+      <QuickstartSection>
+        <SectionTitle>Developer quickstart</SectionTitle>
+        <Description>
+          Connect your Facebook and TikTok accounts, automate campaigns, and track performance—all through our intuitive API and dashboard.
+        </Description>
+        <CTAButton onClick={() => navigate('/register')}>
+          Get started for free →
+        </CTAButton>
+      </QuickstartSection>
 
-          <Features>
-            <FeatureCard>
-              <FeatureIcon>📘</FeatureIcon>
-              <FeatureTitle>Facebook Integration</FeatureTitle>
-              <FeatureDescription>
-                Connect your Facebook Ads account and manage campaigns with ease
-              </FeatureDescription>
-            </FeatureCard>
+      <ExampleSection>
+        <ExampleHeader>Automation Example</ExampleHeader>
+        <CodeBlock>{`// Schedule a Facebook post
+await automation.schedulePost({
+  platform: 'facebook',
+  content: 'Check out our new product!',
+  scheduledTime: '2024-01-15T10:00:00Z',
+  autoPublish: true
+});`}</CodeBlock>
+      </ExampleSection>
 
-            <FeatureCard>
-              <FeatureIcon>🎵</FeatureIcon>
-              <FeatureTitle>TikTok Automation</FeatureTitle>
-              <FeatureDescription>
-                Automate your TikTok content and advertising strategies
-              </FeatureDescription>
-            </FeatureCard>
+      <FeaturesSection>
+        <SectionHeader>Powerful Automation Features</SectionHeader>
+        <FeaturesGrid>
+          <FeatureCard>
+            <IconWrapper>📊</IconWrapper>
+            <FeatureTitle>Advanced Analytics</FeatureTitle>
+            <FeatureDescription>
+              Track campaign performance with real-time insights and detailed reporting. Monitor ROI, engagement, and conversion metrics.
+            </FeatureDescription>
+          </FeatureCard>
 
-            <FeatureCard>
-              <FeatureIcon>📊</FeatureIcon>
-              <FeatureTitle>Analytics & Reports</FeatureTitle>
-              <FeatureDescription>
-                Track performance with detailed analytics and automated reporting
-              </FeatureDescription>
-            </FeatureCard>
-          </Features>
-        </Hero>
-      </Main>
-    </PageContainer>
+          <FeatureCard>
+            <IconWrapper>⚡</IconWrapper>
+            <FeatureTitle>Smart Automation</FeatureTitle>
+            <FeatureDescription>
+              Automate post scheduling, content distribution, and campaign management across Facebook and TikTok platforms.
+            </FeatureDescription>
+          </FeatureCard>
+
+          <FeatureCard>
+            <IconWrapper>📅</IconWrapper>
+            <FeatureTitle>Intelligent Scheduling</FeatureTitle>
+            <FeatureDescription>
+              Schedule posts at optimal times, manage content calendars, and maintain consistent social media presence.
+            </FeatureDescription>
+          </FeatureCard>
+        </FeaturesGrid>
+      </FeaturesSection>
+    </PageWrapper>
   )
 }
 
