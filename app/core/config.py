@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     FB_APP_ID: str = Field(..., description="Facebook App ID")
     FB_APP_SECRET: SecretStr = Field(..., description="Facebook App Secret")
     FB_SCOPES: str = Field(default="ads_read", description="Facebook API scopes")
+    FB_FORCE_REAUTH: bool = Field(default=False, description="Force Facebook re-authentication in OAuth flow")
 
     # TikTok integration
     TIKTOK_CLIENT_KEY: str = Field(..., description="TikTok Client Key")
