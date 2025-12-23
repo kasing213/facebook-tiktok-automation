@@ -8,15 +8,17 @@ from urllib.parse import urlencode
 import hmac
 import hashlib
 import base64
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, Form
+from fastapi import APIRouter, HTTPException, Query, Request, Form, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.deps import (
     FacebookOAuthProvider, TikTokOAuthProvider, TikTokSvc,
     AuthSvc, LoggerDep, SettingsDep
 )
-from app.core.models import Platform
+from app.core.models import Platform, User
+from app.routes.auth import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["oauth"])
 
@@ -37,6 +39,20 @@ def facebook_authorize(
         raise HTTPException(status_code=500, detail="OAuth initiation failed")
 
 
+@router.get("/facebook/authorize-url")
+def facebook_authorize_url(
+    facebook_oauth: FacebookOAuthProvider,
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Query(None, description="Tenant ID for OAuth flow"),
+):
+    """Get Facebook OAuth authorization URL for the current user"""
+    if tenant_id and str(current_user.tenant_id) != tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+    auth_url = facebook_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
+    return {"auth_url": auth_url}
+
+
 @router.get("/facebook/callback")
 async def facebook_callback(
     facebook_oauth: FacebookOAuthProvider,
@@ -51,16 +67,24 @@ async def facebook_callback(
         # Validate state and extract tenant info
         state_data = await facebook_oauth.validate_state(state)
         tenant_id = state_data["tenant_id"]
+        user_id = state_data.get("user_id")
+        if not user_id:
+            raise ValueError("Missing user in OAuth state")
+        try:
+            user_uuid = UUID(user_id)
+            tenant_uuid = UUID(tenant_id)
+        except ValueError:
+            raise ValueError("Invalid tenant or user in OAuth state")
 
         # Exchange code for tokens
         oauth_result = await facebook_oauth.exchange(code)
         logger.info(f"Facebook OAuth successful for tenant {tenant_id}")
 
         # Store tokens securely (including page tokens)
-        token = auth_service.store_oauth_token(tenant_id, oauth_result)
+        token = auth_service.store_oauth_token(tenant_uuid, oauth_result, user_id=user_uuid)
 
         # Get page tokens for response
-        page_tokens = auth_service.get_facebook_page_tokens(tenant_id)
+        page_tokens = auth_service.get_facebook_page_tokens(tenant_uuid, user_id=user_uuid)
 
         # Redirect to frontend dashboard with success message
         frontend_base = str(settings.FRONTEND_URL).rstrip("/")
@@ -92,6 +116,20 @@ def tiktok_authorize(
         raise HTTPException(status_code=500, detail="OAuth initiation failed")
 
 
+@router.get("/tiktok/authorize-url")
+def tiktok_authorize_url(
+    tiktok_oauth: TikTokOAuthProvider,
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Query(None, description="Tenant ID for OAuth flow"),
+):
+    """Get TikTok OAuth authorization URL for the current user"""
+    if tenant_id and str(current_user.tenant_id) != tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+    auth_url = tiktok_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
+    return {"auth_url": auth_url}
+
+
 @router.get("/tiktok/callback")
 async def tiktok_callback(
     tiktok_oauth: TikTokOAuthProvider,
@@ -109,16 +147,24 @@ async def tiktok_callback(
         code_verifier = state_data.get("code_verifier")
         if not code_verifier:
             raise ValueError("Missing TikTok PKCE code verifier")
+        user_id = state_data.get("user_id")
+        if not user_id:
+            raise ValueError("Missing user in OAuth state")
+        try:
+            user_uuid = UUID(user_id)
+            tenant_uuid = UUID(tenant_id)
+        except ValueError:
+            raise ValueError("Invalid tenant or user in OAuth state")
 
         # Exchange code for tokens
         oauth_result = await tiktok_oauth.exchange(code, code_verifier=code_verifier)
         logger.info(f"TikTok OAuth successful for tenant {tenant_id}")
 
         # Store tokens securely (including user info)
-        token = auth_service.store_oauth_token(tenant_id, oauth_result)
+        token = auth_service.store_oauth_token(tenant_uuid, oauth_result, user_id=user_uuid)
 
         # Get creator info for response
-        creator_info = auth_service.get_tiktok_creator_info(tenant_id)
+        creator_info = auth_service.get_tiktok_creator_info(tenant_uuid, user_id=user_uuid)
 
         # Redirect to frontend dashboard with success message
         frontend_base = str(settings.FRONTEND_URL).rstrip("/")
@@ -138,12 +184,24 @@ async def tiktok_callback(
 def oauth_status(
     tenant_id: str,
     auth_service: AuthSvc,
-    logger: LoggerDep
+    logger: LoggerDep,
+    current_user: User = Depends(get_current_user)
 ):
     """Get OAuth status for a tenant"""
     try:
-        facebook_tokens = auth_service.get_tenant_tokens(tenant_id, Platform.facebook)
-        tiktok_tokens = auth_service.get_tenant_tokens(tenant_id, Platform.tiktok)
+        if str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+        facebook_tokens = auth_service.get_tenant_tokens(
+            current_user.tenant_id,
+            Platform.facebook,
+            user_id=current_user.id
+        )
+        tiktok_tokens = auth_service.get_tenant_tokens(
+            current_user.tenant_id,
+            Platform.tiktok,
+            user_id=current_user.id
+        )
 
         return {
             "tenant_id": tenant_id,
@@ -186,11 +244,18 @@ def oauth_status(
 def get_facebook_pages(
     tenant_id: str,
     auth_service: AuthSvc,
-    logger: LoggerDep
+    logger: LoggerDep,
+    current_user: User = Depends(get_current_user)
 ):
     """Get Facebook pages for a tenant"""
     try:
-        page_tokens = auth_service.get_facebook_page_tokens(tenant_id)
+        if str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+        page_tokens = auth_service.get_facebook_page_tokens(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         return {
             "tenant_id": tenant_id,
             "pages": [{
@@ -211,18 +276,28 @@ async def post_to_facebook_page(
     page_id: str,
     auth_service: AuthSvc,
     logger: LoggerDep,
+    current_user: User = Depends(get_current_user),
     tenant_id: str = Query(..., description="Tenant ID"),
     message: str = Query(..., description="Message to post")
 ):
     """Post message to Facebook page"""
     try:
+        if str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
         # Get Facebook API client for the tenant
-        api_client = auth_service.get_facebook_api_client(tenant_id)
+        api_client = auth_service.get_facebook_api_client(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         if not api_client:
             raise HTTPException(status_code=404, detail="No Facebook token found for tenant")
 
         # Get page token
-        page_tokens = auth_service.get_facebook_page_tokens(tenant_id)
+        page_tokens = auth_service.get_facebook_page_tokens(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         page_token = None
         for page in page_tokens:
             if page["page_id"] == page_id:
@@ -254,12 +329,17 @@ async def post_to_facebook_page(
 async def refresh_facebook_token(
     token_id: str,
     auth_service: AuthSvc,
-    logger: LoggerDep
+    logger: LoggerDep,
+    current_user: User = Depends(get_current_user)
 ):
     """Refresh Facebook token"""
     try:
-        from uuid import UUID
-        success = await auth_service.refresh_facebook_token(UUID(token_id))
+        token_uuid = UUID(token_id)
+        token = auth_service.ad_token_repo.get_by_id(token_uuid)
+        if not token or token.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Token not found")
+
+        success = await auth_service.refresh_facebook_token(token_uuid)
 
         if success:
             logger.info(f"Facebook token {token_id} refreshed successfully")
@@ -280,12 +360,19 @@ async def get_facebook_page_insights(
     page_id: str,
     auth_service: AuthSvc,
     logger: LoggerDep,
+    current_user: User = Depends(get_current_user),
     tenant_id: str = Query(..., description="Tenant ID")
 ):
     """Get Facebook page insights"""
     try:
+        if str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
         # Get page token
-        page_tokens = auth_service.get_facebook_page_tokens(tenant_id)
+        page_tokens = auth_service.get_facebook_page_tokens(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         page_token = None
         for page in page_tokens:
             if page["page_id"] == page_id:
@@ -296,7 +383,10 @@ async def get_facebook_page_insights(
             raise HTTPException(status_code=404, detail="Page not found or not authorized")
 
         # Get insights using Facebook API client
-        api_client = auth_service.get_facebook_api_client(tenant_id)
+        api_client = auth_service.get_facebook_api_client(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         insights = await api_client.get_page_insights(page_id, page_token)
 
         return {
@@ -316,11 +406,18 @@ async def get_facebook_page_insights(
 def get_tiktok_creator_info(
     tenant_id: str,
     auth_service: AuthSvc,
-    logger: LoggerDep
+    logger: LoggerDep,
+    current_user: User = Depends(get_current_user)
 ):
     """Get TikTok creator information for a tenant"""
     try:
-        creator_info = auth_service.get_tiktok_creator_info(tenant_id)
+        if str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+        creator_info = auth_service.get_tiktok_creator_info(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         if not creator_info:
             raise HTTPException(status_code=404, detail="No TikTok account connected for tenant")
 
@@ -339,12 +436,17 @@ def get_tiktok_creator_info(
 async def validate_tiktok_token(
     token_id: str,
     auth_service: AuthSvc,
-    logger: LoggerDep
+    logger: LoggerDep,
+    current_user: User = Depends(get_current_user)
 ):
     """Validate TikTok token"""
     try:
-        from uuid import UUID
-        is_valid = await auth_service.validate_tiktok_token(UUID(token_id))
+        token_uuid = UUID(token_id)
+        token = auth_service.ad_token_repo.get_by_id(token_uuid)
+        if not token or token.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Token not found")
+
+        is_valid = await auth_service.validate_tiktok_token(token_uuid)
 
         if is_valid:
             logger.info(f"TikTok token {token_id} is valid")
@@ -364,6 +466,7 @@ async def validate_tiktok_token(
 async def upload_tiktok_video(
     auth_service: AuthSvc,
     logger: LoggerDep,
+    current_user: User = Depends(get_current_user),
     tenant_id: str = Query(..., description="Tenant ID"),
     title: str = Query(..., description="Video title"),
     video_path: str = Query(..., description="Path to video file"),
@@ -372,8 +475,14 @@ async def upload_tiktok_video(
 ):
     """Upload video to TikTok"""
     try:
+        if str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
         # Get TikTok API client for the tenant
-        api_client = auth_service.get_tiktok_api_client(tenant_id)
+        api_client = auth_service.get_tiktok_api_client(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         if not api_client:
             raise HTTPException(status_code=404, detail="No TikTok token found for tenant")
 
@@ -407,12 +516,19 @@ async def get_tiktok_video_status(
     publish_id: str,
     auth_service: AuthSvc,
     logger: LoggerDep,
+    current_user: User = Depends(get_current_user),
     tenant_id: str = Query(..., description="Tenant ID")
 ):
     """Get TikTok video status"""
     try:
+        if str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
         # Get TikTok API client for the tenant
-        api_client = auth_service.get_tiktok_api_client(tenant_id)
+        api_client = auth_service.get_tiktok_api_client(
+            current_user.tenant_id,
+            user_id=current_user.id
+        )
         if not api_client:
             raise HTTPException(status_code=404, detail="No TikTok token found for tenant")
 

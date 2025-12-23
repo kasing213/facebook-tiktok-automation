@@ -1,6 +1,6 @@
 # app/main.py
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -11,7 +11,8 @@ from app.core.db import init_db, dispose_engine
 from app.core.monitoring import collect_monitoring_snapshot, log_monitoring_snapshot
 from app.routes import oauth_router
 from app.routes.webhooks import router as webhook_router
-from app.routes.auth import router as auth_router
+from app.routes.auth import router as auth_router, get_current_user
+from app.core.models import User
 from app.routes.data_deletion import router as data_deletion_router
 
 
@@ -275,7 +276,12 @@ def get_tenant(tenant_id: str, tenant_service: TenantSvc):
 
 # Authentication status endpoint
 @app.get("/api/tenants/{tenant_id}/auth-status", tags=["authentication"])
-def get_auth_status(tenant_id: str, auth_service: AuthSvc, tenant_service: TenantSvc):
+def get_auth_status(
+    tenant_id: str,
+    auth_service: AuthSvc,
+    tenant_service: TenantSvc,
+    current_user: User = Depends(get_current_user)
+):
     """Get authentication status for a tenant (accepts UUID or slug)"""
     from app.core.models import Platform
     from uuid import UUID
@@ -295,9 +301,20 @@ def get_auth_status(tenant_id: str, auth_service: AuthSvc, tenant_service: Tenan
     if not tenant:
         raise HTTPException(status_code=404, detail=f"Tenant not found: {tenant_id}")
 
+    if tenant_uuid != current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant mismatch")
+
     platforms = {
-        Platform.facebook: auth_service.get_tenant_tokens(str(tenant_uuid), Platform.facebook),
-        Platform.tiktok: auth_service.get_tenant_tokens(str(tenant_uuid), Platform.tiktok),
+        Platform.facebook: auth_service.get_tenant_tokens(
+            tenant_uuid,
+            Platform.facebook,
+            user_id=current_user.id
+        ),
+        Platform.tiktok: auth_service.get_tenant_tokens(
+            tenant_uuid,
+            Platform.tiktok,
+            user_id=current_user.id
+        ),
     }
 
     return {

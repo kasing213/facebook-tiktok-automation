@@ -4,6 +4,7 @@ Integration tests for OAuth endpoints and their dependency injection.
 """
 import pytest
 from unittest.mock import Mock, patch
+from uuid import uuid4
 from fastapi.testclient import TestClient
 from cryptography.fernet import Fernet
 
@@ -11,6 +12,7 @@ from app.main import app
 from app.deps import get_db, get_token_encryptor, get_facebook_oauth, get_tiktok_oauth
 from app.services import AuthService
 from app.integrations.oauth import FacebookOAuth, TikTokOAuth
+from app.routes.auth import get_current_user
 
 
 class TestOAuthEndpoints:
@@ -19,6 +21,7 @@ class TestOAuthEndpoints:
     def setup_method(self):
         """Set up test environment"""
         self.client = TestClient(app)
+        self.tenant_id = uuid4()
 
         # Generate test encryption key
         self.test_key = Fernet.generate_key().decode()
@@ -29,6 +32,9 @@ class TestOAuthEndpoints:
         self.mock_facebook_oauth = Mock(spec=FacebookOAuth)
         self.mock_tiktok_oauth = Mock(spec=TikTokOAuth)
         self.mock_auth_service = Mock(spec=AuthService)
+        self.mock_user = Mock()
+        self.mock_user.id = uuid4()
+        self.mock_user.tenant_id = self.tenant_id
 
         def mock_get_db():
             yield self.mock_db
@@ -40,6 +46,7 @@ class TestOAuthEndpoints:
         app.dependency_overrides[get_token_encryptor] = lambda: self.mock_encryptor
         app.dependency_overrides[get_facebook_oauth] = lambda: self.mock_facebook_oauth
         app.dependency_overrides[get_tiktok_oauth] = lambda: self.mock_tiktok_oauth
+        app.dependency_overrides[get_current_user] = lambda: self.mock_user
 
         # Import and override auth service dependency
         from app.deps import get_auth_service
@@ -87,7 +94,7 @@ class TestOAuthEndpoints:
         self.mock_auth_service.get_tenant_tokens.return_value = []
 
         # Make request
-        response = self.client.get("/auth/status/test-tenant")
+        response = self.client.get(f"/auth/status/{self.tenant_id}")
 
         # Verify response
         assert response.status_code == 200
@@ -95,7 +102,7 @@ class TestOAuthEndpoints:
         assert "tenant_id" in data
         assert "facebook" in data
         assert "tiktok" in data
-        assert data["tenant_id"] == "test-tenant"
+        assert data["tenant_id"] == str(self.tenant_id)
 
         # Verify service calls (called once for each platform)
         assert self.mock_auth_service.get_tenant_tokens.call_count == 2
@@ -136,7 +143,7 @@ class TestOAuthEndpoints:
         test_cases = [
             ("/auth/facebook/authorize?tenant_id=test", [302, 307]),  # Should redirect
             ("/auth/tiktok/authorize?tenant_id=test", [302, 307]),    # Should redirect
-            ("/auth/status/test-tenant", [200])                      # Should return status
+            (f"/auth/status/{self.tenant_id}", [200])               # Should return status
         ]
 
         for endpoint, expected_codes in test_cases:

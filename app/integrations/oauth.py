@@ -119,8 +119,9 @@ class FacebookOAuth(OAuthProvider):
     exchange_url = "https://graph.facebook.com/v23.0/oauth/access_token"  # for long-lived exchange
     graph_url = "https://graph.facebook.com/v23.0"
 
-    def auth_url(self, tenant_id: str) -> str:
-        state = self.create_state(tenant_id, Platform.facebook)
+    def auth_url(self, tenant_id: str, user_id: str | None = None) -> str:
+        extra = {"user_id": user_id} if user_id else None
+        state = self.create_state(tenant_id, Platform.facebook, extra=extra)
         # Basic scopes for development (no app review required)
         # For production, add: pages_manage_posts,pages_read_engagement,pages_show_list
         scopes = self.s.FB_SCOPES or "public_profile,email"
@@ -309,13 +310,16 @@ class TikTokOAuth(OAuthProvider):
     token_url = "https://open.tiktokapis.com/v2/oauth/token/"
     user_info_url = "https://open.tiktokapis.com/v2/user/info/"
 
-    def auth_url(self, tenant_id: str) -> str:
+    def auth_url(self, tenant_id: str, user_id: str | None = None) -> str:
         code_verifier = self._generate_code_verifier()
         code_challenge = self._generate_code_challenge(code_verifier)
+        extra = {"code_verifier": code_verifier}
+        if user_id:
+            extra["user_id"] = user_id
         state = self.create_state(
             tenant_id,
             Platform.tiktok,
-            extra={"code_verifier": code_verifier}
+            extra=extra
         )
         # Enhanced scopes for content creation
         scopes = self.s.TIKTOK_SCOPES or "user.info.basic,video.upload,video.publish"

@@ -51,3 +51,6 @@ setup_*.py
 test_db_connection.py
 validate_config.py
 .vercel
+
+# Claude settings (contains API tokens)
+.claude/settings.local.json

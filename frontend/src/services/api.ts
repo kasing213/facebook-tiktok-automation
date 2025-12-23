@@ -144,9 +144,14 @@ export const authService = {
    */
   async initiateFacebookOAuth(tenantId: string): Promise<void> {
     try {
-      // This will redirect, so we construct the URL manually
-      const url = `/auth/facebook/authorize?tenant_id=${encodeURIComponent(tenantId)}`
-      window.location.href = `${api.defaults.baseURL}${url}`
+      const response = await api.get('/auth/facebook/authorize-url', {
+        params: { tenant_id: tenantId }
+      })
+      const authUrl = response.data?.auth_url
+      if (!authUrl) {
+        throw new Error('Facebook OAuth URL missing from response')
+      }
+      window.location.href = authUrl
     } catch (error: any) {
       console.error('Failed to initiate Facebook OAuth:', error)
       throw new Error(`Failed to initiate Facebook OAuth: ${error.response?.data?.detail || error.message}`)
@@ -158,9 +163,14 @@ export const authService = {
    */
   async initiateTikTokOAuth(tenantId: string): Promise<void> {
     try {
-      // This will redirect, so we construct the URL manually
-      const url = `/auth/tiktok/authorize?tenant_id=${encodeURIComponent(tenantId)}`
-      window.location.href = `${api.defaults.baseURL}${url}`
+      const response = await api.get('/auth/tiktok/authorize-url', {
+        params: { tenant_id: tenantId }
+      })
+      const authUrl = response.data?.auth_url
+      if (!authUrl) {
+        throw new Error('TikTok OAuth URL missing from response')
+      }
+      window.location.href = authUrl
     } catch (error: any) {
       console.error('Failed to initiate TikTok OAuth:', error)
       throw new Error(`Failed to initiate TikTok OAuth: ${error.response?.data?.detail || error.message}`)

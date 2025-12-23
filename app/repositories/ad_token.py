@@ -13,11 +13,25 @@ class AdTokenRepository(BaseRepository[AdToken]):
     def __init__(self, db: Session):
         super().__init__(db, AdToken)
 
-    def get_by_platform(self, tenant_id: UUID, platform: Platform) -> List[AdToken]:
+    def get_by_platform(
+        self,
+        tenant_id: UUID,
+        platform: Platform,
+        user_id: Optional[UUID] = None
+    ) -> List[AdToken]:
         """Get all tokens for a specific platform and tenant"""
-        return self.find_by(tenant_id=tenant_id, platform=platform)
+        filters = {"tenant_id": tenant_id, "platform": platform}
+        if user_id is not None:
+            filters["user_id"] = user_id
+        return self.find_by(**filters)
 
-    def get_active_token(self, tenant_id: UUID, platform: Platform, account_ref: str = None) -> Optional[AdToken]:
+    def get_active_token(
+        self,
+        tenant_id: UUID,
+        platform: Platform,
+        account_ref: str = None,
+        user_id: Optional[UUID] = None
+    ) -> Optional[AdToken]:
         """Get active token for platform and optionally specific account"""
         filters = {
             "tenant_id": tenant_id,
@@ -26,6 +40,8 @@ class AdTokenRepository(BaseRepository[AdToken]):
         }
         if account_ref:
             filters["account_ref"] = account_ref
+        if user_id is not None:
+            filters["user_id"] = user_id
 
         tokens = self.find_by(**filters)
         if not tokens:
@@ -54,6 +70,7 @@ class AdTokenRepository(BaseRepository[AdToken]):
         tenant_id: UUID,
         platform: Platform,
         access_token_enc: str,
+        user_id: UUID = None,
         account_ref: str = None,
         account_name: str = None,
         refresh_token_enc: str = None,
@@ -64,6 +81,7 @@ class AdTokenRepository(BaseRepository[AdToken]):
         """Create a new ad token"""
         return self.create(
             tenant_id=tenant_id,
+            user_id=user_id,
             platform=platform,
             account_ref=account_ref,
             account_name=account_name,
@@ -87,9 +105,16 @@ class AdTokenRepository(BaseRepository[AdToken]):
             last_validated=datetime.utcnow()
         )
 
-    def get_tenant_tokens(self, tenant_id: UUID, valid_only: bool = True) -> List[AdToken]:
+    def get_tenant_tokens(
+        self,
+        tenant_id: UUID,
+        valid_only: bool = True,
+        user_id: Optional[UUID] = None
+    ) -> List[AdToken]:
         """Get all tokens for a tenant"""
         filters = {"tenant_id": tenant_id}
         if valid_only:
             filters["is_valid"] = True
+        if user_id is not None:
+            filters["user_id"] = user_id
         return self.find_by(**filters)

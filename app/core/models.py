@@ -73,6 +73,7 @@ class User(Base):
 
     # Relationships
     tenant = relationship("Tenant", back_populates="users")
+    ad_tokens = relationship("AdToken", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "telegram_user_id", name="uq_user_tenant_telegram"),
@@ -107,6 +108,7 @@ class AdToken(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
     platform = Column(Enum(Platform), nullable=False)
     account_ref = Column(String(255), nullable=True)  # e.g., act_123, or TikTok open_id
     account_name = Column(String(255), nullable=True)  # human-readable account name
@@ -122,11 +124,13 @@ class AdToken(Base):
 
     # Relationships
     tenant = relationship("Tenant", back_populates="ad_tokens")
+    user = relationship("User", back_populates="ad_tokens")
 
     __table_args__ = (
-        UniqueConstraint("tenant_id", "platform", "account_ref", name="uq_token_tenant_platform_account"),
+        UniqueConstraint("tenant_id", "user_id", "platform", "account_ref", name="uq_token_tenant_user_platform_account"),
         Index("idx_ad_token_platform", "platform"),
         Index("idx_ad_token_expires", "expires_at"),
+        Index("idx_ad_token_user", "user_id"),
     )
 
 class Automation(Base):
