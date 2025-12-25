@@ -2,7 +2,7 @@
 import enum, uuid, datetime as dt
 from sqlalchemy import (
     Column, String, DateTime, Enum, JSON, ForeignKey, UniqueConstraint,
-    Boolean, Integer, Text, Index, text
+    Boolean, Integer, Text, Index, text, ARRAY
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
@@ -193,7 +193,7 @@ class FacebookPage(Base):
     page_id = Column(String(255), nullable=False, unique=True)
     name = Column(String(255), nullable=False)
     category = Column(String(255), nullable=True)
-    tasks = Column(JSON, nullable=True)  # Array of permissions stored as JSON
+    tasks = Column(ARRAY(String), nullable=True)  # Array of permissions
     page_data = Column(JSON, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
