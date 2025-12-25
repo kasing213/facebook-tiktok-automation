@@ -2,7 +2,7 @@
 import enum, uuid, datetime as dt
 from sqlalchemy import (
     Column, String, DateTime, Enum, JSON, ForeignKey, UniqueConstraint,
-    Boolean, Integer, Text, Index
+    Boolean, Integer, Text, Index, text
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
@@ -33,6 +33,10 @@ class AutomationType(str, enum.Enum):
     scheduled_report = "scheduled_report"
     alert = "alert"
     data_sync = "data_sync"
+
+class TokenType(str, enum.Enum):
+    user = "user"
+    page = "page"
 
 # Multi-tenant core models
 class Tenant(Base):
@@ -103,21 +107,25 @@ class Destination(Base):
     )
 
 class AdToken(Base):
-    """OAuth tokens for social media platforms per tenant"""
+    """OAuth tokens for social media platforms per user"""
     __tablename__ = "ad_token"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)  # NOW REQUIRED
+    social_identity_id = Column(UUID(as_uuid=True), ForeignKey("social_identity.id"), nullable=True)
+    facebook_page_id = Column(UUID(as_uuid=True), ForeignKey("facebook_page.id"), nullable=True)
     platform = Column(Enum(Platform), nullable=False)
-    account_ref = Column(String(255), nullable=True)  # e.g., act_123, or TikTok open_id
-    account_name = Column(String(255), nullable=True)  # human-readable account name
+    token_type = Column(Enum(TokenType), nullable=False, default=TokenType.user)
+    account_ref = Column(String(255), nullable=True)  # DEPRECATED: kept for backward compat
+    account_name = Column(String(255), nullable=True)
     access_token_enc = Column(String, nullable=False)  # encrypted
     refresh_token_enc = Column(String, nullable=True)  # encrypted
     scope = Column(String, nullable=True)
     expires_at = Column(DateTime, nullable=True)  # UTC
     is_valid = Column(Boolean, default=True, nullable=False)
     last_validated = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)  # Soft delete
     meta = Column(JSON, nullable=True)  # raw payloads / debug info
     created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow, nullable=False)
@@ -125,12 +133,79 @@ class AdToken(Base):
     # Relationships
     tenant = relationship("Tenant", back_populates="ad_tokens")
     user = relationship("User", back_populates="ad_tokens")
+    social_identity = relationship("SocialIdentity", back_populates="ad_tokens")
+    facebook_page = relationship("FacebookPage", back_populates="ad_tokens")
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "user_id", "platform", "account_ref", name="uq_token_tenant_user_platform_account"),
         Index("idx_ad_token_platform", "platform"),
         Index("idx_ad_token_expires", "expires_at"),
         Index("idx_ad_token_user", "user_id"),
+        Index("idx_ad_token_social_identity", "social_identity_id"),
+        Index("idx_ad_token_facebook_page", "facebook_page_id"),
+        Index("idx_ad_token_deleted", "deleted_at"),
+        Index(
+            "idx_ad_token_one_active_user_token",
+            "tenant_id", "user_id", "platform",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL AND token_type = 'user'")
+        ),
+    )
+
+class SocialIdentity(Base):
+    """Represents a user's identity on a social platform (Facebook, TikTok)"""
+    __tablename__ = "social_identity"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
+    platform = Column(Enum(Platform), nullable=False)
+    platform_user_id = Column(String(255), nullable=False)  # FB user ID or TikTok open_id
+    facebook_user_id = Column(String(255), nullable=True)  # CRITICAL: Real FB user ID (stable anchor)
+    platform_username = Column(String(255), nullable=True)
+    display_name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    avatar_url = Column(Text, nullable=True)
+    profile_data = Column(JSON, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow, nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="social_identities")
+    user = relationship("User", backref="social_identities")
+    ad_tokens = relationship("AdToken", back_populates="social_identity")
+    facebook_pages = relationship("FacebookPage", back_populates="social_identity", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("platform", "platform_user_id", name="uq_social_identity_platform_user"),
+        UniqueConstraint("tenant_id", "user_id", "platform", name="uq_social_identity_tenant_user_platform"),
+        Index("idx_social_identity_tenant_user", "tenant_id", "user_id"),
+        Index("idx_social_identity_platform_user", "platform", "platform_user_id"),
+    )
+
+class FacebookPage(Base):
+    """Facebook Page managed by a user's Facebook account"""
+    __tablename__ = "facebook_page"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    social_identity_id = Column(UUID(as_uuid=True), ForeignKey("social_identity.id"), nullable=False)
+    page_id = Column(String(255), nullable=False, unique=True)
+    name = Column(String(255), nullable=False)
+    category = Column(String(255), nullable=True)
+    tasks = Column(JSON, nullable=True)  # Array of permissions stored as JSON
+    page_data = Column(JSON, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow, nullable=False)
+
+    # Relationships
+    social_identity = relationship("SocialIdentity", back_populates="facebook_pages")
+    ad_tokens = relationship("AdToken", back_populates="facebook_page")
+
+    __table_args__ = (
+        Index("idx_facebook_page_identity", "social_identity_id"),
+        Index("idx_facebook_page_page_id", "page_id"),
     )
 
 class Automation(Base):
