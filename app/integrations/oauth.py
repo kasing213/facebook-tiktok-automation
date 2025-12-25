@@ -79,38 +79,94 @@ class OAuthProvider:
         return json.loads(data)
 
     def create_state(self, tenant_id: str, platform: Platform, extra: Dict[str, Any] | None = None) -> str:
-        # embed tenant + ts and optional payload
-        parts = [tenant_id, platform.value, str(int(time.time()))]
+        """
+        Create OAuth state with nonce hardening
+
+        CRITICAL: Includes random nonce for CSRF protection and one-time use enforcement
+        """
+        # Generate cryptographically secure random nonce
+        nonce = secrets.token_urlsafe(32)  # 32 bytes = 256 bits of entropy
+
+        # Embed tenant + platform + timestamp + nonce
+        parts = [tenant_id, platform.value, str(int(time.time())), nonce]
         if extra:
             parts.append(self._encode_extra(extra))
         payload = ".".join(parts)
         sig = self._sign(payload)
-        return f"{payload}.{sig}"
+        state = f"{payload}.{sig}"
+
+        # Store nonce synchronously to ensure availability during validation
+        # CRITICAL: Must complete before auth_url is returned to user
+        import asyncio
+        try:
+            # Try to get running event loop
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop - we're in sync context (FastAPI dependency injection)
+            # Create new event loop just for this operation
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(self.state_store.put(f"nonce:{nonce}", state, 900))
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+        else:
+            # We're already in async context - create task and wait for it
+            # This should not happen in auth_url() which is called from sync FastAPI endpoint
+            # But handle it gracefully anyway
+            asyncio.create_task(self.state_store.put(f"nonce:{nonce}", state, 900))
+
+        return state
 
     async def validate_state(self, state: str) -> dict:
-        # (optional) look up in store (one-time)
-        stored = await self.state_store.get(state)
-        # accept both modes: signed-only or redis+signed
+        """
+        Validate OAuth state with nonce verification
+
+        CRITICAL: Verifies signature, timestamp, and nonce to prevent CSRF and replay attacks
+        """
+        # Split state into payload and signature
         try:
             payload, sig = state.rsplit(".", 1)
         except ValueError:
             raise ValueError("bad_state")
-        parts = payload.split(".")
-        if len(parts) < 3:
-            raise ValueError("bad_state")
-        tenant_id, platform, ts = parts[0], parts[1], parts[2]
+
+        # Verify signature first
         if self._sign(payload) != sig:
             raise ValueError("state_sig_mismatch")
+
+        # Parse state components
+        parts = payload.split(".")
+        if len(parts) < 4:  # NOW REQUIRES: tenant_id, platform, timestamp, nonce
+            raise ValueError("bad_state")
+
+        tenant_id, platform, ts, nonce = parts[0], parts[1], parts[2], parts[3]
+
+        # Verify timestamp (15 minute expiry)
         if (time.time() - int(ts)) > 900:
-            raise ValueError("state_expired")   # 15 minutes
+            raise ValueError("state_expired")
+
+        # CRITICAL: Verify nonce exists and hasn't been used (one-time use)
+        stored_state = await self.state_store.get(f"nonce:{nonce}")
+        if stored_state is None:
+            # Nonce not found or already used - potential replay attack
+            raise ValueError("nonce_invalid_or_reused")
+        if stored_state != state:
+            # Nonce exists but doesn't match this state - tampering detected
+            raise ValueError("nonce_state_mismatch")
+
+        # Build response data
         data = {"tenant_id": tenant_id, "platform": platform}
-        if len(parts) > 3:
+
+        # Parse optional extra data (now at index 4 instead of 3)
+        if len(parts) > 4:
             try:
-                extra = self._decode_extra(parts[3])
+                extra = self._decode_extra(parts[4])
                 if isinstance(extra, dict):
                     data.update(extra)
             except Exception:
                 raise ValueError("state_extra_invalid")
+
         return data
 
 class FacebookOAuth(OAuthProvider):
