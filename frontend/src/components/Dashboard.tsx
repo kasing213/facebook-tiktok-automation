@@ -4,6 +4,7 @@ import styled from 'styled-components'
 import { useAuth, useOAuth } from '../hooks/useAuth'
 import { LoadingSpinner } from './LoadingSpinner'
 import { ErrorMessage } from './ErrorMessage'
+import SocialIcon from './SocialIcon'
 
 const DashboardContainer = styled.div`
   max-width: 800px;
@@ -93,20 +94,6 @@ const PlatformHeader = styled.div`
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1rem;
-`
-
-const PlatformIcon = styled.span<{ platform: 'facebook' | 'tiktok' }>`
-  font-size: 1.5rem;
-
-  ${props => props.platform === 'facebook' ? `
-    &:before {
-      content: "📘";
-    }
-  ` : `
-    &:before {
-      content: "🎵";
-    }
-  `}
 `
 
 const PlatformName = styled.h3`
@@ -332,7 +319,7 @@ const Dashboard: React.FC = () => {
         <StatusGrid>
           <PlatformCard connected={authStatus.facebook?.connected || false}>
             <PlatformHeader>
-              <PlatformIcon platform="facebook" />
+              <SocialIcon platform="facebook" size="large" />
               <PlatformName>Facebook</PlatformName>
               <StatusBadge connected={authStatus.facebook?.connected || false}>
                 {authStatus.facebook?.connected ? 'Connected' : 'Not Connected'}
@@ -374,7 +361,7 @@ const Dashboard: React.FC = () => {
                   onClick={handleConnectFacebook}
                   disabled={initiating.facebook}
                 >
-                  <span>📘</span>
+                  <SocialIcon platform="facebook" size="small" />
                   {initiating.facebook ? (
                     <>
                       <LoadingSpinner size="small" />
@@ -395,7 +382,7 @@ const Dashboard: React.FC = () => {
 
           <PlatformCard connected={authStatus.tiktok?.connected || false}>
             <PlatformHeader>
-              <PlatformIcon platform="tiktok" />
+              <SocialIcon platform="tiktok" size="large" />
               <PlatformName>TikTok</PlatformName>
               <StatusBadge connected={authStatus.tiktok?.connected || false}>
                 {authStatus.tiktok?.connected ? 'Connected' : 'Not Connected'}
@@ -437,7 +424,7 @@ const Dashboard: React.FC = () => {
                   onClick={handleConnectTikTok}
                   disabled={initiating.tiktok}
                 >
-                  <span>🎵</span>
+                  <SocialIcon platform="tiktok" size="small" />
                   {initiating.tiktok ? (
                     <>
                       <LoadingSpinner size="small" />

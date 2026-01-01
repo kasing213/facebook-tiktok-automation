@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import styled from 'styled-components'
 import { LoadingSpinner } from './LoadingSpinner'
 import { ErrorMessage } from './ErrorMessage'
+import SocialIcon from './SocialIcon'
 
 // Modern login page with gradient background inspired by ColorLib design
 // Supports username/password authentication and social OAuth
@@ -417,7 +418,7 @@ const LoginPage: React.FC<LoginPageProps> = ({
             title="Login with Facebook"
             type="button"
           >
-            📘
+            <SocialIcon platform="facebook" size="medium" />
           </SocialButton>
           <SocialButton
             platform="twitter"

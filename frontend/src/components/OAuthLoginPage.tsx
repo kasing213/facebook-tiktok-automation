@@ -3,6 +3,7 @@ import styled from 'styled-components'
 import { useTenants, useAuth, useOAuth } from '../hooks/useAuth'
 import { LoadingSpinner } from './LoadingSpinner'
 import { ErrorMessage } from './ErrorMessage'
+import SocialIcon from './SocialIcon'
 
 // OAuth login page for Facebook and TikTok integration
 // Connects to FastAPI backend OAuth endpoints
@@ -127,20 +128,6 @@ const OAuthButton = styled.button<{ platform: 'facebook' | 'tiktok' }>`
   }
 `
 
-const PlatformIcon = styled.span<{ platform: 'facebook' | 'tiktok' }>`
-  font-size: 1.25rem;
-
-  ${props => props.platform === 'facebook' ? `
-    &:before {
-      content: "📘";
-    }
-  ` : `
-    &:before {
-      content: "🎵";
-    }
-  `}
-`
-
 const StatusSection = styled.div`
   margin-top: 2rem;
   padding: 1rem;
@@ -258,7 +245,7 @@ const OAuthLoginPage: React.FC = () => {
           disabled={!canInitiateOAuth || initiating.facebook}
           title="Connect your Facebook account"
         >
-          <PlatformIcon platform="facebook" />
+          <SocialIcon platform="facebook" size="medium" />
           {initiating.facebook ? (
             <>
               <LoadingSpinner size="small" />
@@ -275,7 +262,7 @@ const OAuthLoginPage: React.FC = () => {
           disabled={!canInitiateOAuth || initiating.tiktok}
           title="Connect your TikTok account"
         >
-          <PlatformIcon platform="tiktok" />
+          <SocialIcon platform="tiktok" size="medium" />
           {initiating.tiktok ? (
             <>
               <LoadingSpinner size="small" />

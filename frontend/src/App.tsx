@@ -3,10 +3,15 @@ import HomePage from './components/HomePage'
 import LoginPageNew from './components/LoginPageNew'
 import RegisterPage from './components/RegisterPage'
 import OAuthLoginPage from './components/OAuthLoginPage'
-import Dashboard from './components/Dashboard'
 import PrivacyPolicy from './components/PrivacyPolicy'
 import TermsOfService from './components/TermsOfService'
 import DataDeletion from './components/DataDeletion'
+import DashboardLayout from './components/layouts/DashboardLayout'
+import OverviewPage from './components/dashboard/OverviewPage'
+import UsagePage from './components/dashboard/UsagePage'
+import LogsPage from './components/dashboard/LogsPage'
+import IntegrationsPage from './components/dashboard/IntegrationsPage'
+import SettingsPage from './components/dashboard/SettingsPage'
 import { authService } from './services/api'
 
 // Protected Route component
@@ -28,15 +33,21 @@ function App() {
         <Route path="/terms-of-service" element={<TermsOfService />} />
         <Route path="/data-deletion" element={<DataDeletion />} />
 
-        {/* Protected routes */}
+        {/* Protected dashboard routes - wrapped in layout */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <DashboardLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<OverviewPage />} />
+          <Route path="usage" element={<UsagePage />} />
+          <Route path="logs" element={<LogsPage />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
 
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/" replace />} />
