@@ -27,12 +27,16 @@ router = APIRouter(prefix="/auth", tags=["oauth"])
 def facebook_authorize(
     facebook_oauth: FacebookOAuthProvider,
     logger: LoggerDep,
-    tenant_id: str = Query(..., description="Tenant ID for OAuth flow")
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Query(None, description="Tenant ID for OAuth flow")
 ):
     """Initiate Facebook OAuth authorization flow"""
     try:
-        auth_url = facebook_oauth.auth_url(tenant_id)
-        logger.info(f"Facebook OAuth initiated for tenant {tenant_id}")
+        if tenant_id and str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+        auth_url = facebook_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
+        logger.info(f"Facebook OAuth initiated for tenant {current_user.tenant_id}")
         return RedirectResponse(url=auth_url)
     except Exception as e:
         logger.error(f"Facebook OAuth initiation failed: {e}")
@@ -104,12 +108,16 @@ async def facebook_callback(
 def tiktok_authorize(
     tiktok_oauth: TikTokOAuthProvider,
     logger: LoggerDep,
-    tenant_id: str = Query(..., description="Tenant ID for OAuth flow")
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Query(None, description="Tenant ID for OAuth flow")
 ):
     """Initiate TikTok OAuth authorization flow"""
     try:
-        auth_url = tiktok_oauth.auth_url(tenant_id)
-        logger.info(f"TikTok OAuth initiated for tenant {tenant_id}")
+        if tenant_id and str(current_user.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant mismatch")
+
+        auth_url = tiktok_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
+        logger.info(f"TikTok OAuth initiated for tenant {current_user.tenant_id}")
         return RedirectResponse(url=auth_url)
     except Exception as e:
         logger.error(f"TikTok OAuth initiation failed: {e}")
@@ -339,7 +347,7 @@ async def refresh_facebook_token(
         if not token or token.user_id != current_user.id:
             raise HTTPException(status_code=404, detail="Token not found")
 
-        success = await auth_service.refresh_facebook_token(token_uuid)
+        success = await auth_service.refresh_facebook_token(token_uuid, user_id=current_user.id)
 
         if success:
             logger.info(f"Facebook token {token_id} refreshed successfully")
@@ -350,6 +358,8 @@ async def refresh_facebook_token(
 
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid token ID format")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not authorized to refresh this token")
     except Exception as e:
         logger.error(f"Failed to refresh Facebook token {token_id}: {e}")
         raise HTTPException(status_code=500, detail="Token refresh failed")
@@ -446,7 +456,7 @@ async def validate_tiktok_token(
         if not token or token.user_id != current_user.id:
             raise HTTPException(status_code=404, detail="Token not found")
 
-        is_valid = await auth_service.validate_tiktok_token(token_uuid)
+        is_valid = await auth_service.validate_tiktok_token(token_uuid, user_id=current_user.id)
 
         if is_valid:
             logger.info(f"TikTok token {token_id} is valid")
@@ -457,6 +467,8 @@ async def validate_tiktok_token(
 
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid token ID format")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not authorized to validate this token")
     except Exception as e:
         logger.error(f"Failed to validate TikTok token {token_id}: {e}")
         raise HTTPException(status_code=500, detail="Token validation failed")
