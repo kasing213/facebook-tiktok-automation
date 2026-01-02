@@ -54,3 +54,7 @@ validate_config.py
 
 # Claude settings (contains API tokens)
 .claude/settings.local.json
+
+# Local artifacts
+nul
+screenshot/
