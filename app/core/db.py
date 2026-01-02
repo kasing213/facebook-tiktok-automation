@@ -23,7 +23,7 @@ engine = create_engine(
         "options": "-c timezone=utc"  # set timezone to UTC
     },
     future=True,
-    echo=_settings.ENV == "dev",  # SQL logging in development only
+    echo=True,  # TEMPORARY: Force SQL logging to debug token_type issue
 )
 
 SessionLocal = sessionmaker(
