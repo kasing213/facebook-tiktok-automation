@@ -1,6 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
+import SocialIcon from './SocialIcon'
 
 // OpenAI-style landing page with blue color scheme
 // Colors: #4a90e2 (light blue), #2a5298 (dark blue), #1e3c72 (deeper blue)
@@ -308,14 +309,10 @@ const SectionHeader = styled.h3`
 
 const FeaturesGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 2rem;
 
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
     grid-template-columns: 1fr;
     gap: 1.5rem;
   }
@@ -379,10 +376,9 @@ const HomePage: React.FC = () => {
         <NavContainer>
           <NavLogo>LOGO</NavLogo>
           <NavCenter>
-            <NavLink>Dashboard</NavLink>
-            <NavLink>Facebook</NavLink>
-            <NavLink>TikTok</NavLink>
-            <NavLink>Settings</NavLink>
+            <NavLink onClick={() => navigate('/login')}>Dashboard</NavLink>
+            <NavLink onClick={() => navigate('/register')}>Services</NavLink>
+            <NavLink href="#services">Features</NavLink>
           </NavCenter>
           <AuthButtons>
             <LoginButton onClick={() => navigate('/login')}>Login</LoginButton>
@@ -419,31 +415,55 @@ await automation.schedulePost({
 });`}</CodeBlock>
       </ExampleSection>
 
-      <FeaturesSection>
-        <SectionHeader>Powerful Automation Features</SectionHeader>
+      <FeaturesSection id="services">
+        <SectionHeader>Choose Your Service</SectionHeader>
         <FeaturesGrid>
           <FeatureCard>
+            <IconWrapper>
+              <SocialIcon platform="facebook" size="large" />
+            </IconWrapper>
+            <FeatureTitle>Facebook Automation</FeatureTitle>
+            <FeatureDescription>
+              Automate post scheduling, manage campaigns, and access Facebook Marketing API features with powerful automation tools.
+            </FeatureDescription>
+            <CTAButton onClick={() => navigate('/register')}>
+              Get Started →
+            </CTAButton>
+          </FeatureCard>
+
+          <FeatureCard>
+            <IconWrapper>
+              <SocialIcon platform="tiktok" size="large" />
+            </IconWrapper>
+            <FeatureTitle>TikTok Automation</FeatureTitle>
+            <FeatureDescription>
+              Schedule videos, analyze performance, and leverage TikTok Creator API capabilities to grow your TikTok presence.
+            </FeatureDescription>
+            <CTAButton onClick={() => navigate('/register')}>
+              Get Started →
+            </CTAButton>
+          </FeatureCard>
+
+          <FeatureCard>
+            <IconWrapper>📄</IconWrapper>
+            <FeatureTitle>Invoice Generator</FeatureTitle>
+            <FeatureDescription>
+              Generate professional invoices automatically for your campaigns and services. Integration coming soon.
+            </FeatureDescription>
+            <CTAButton onClick={() => alert('Coming soon!')} style={{ opacity: 0.6 }}>
+              Coming Soon
+            </CTAButton>
+          </FeatureCard>
+
+          <FeatureCard>
             <IconWrapper>📊</IconWrapper>
-            <FeatureTitle>Advanced Analytics</FeatureTitle>
+            <FeatureTitle>Analytics API</FeatureTitle>
             <FeatureDescription>
-              Track campaign performance with real-time insights and detailed reporting. Monitor ROI, engagement, and conversion metrics.
+              Advanced analytics and reporting API for comprehensive insights into your social media performance. Integration coming soon.
             </FeatureDescription>
-          </FeatureCard>
-
-          <FeatureCard>
-            <IconWrapper>⚡</IconWrapper>
-            <FeatureTitle>Smart Automation</FeatureTitle>
-            <FeatureDescription>
-              Automate post scheduling, content distribution, and campaign management across Facebook and TikTok platforms.
-            </FeatureDescription>
-          </FeatureCard>
-
-          <FeatureCard>
-            <IconWrapper>📅</IconWrapper>
-            <FeatureTitle>Intelligent Scheduling</FeatureTitle>
-            <FeatureDescription>
-              Schedule posts at optimal times, manage content calendars, and maintain consistent social media presence.
-            </FeatureDescription>
+            <CTAButton onClick={() => alert('Coming soon!')} style={{ opacity: 0.6 }}>
+              Coming Soon
+            </CTAButton>
           </FeatureCard>
         </FeaturesGrid>
       </FeaturesSection>
