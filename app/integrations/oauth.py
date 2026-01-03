@@ -188,9 +188,6 @@ class FacebookOAuth(OAuthProvider):
             "response_type": "code",
             "scope": scopes,
         }
-        if self.s.FB_FORCE_REAUTH or self.s.ENV != "prod":
-            q["auth_type"] = "reauthenticate"
-            q["auth_nonce"] = secrets.token_urlsafe(16)
         return f"{self.auth_base}?{urllib.parse.urlencode(q)}"
 
     async def exchange(self, code: str) -> OAuthResult:

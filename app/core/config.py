@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     AUTOMATION_CHECK_INTERVAL: int = Field(default=60, description="Automation scheduler check interval in seconds (default: 1 minute)", ge=10)
     CLEANUP_INTERVAL: int = Field(default=86400, description="Cleanup job interval in seconds (default: 24 hours)", ge=3600)
 
+    # Rate Limiting Configuration
+    RATE_LIMIT_PER_MINUTE: int = Field(default=60, description="Maximum requests per minute per IP", ge=1)
+    RATE_LIMIT_VIOLATION_THRESHOLD: int = Field(default=5, description="Violations before auto-ban", ge=1)
+    RATE_LIMIT_AUTO_BAN_DURATION: int = Field(default=86400, description="Auto-ban duration in seconds (default: 24 hours)", ge=60)
+
+    # IP Blocking Configuration
+    TRUST_PROXY_HEADERS: bool = Field(default=True, description="Trust X-Forwarded-For headers from proxies")
+
     @field_validator('DATABASE_URL')
     @classmethod
     def validate_database_url(cls, v: str) -> str:

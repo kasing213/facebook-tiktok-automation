@@ -17,6 +17,7 @@ from app.repositories import (
     TenantRepository, UserRepository, AdTokenRepository,
     DestinationRepository, AutomationRepository
 )
+from app.repositories.ip_access import IPAccessRepository
 
 # Integration imports
 from app.integrations.oauth import FacebookOAuth, TikTokOAuth, OAuthProvider, FacebookAPIClient
@@ -66,6 +67,10 @@ def get_destination_repository(db: Session = Depends(get_db)) -> DestinationRepo
 def get_automation_repository(db: Session = Depends(get_db)) -> AutomationRepository:
     """Get automation repository"""
     return AutomationRepository(db)
+
+def get_ip_access_repository(db: Session = Depends(get_db)) -> IPAccessRepository:
+    """Get IP access repository"""
+    return IPAccessRepository(db)
 
 # --- Integration Services ---
 _encryptor_cache: Optional[TokenEncryptor] = None
@@ -120,6 +125,7 @@ UserRepo = Annotated[UserRepository, Depends(get_user_repository)]
 AdTokenRepo = Annotated[AdTokenRepository, Depends(get_ad_token_repository)]
 DestinationRepo = Annotated[DestinationRepository, Depends(get_destination_repository)]
 AutomationRepo = Annotated[AutomationRepository, Depends(get_automation_repository)]
+IPAccessRepo = Annotated[IPAccessRepository, Depends(get_ip_access_repository)]
 
 # Service dependencies
 TenantSvc = Annotated[TenantService, Depends(get_tenant_service)]

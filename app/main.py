@@ -14,6 +14,7 @@ from app.routes.webhooks import router as webhook_router
 from app.routes.auth import router as auth_router, get_current_user
 from app.core.models import User
 from app.routes.data_deletion import router as data_deletion_router
+from app.routes.ip_management import router as ip_mgmt_router
 
 
 # Request/Response models
@@ -127,11 +128,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add rate limiting middleware
+from app.middleware.rate_limit import RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware)
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(oauth_router)
 app.include_router(webhook_router)
 app.include_router(data_deletion_router)
+app.include_router(ip_mgmt_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")

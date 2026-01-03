@@ -38,6 +38,11 @@ class TokenType(str, enum.Enum):
     user = "user"
     page = "page"
 
+class IPRuleType(str, enum.Enum):
+    whitelist = "whitelist"
+    blacklist = "blacklist"
+    auto_banned = "auto_banned"
+
 # Multi-tenant core models
 class Tenant(Base):
     """Core tenant model for multi-tenant isolation"""
@@ -263,5 +268,44 @@ class AutomationRun(Base):
     __table_args__ = (
         Index("idx_automation_run_started", "started_at"),
         Index("idx_automation_run_automation_status", "automation_id", "status"),
+    )
+
+class IPAccessRule(Base):
+    """IP whitelist/blacklist rules for access control"""
+    __tablename__ = "ip_access_rule"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ip_address = Column(String(45), nullable=False)  # IPv6 max length
+    rule_type = Column(Enum(IPRuleType), nullable=False)
+    reason = Column(Text, nullable=True)
+    expires_at = Column(DateTime, nullable=True)  # For temporary bans
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow, nullable=False)
+    created_by = Column(String(255), nullable=True)  # Admin who created rule
+
+    __table_args__ = (
+        Index("idx_ip_access_rule_ip", "ip_address"),
+        Index("idx_ip_access_rule_type", "rule_type"),
+        Index("idx_ip_access_rule_active", "is_active"),
+        Index("idx_ip_access_rule_expires", "expires_at"),
+    )
+
+class RateLimitViolation(Base):
+    """Rate limit violation tracking for automatic IP banning"""
+    __tablename__ = "rate_limit_violation"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ip_address = Column(String(45), nullable=False)
+    endpoint = Column(String(500), nullable=False)
+    violation_count = Column(Integer, default=1, nullable=False)
+    last_violation_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    auto_banned = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_rate_limit_violation_ip", "ip_address"),
+        Index("idx_rate_limit_violation_last", "last_violation_at"),
+        Index("idx_rate_limit_violation_ip_endpoint", "ip_address", "endpoint"),
     )
 
