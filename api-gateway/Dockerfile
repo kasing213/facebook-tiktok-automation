@@ -15,10 +15,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 
-# Copy and setup start script
-COPY start.sh .
-RUN chmod +x start.sh
-
 # Set Python path
 ENV PYTHONPATH=/app
 
@@ -28,5 +24,5 @@ ENV PORT=8001
 # Expose port
 EXPOSE 8001
 
-# Run the application using start script
-CMD ["./start.sh"]
+# Run the application - Python reads PORT from environment variable
+CMD ["python", "src/run.py"]
