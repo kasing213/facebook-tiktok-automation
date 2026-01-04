@@ -30,8 +30,13 @@ class MongoDBManager:
         for name, url, db_name in connections:
             if url:
                 try:
-                    client = AsyncIOMotorClient(url)
-                    # Test connection
+                    # Set short connection timeout to not block startup
+                    client = AsyncIOMotorClient(
+                        url,
+                        serverSelectionTimeoutMS=5000,  # 5 second timeout
+                        connectTimeoutMS=5000,
+                    )
+                    # Test connection with timeout
                     await client.admin.command("ping")
                     self.clients[name] = client
                     self.databases[name] = client[db_name]

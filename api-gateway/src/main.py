@@ -25,28 +25,41 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     logger.info("Starting API Gateway...")
+    bot_task = None
 
-    # Initialize PostgreSQL
-    init_postgres()
-    logger.info("PostgreSQL initialized")
+    try:
+        # Initialize PostgreSQL (non-blocking, logs warning if not configured)
+        init_postgres()
+        logger.info("PostgreSQL initialization complete")
+    except Exception as e:
+        logger.error(f"PostgreSQL initialization error: {e}")
 
-    # Connect to MongoDB databases
-    await mongo_manager.connect()
-    logger.info("MongoDB connections initialized")
+    try:
+        # Connect to MongoDB databases (with timeouts)
+        await mongo_manager.connect()
+        logger.info("MongoDB connections initialized")
+    except Exception as e:
+        logger.error(f"MongoDB connection error: {e}")
 
-    # Start Telegram bot in background
-    bot_task = asyncio.create_task(run_bot())
-    logger.info("Telegram bot started")
+    try:
+        # Start Telegram bot in background
+        bot_task = asyncio.create_task(run_bot())
+        logger.info("Telegram bot task started")
+    except Exception as e:
+        logger.error(f"Telegram bot startup error: {e}")
+
+    logger.info("API Gateway startup complete - ready to serve requests")
 
     yield
 
     # Cleanup
     logger.info("Shutting down API Gateway...")
-    bot_task.cancel()
-    try:
-        await bot_task
-    except asyncio.CancelledError:
-        pass
+    if bot_task:
+        bot_task.cancel()
+        try:
+            await bot_task
+        except asyncio.CancelledError:
+            pass
 
     await mongo_manager.close()
     close_postgres()
@@ -96,14 +109,26 @@ async def root():
 
 @app.get("/health", tags=["system"])
 async def health():
-    """Health check endpoint."""
-    mongo_status = await mongo_manager.health_check()
+    """Health check endpoint - responds quickly for Railway health checks."""
+    return {
+        "status": "ok",
+        "service": "api-gateway",
+    }
+
+
+@app.get("/health/detailed", tags=["system"])
+async def health_detailed():
+    """Detailed health check with database status."""
+    try:
+        mongo_status = await mongo_manager.health_check()
+    except Exception:
+        mongo_status = {"error": "check failed"}
 
     return {
         "status": "ok",
         "service": "api-gateway",
         "databases": {
-            "postgresql": True,  # If we get here, PostgreSQL is working
+            "postgresql": settings.DATABASE_URL != "",
             "mongodb": mongo_status,
         }
     }

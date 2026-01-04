@@ -53,6 +53,9 @@ def get_db_session() -> Generator[Session, None, None]:
     if SessionLocal is None:
         init_postgres()
 
+    if SessionLocal is None:
+        raise RuntimeError("Database not configured - DATABASE_URL not set")
+
     session = SessionLocal()
     try:
         yield session
@@ -75,6 +78,9 @@ def get_db() -> Generator[Session, None, None]:
     """
     if SessionLocal is None:
         init_postgres()
+
+    if SessionLocal is None:
+        raise RuntimeError("Database not configured - DATABASE_URL not set")
 
     session = SessionLocal()
     try:
