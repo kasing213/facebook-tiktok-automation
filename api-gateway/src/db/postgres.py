@@ -1,6 +1,7 @@
 # api-gateway/src/db/postgres.py
 """PostgreSQL database connection for API Gateway."""
 
+import logging
 from contextlib import contextmanager
 from typing import Generator
 
@@ -8,6 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Create engine
 engine = None
@@ -17,6 +20,10 @@ SessionLocal = None
 def init_postgres():
     """Initialize PostgreSQL connection."""
     global engine, SessionLocal
+
+    if not settings.DATABASE_URL:
+        logger.warning("DATABASE_URL not set - PostgreSQL disabled")
+        return
 
     engine = create_engine(
         settings.DATABASE_URL,

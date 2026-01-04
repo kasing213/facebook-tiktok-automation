@@ -2,35 +2,63 @@
 """Telegram bot module."""
 
 import logging
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-
-from src.config import settings
-from src.bot.handlers import start, status, invoice, verify, sales, promo, help_cmd
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# Create bot and dispatcher
-bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher()
-
-# Register handlers
-dp.include_router(start.router)
-dp.include_router(status.router)
-dp.include_router(invoice.router)
-dp.include_router(verify.router)
-dp.include_router(sales.router)
-dp.include_router(promo.router)
-dp.include_router(help_cmd.router)
+# Lazy-loaded bot and dispatcher
+_bot = None
+_dp = None
 
 
-def create_bot() -> tuple[Bot, Dispatcher]:
+def _init_bot():
+    """Initialize bot and dispatcher lazily."""
+    global _bot, _dp
+
+    if _bot is not None:
+        return _bot, _dp
+
+    from aiogram import Bot, Dispatcher
+    from aiogram.enums import ParseMode
+    from src.config import settings
+    from src.bot.handlers import start, status, invoice, verify, sales, promo, help_cmd
+
+    if not settings.TELEGRAM_BOT_TOKEN:
+        logger.warning("TELEGRAM_BOT_TOKEN not set - bot will not start")
+        return None, None
+
+    _bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, parse_mode=ParseMode.HTML)
+    _dp = Dispatcher()
+
+    # Register handlers
+    _dp.include_router(start.router)
+    _dp.include_router(status.router)
+    _dp.include_router(invoice.router)
+    _dp.include_router(verify.router)
+    _dp.include_router(sales.router)
+    _dp.include_router(promo.router)
+    _dp.include_router(help_cmd.router)
+
+    return _bot, _dp
+
+
+def create_bot():
     """Create and configure the Telegram bot."""
-    return bot, dp
+    return _init_bot()
 
 
 async def run_bot():
     """Run the Telegram bot polling."""
+    bot, dp = _init_bot()
+
+    if bot is None or dp is None:
+        logger.warning("Bot not initialized - skipping polling")
+        # Keep running to not crash the app
+        import asyncio
+        while True:
+            await asyncio.sleep(3600)
+        return
+
     logger.info("Starting Telegram bot polling...")
     try:
         await dp.start_polling(bot)

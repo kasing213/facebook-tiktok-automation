@@ -16,11 +16,11 @@ class Settings(BaseSettings):
         extra="allow"
     )
 
-    # Telegram Bot
-    TELEGRAM_BOT_TOKEN: str = Field(..., description="Telegram Bot Token")
+    # Telegram Bot (bot won't start without it but app will run)
+    TELEGRAM_BOT_TOKEN: str = Field(default="", description="Telegram Bot Token")
 
-    # PostgreSQL (same as Facebook-automation)
-    DATABASE_URL: str = Field(..., description="PostgreSQL connection string")
+    # PostgreSQL (required for user linking)
+    DATABASE_URL: str = Field(default="", description="PostgreSQL connection string")
 
     # Core API URL
     CORE_API_URL: str = Field(
