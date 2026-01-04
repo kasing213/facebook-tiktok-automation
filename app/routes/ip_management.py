@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 
-from app.deps import get_logger, LoggerDep
+from app.deps import LoggerDep
 from app.routes.auth import get_current_user
 from app.core.models import User, UserRole, IPRuleType, IPAccessRule, RateLimitViolation
 from app.core.db import SessionLocal
@@ -128,9 +128,9 @@ def create_ip_rule(
 
 @router.get("/rules", response_model=List[IPRuleResponse])
 def list_ip_rules(
-    rule_type: Optional[IPRuleType] = Query(None, description="Filter by rule type"),
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin)
+    admin_user: User = Depends(require_admin),
+    rule_type: Optional[IPRuleType] = Query(None, description="Filter by rule type")
 ):
     """
     List all active IP access rules
@@ -164,9 +164,9 @@ def list_ip_rules(
 @router.delete("/rules/{ip_address}")
 def remove_ip_rule(
     ip_address: str,
-    rule_type: IPRuleType = Query(..., description="Rule type to remove"),
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin)
+    admin_user: User = Depends(require_admin),
+    rule_type: IPRuleType = Query(..., description="Rule type to remove")
 ):
     """
     Remove IP access rule
@@ -240,10 +240,10 @@ def unban_ip(
 
 @router.get("/violations", response_model=List[RateLimitViolationResponse])
 def list_rate_violations(
-    limit: int = Query(100, description="Maximum violations to return", ge=1, le=500),
-    ip_address: Optional[str] = Query(None, description="Filter by IP address"),
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin)
+    admin_user: User = Depends(require_admin),
+    limit: int = Query(100, description="Maximum violations to return", ge=1, le=500),
+    ip_address: Optional[str] = Query(None, description="Filter by IP address")
 ):
     """
     List recent rate limit violations
