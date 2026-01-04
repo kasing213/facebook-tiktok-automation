@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.models import User
 from app.repositories import TelegramRepository
 from app.routes.auth import get_current_user
@@ -88,7 +88,8 @@ async def generate_link_code(
     db.commit()
 
     # Build bot URLs
-    bot_username = getattr(settings, 'TELEGRAM_BOT_USERNAME', 'your_bot')
+    settings = get_settings()
+    bot_username = getattr(settings, "TELEGRAM_BOT_USERNAME", "your_bot")
     bot_url = f"https://t.me/{bot_username}"
     deep_link = f"https://t.me/{bot_username}?start={link_code.code}"
 
