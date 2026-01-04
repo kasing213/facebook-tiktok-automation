@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 
+# Copy and setup start script
+COPY start.sh .
+RUN chmod +x start.sh
+
 # Set Python path
 ENV PYTHONPATH=/app
 
@@ -24,5 +28,5 @@ ENV PORT=8001
 # Expose port
 EXPOSE 8001
 
-# Run the application - use shell form to expand $PORT
-CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port $PORT"]
+# Run the application using start script
+CMD ["./start.sh"]
