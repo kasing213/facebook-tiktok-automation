@@ -129,7 +129,7 @@ def create_ip_rule(
 @router.get("/rules", response_model=List[IPRuleResponse])
 def list_ip_rules(
     rule_type: Optional[IPRuleType] = Query(None, description="Filter by rule type"),
-    logger: LoggerDep = Depends(get_logger),
+    logger: LoggerDep,
     admin_user: User = Depends(require_admin)
 ):
     """
@@ -165,7 +165,7 @@ def list_ip_rules(
 def remove_ip_rule(
     ip_address: str,
     rule_type: IPRuleType = Query(..., description="Rule type to remove"),
-    logger: LoggerDep = Depends(get_logger),
+    logger: LoggerDep,
     admin_user: User = Depends(require_admin)
 ):
     """
@@ -200,7 +200,7 @@ def remove_ip_rule(
 @router.post("/rules/{ip_address}/unban")
 def unban_ip(
     ip_address: str,
-    logger: LoggerDep = Depends(get_logger),
+    logger: LoggerDep,
     admin_user: User = Depends(require_admin)
 ):
     """
@@ -242,7 +242,7 @@ def unban_ip(
 def list_rate_violations(
     limit: int = Query(100, description="Maximum violations to return", ge=1, le=500),
     ip_address: Optional[str] = Query(None, description="Filter by IP address"),
-    logger: LoggerDep = Depends(get_logger),
+    logger: LoggerDep,
     admin_user: User = Depends(require_admin)
 ):
     """
@@ -283,7 +283,7 @@ def list_rate_violations(
 @router.get("/check/{ip_address}")
 def check_ip_status(
     ip_address: str,
-    logger: LoggerDep = Depends(get_logger),
+    logger: LoggerDep,
     admin_user: User = Depends(require_admin)
 ):
     """
