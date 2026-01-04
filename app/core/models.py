@@ -69,6 +69,8 @@ class User(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id"), nullable=False)
     telegram_user_id = Column(String(50), nullable=True)  # Telegram user ID
+    telegram_username = Column(String(100), nullable=True)  # Telegram @username
+    telegram_linked_at = Column(DateTime(timezone=True), nullable=True)  # When Telegram was linked
     email = Column(String(255), nullable=True)
     username = Column(String(100), nullable=True)
     password_hash = Column(String(255), nullable=True)  # For web-based authentication
@@ -307,5 +309,29 @@ class RateLimitViolation(Base):
         Index("idx_rate_limit_violation_ip", "ip_address"),
         Index("idx_rate_limit_violation_last", "last_violation_at"),
         Index("idx_rate_limit_violation_ip_endpoint", "ip_address", "endpoint"),
+    )
+
+
+class TelegramLinkCode(Base):
+    """Temporary codes for linking Telegram accounts to dashboard users"""
+    __tablename__ = "telegram_link_code"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    code = Column(String(32), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    telegram_user_id = Column(String(50), nullable=True)  # Filled when code is consumed
+
+    # Relationships
+    user = relationship("User", backref="telegram_link_codes")
+    tenant = relationship("Tenant", backref="telegram_link_codes")
+
+    __table_args__ = (
+        Index("idx_telegram_link_code_code", "code", unique=True),
+        Index("idx_telegram_link_code_expires", "expires_at"),
+        Index("idx_telegram_link_code_user", "user_id"),
     )
 

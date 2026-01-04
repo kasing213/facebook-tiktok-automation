@@ -4,6 +4,7 @@ from .user import UserRepository
 from .ad_token import AdTokenRepository
 from .destination import DestinationRepository
 from .automation import AutomationRepository, AutomationRunRepository
+from .telegram import TelegramRepository
 
 __all__ = [
     "TenantRepository",
@@ -12,4 +13,5 @@ __all__ = [
     "DestinationRepository",
     "AutomationRepository",
     "AutomationRunRepository",
+    "TelegramRepository",
 ]

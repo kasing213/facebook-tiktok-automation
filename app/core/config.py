@@ -52,6 +52,7 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: SecretStr = Field(..., description="Telegram Bot Token")
+    TELEGRAM_BOT_USERNAME: str = Field(default="your_bot", description="Telegram Bot username (without @)")
 
     # Webhook configuration
     FACEBOOK_WEBHOOK_VERIFY_TOKEN: SecretStr = Field(default="my_facebook_verify_token_change_me", description="Facebook webhook verification token")

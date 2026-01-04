@@ -265,4 +265,56 @@ export const authService = {
 
 }
 
+// Telegram service
+export const telegramService = {
+  /**
+   * Generate a link code for connecting Telegram
+   */
+  async generateLinkCode(): Promise<{
+    code: string
+    expires_at: string
+    bot_url: string
+    deep_link: string
+  }> {
+    try {
+      const response = await api.post('/telegram/generate-code')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to generate Telegram link code:', error)
+      throw new Error(`Failed to generate link code: ${error.response?.data?.detail || error.message}`)
+    }
+  },
+
+  /**
+   * Get Telegram connection status
+   */
+  async getStatus(): Promise<{
+    connected: boolean
+    telegram_user_id?: string
+    telegram_username?: string
+    linked_at?: string
+  }> {
+    try {
+      const response = await api.get('/telegram/status')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to get Telegram status:', error)
+      throw new Error(`Failed to get Telegram status: ${error.response?.data?.detail || error.message}`)
+    }
+  },
+
+  /**
+   * Disconnect Telegram account
+   */
+  async disconnect(): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await api.post('/telegram/disconnect')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to disconnect Telegram:', error)
+      throw new Error(`Failed to disconnect: ${error.response?.data?.detail || error.message}`)
+    }
+  }
+}
+
 export default api

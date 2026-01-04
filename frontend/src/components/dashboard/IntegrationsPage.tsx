@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 import { useAuth, useOAuth } from '../../hooks/useAuth'
+import { useTelegram } from '../../hooks/useTelegram'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorMessage } from '../ErrorMessage'
 import SocialIcon from '../SocialIcon'
@@ -196,6 +197,99 @@ const ErrorText = styled.div`
   font-size: 0.8125rem;
 `
 
+const TelegramButton = styled.button`
+  background: linear-gradient(135deg, #0088cc 0%, #229ED9 100%);
+  color: white;
+  border: none;
+  padding: 0.875rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  margin-top: 1rem;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 136, 204, 0.3);
+  }
+`
+
+const DisconnectButton = styled.button`
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 1rem;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    background: #c82333;
+  }
+`
+
+const LinkCodeBox = styled.div`
+  background: #f0f9ff;
+  border: 1px solid #0088cc;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  text-align: center;
+`
+
+const LinkCode = styled.code`
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0088cc;
+  letter-spacing: 0.1em;
+  margin: 0.5rem 0;
+`
+
+const DeepLinkButton = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #0088cc;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #006699;
+    transform: translateY(-1px);
+  }
+`
+
+const ExpiryText = styled.p`
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+`
+
 const IntegrationsPage: React.FC = () => {
   const location = useLocation()
   const [tenantId, setTenantId] = useState<string>('')
@@ -233,9 +327,40 @@ const IntegrationsPage: React.FC = () => {
 
   const { authStatus, loading, error, refreshAuthStatus } = useAuth(tenantId || null)
   const { initiating, errors: oauthErrors, clearErrors, initiateFacebookOAuth, initiateTikTokOAuth } = useOAuth()
+  const {
+    status: telegramStatus,
+    linkCode,
+    generating: telegramGenerating,
+    disconnecting: telegramDisconnecting,
+    error: telegramError,
+    generateLinkCode,
+    disconnect: disconnectTelegram,
+    fetchStatus: refreshTelegramStatus,
+    clearError: clearTelegramError
+  } = useTelegram()
 
   const handleRefresh = () => {
     refreshAuthStatus()
+    refreshTelegramStatus()
+  }
+
+  const handleConnectTelegram = async () => {
+    clearTelegramError()
+    try {
+      await generateLinkCode()
+    } catch (error) {
+      console.error('Failed to generate Telegram link code:', error)
+    }
+  }
+
+  const handleDisconnectTelegram = async () => {
+    clearTelegramError()
+    try {
+      await disconnectTelegram()
+      setSuccessMessage('Telegram account disconnected successfully!')
+    } catch (error) {
+      console.error('Failed to disconnect Telegram:', error)
+    }
   }
 
   const handleConnectFacebook = async () => {
@@ -420,6 +545,85 @@ const IntegrationsPage: React.FC = () => {
             {oauthErrors.tiktok && (
               <ErrorText>
                 Error: {oauthErrors.tiktok}
+              </ErrorText>
+            )}
+          </IntegrationCard>
+
+          {/* Telegram Integration */}
+          <IntegrationCard connected={telegramStatus?.connected || false}>
+            <CardHeader>
+              <span style={{ fontSize: '2rem' }}>✈️</span>
+              <PlatformName>Telegram</PlatformName>
+              <StatusBadge connected={telegramStatus?.connected || false}>
+                {telegramStatus?.connected ? 'Connected' : 'Disconnected'}
+              </StatusBadge>
+            </CardHeader>
+
+            <Description>
+              Connect your Telegram account to receive notifications, run commands, and interact with the platform via bot.
+            </Description>
+
+            {telegramStatus?.connected && (
+              <div>
+                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
+                  ✅ Connected as @{telegramStatus.telegram_username || telegramStatus.telegram_user_id}
+                </p>
+                {telegramStatus.linked_at && (
+                  <TokenMeta>
+                    Linked: {new Date(telegramStatus.linked_at).toLocaleDateString()}
+                  </TokenMeta>
+                )}
+                <DisconnectButton
+                  onClick={handleDisconnectTelegram}
+                  disabled={telegramDisconnecting}
+                >
+                  {telegramDisconnecting ? 'Disconnecting...' : 'Disconnect Telegram'}
+                </DisconnectButton>
+              </div>
+            )}
+
+            {!telegramStatus?.connected && !linkCode && (
+              <TelegramButton
+                onClick={handleConnectTelegram}
+                disabled={telegramGenerating}
+              >
+                {telegramGenerating ? (
+                  <>
+                    <LoadingSpinner size="small" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <span>✈️</span>
+                    Connect Telegram
+                  </>
+                )}
+              </TelegramButton>
+            )}
+
+            {!telegramStatus?.connected && linkCode && (
+              <LinkCodeBox>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
+                  Click the button below or send this code to the bot:
+                </p>
+                <LinkCode>{linkCode.code}</LinkCode>
+                <DeepLinkButton
+                  href={linkCode.deep_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span>✈️</span>
+                  Open Telegram Bot
+                </DeepLinkButton>
+                <ExpiryText>
+                  Code expires: {new Date(linkCode.expires_at).toLocaleTimeString()}
+                </ExpiryText>
+              </LinkCodeBox>
+            )}
+
+            {telegramError && (
+              <ErrorText>
+                Error: {telegramError}
               </ErrorText>
             )}
           </IntegrationCard>

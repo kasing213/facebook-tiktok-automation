@@ -256,25 +256,200 @@ FRONTEND_URL=https://facebooktiktokautomation.vercel.app
    - [.env](.env:58) - Facebook scopes configured for testing
    - [.env](.env:78) - TikTok scopes configured for testing
 
+---
+
+## Telegram Integration
+
+### Overview
+
+The platform now supports Telegram account linking, allowing users to:
+- Receive notifications via Telegram
+- Execute bot commands to interact with the platform
+- Access invoice, sales, screenshot verification, and promotion features
+
+### Step 5: Connect Telegram Account
+
+1. **On the Integrations Page**
+   - Navigate to Dashboard → Integrations
+   - Find the Telegram card (shows "Disconnected" initially)
+
+2. **Click "Connect Telegram" Button**
+   - This generates a unique link code (valid for 15 minutes)
+   - You'll see the code displayed and a "Open Telegram Bot" button
+
+3. **Link via Telegram**
+   - **Option A**: Click "Open Telegram Bot" - opens Telegram with the code pre-filled
+   - **Option B**: Copy the code and send `/start <code>` to the bot manually
+
+4. **Verify Connection**
+   - The bot will confirm: "Telegram Connected Successfully!"
+   - Return to the dashboard and refresh
+   - Telegram card should now show "Connected" status
+
+5. **Available Commands** (after linking)
+   ```
+   /status    - View all systems status
+   /invoice   - Invoice operations
+   /verify    - Screenshot verification
+   /sales     - Sales reports
+   /promo     - Promotion status
+   /help      - Show all commands
+   ```
+
+### Disconnecting Telegram
+
+1. Go to Integrations page
+2. Click "Disconnect Telegram" on the Telegram card
+3. Confirm disconnection
+4. Your Telegram account is now unlinked
+
+---
+
+## API Gateway Architecture
+
+### Overview
+
+The API Gateway (`api-gateway/`) is a separate FastAPI service that:
+- Hosts the unified Telegram bot
+- Proxies requests to backend MongoDB services
+- Provides REST API endpoints for all integrated projects
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        RAILWAY                               │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐          ┌──────────────────────────────┐ │
+│  │ Facebook-auto│          │        API GATEWAY           │ │
+│  │  (FastAPI)   │◄────────►│  api-gateway/                │ │
+│  │  Port 8000   │   HTTP   │  Port 8001                   │ │
+│  └──────┬───────┘          │                              │ │
+│         │                  │  ┌────────────────────────┐  │ │
+│         ▼                  │  │     TELEGRAM BOT       │  │ │
+│  ┌──────────────┐          │  │  /start, /status, etc  │  │ │
+│  │  PostgreSQL  │◄─────────┤  └────────────────────────┘  │ │
+│  │  (Supabase)  │          │                              │ │
+│  └──────────────┘          │  ┌────────────────────────┐  │ │
+│                            │  │    REST API PROXY      │  │ │
+│                            │  │  /api/invoice/...      │  │ │
+│                            │  │  /api/scriptclient/... │  │ │
+│                            │  │  /api/audit-sales/...  │  │ │
+│                            │  │  /api/ads-alert/...    │  │ │
+│                            │  └────────────────────────┘  │ │
+│                            └──────────────┬───────────────┘ │
+│                                           │                 │
+│                                           ▼                 │
+│                              ┌──────────────────────┐       │
+│                              │       MongoDB        │       │
+│                              │  invoice_db          │       │
+│                              │  scriptclient_db     │       │
+│                              │  audit_sales_db      │       │
+│                              │  ads_alert_db        │       │
+│                              └──────────────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Deploying API Gateway
+
+1. **Configure Environment Variables** (Railway):
+   ```env
+   TELEGRAM_BOT_TOKEN=your_bot_token
+   DATABASE_URL=postgresql://...
+   CORE_API_URL=https://your-facebook-automation.railway.app
+   MONGO_URL_INVOICE=mongodb+srv://...
+   MONGO_URL_SCRIPTCLIENT=mongodb+srv://...
+   MONGO_URL_AUDIT_SALES=mongodb+srv://...
+   MONGO_URL_ADS_ALERT=mongodb+srv://...
+   ```
+
+2. **Deploy to Railway**:
+   ```bash
+   cd api-gateway
+   railway up
+   ```
+
+3. **Verify Deployment**:
+   - Health check: `https://your-api-gateway.railway.app/health`
+   - API docs: `https://your-api-gateway.railway.app/docs`
+
+---
+
+## Backend Services Integration
+
+### Available Services
+
+| Service | MongoDB Database | API Prefix |
+|---------|-----------------|------------|
+| Invoice Generator | invoice_generator | `/api/invoice` |
+| Screenshot Verifier | scriptclient | `/api/scriptclient` |
+| Audit Sales | audit_sales | `/api/audit-sales` |
+| Ads Alert | ads_alert | `/api/ads-alert` |
+
+### API Endpoints (via Gateway)
+
+```bash
+# Invoice Generator
+GET /api/invoice/health
+GET /api/invoice/customers
+GET /api/invoice/invoices
+GET /api/invoice/stats
+
+# Screenshot Verifier
+GET /api/scriptclient/health
+GET /api/scriptclient/screenshots/verified
+GET /api/scriptclient/screenshots/pending
+GET /api/scriptclient/stats
+
+# Audit Sales
+GET /api/audit-sales/health
+GET /api/audit-sales/reports/daily?date=YYYY-MM-DD
+GET /api/audit-sales/sales
+GET /api/audit-sales/stats
+
+# Ads Alert
+GET /api/ads-alert/health
+GET /api/ads-alert/chats
+GET /api/ads-alert/promotions
+GET /api/ads-alert/status
+```
+
+---
+
 ## Next Steps
 
 1. **Test the Complete Workflow**
-   - Register → Login → Connect Facebook → Connect TikTok
+   - Register → Login → Connect Facebook → Connect TikTok → Connect Telegram
    - Verify all connections show on Dashboard
+   - Test Telegram bot commands
 
-2. **Create Screencast for App Review**
+2. **Deploy API Gateway**
+   - Configure MongoDB connections
+   - Deploy to Railway as separate service
+   - Verify all service integrations
+
+3. **Create Screencast for App Review**
    - Follow this guide step-by-step
    - Record your screen showing the workflow
    - Narrate why you need each permission
 
-3. **Submit for App Review**
+4. **Submit for App Review**
    - Facebook: App Dashboard → App Review
    - TikTok: Developer Portal → Apply for Permissions
 
-4. **After Approval**
+5. **After Approval**
    - Update scopes in `.env` with approved advanced scopes
    - Deploy updated configuration
    - Test with real users
+
+---
+
+## Related Documentation
+
+- [COMMANDS.md](COMMANDS.md) - Quick command reference
+- [end-to-end-communicate/README.md](end-to-end-communicate/README.md) - Backend integration details
+- [api-gateway/.env.example](api-gateway/.env.example) - API Gateway configuration
 
 ---
 
