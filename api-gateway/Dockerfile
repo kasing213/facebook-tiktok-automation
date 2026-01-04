@@ -18,8 +18,11 @@ COPY src/ ./src/
 # Set Python path
 ENV PYTHONPATH=/app
 
-# Expose port (Railway uses dynamic PORT)
-EXPOSE ${PORT:-8001}
+# Default port (Railway will override with PORT env var)
+ENV PORT=8001
 
-# Run the application with Railway's PORT
-CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8001}
+# Expose port
+EXPOSE 8001
+
+# Run the application - use shell form to expand $PORT
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port $PORT"]
