@@ -277,3 +277,23 @@ async def cleanup_expired_codes(
         "deleted_count": deleted_count,
         "message": f"Cleaned up {deleted_count} expired link codes"
     }
+
+
+@router.get("/debug-config")
+async def debug_config():
+    """
+    Debug endpoint to check config values.
+
+    This shows what value TELEGRAM_BOT_USERNAME has at runtime.
+    Remove this endpoint after debugging.
+    """
+    import os
+    settings = get_settings()
+    return {
+        "env_var_direct": os.environ.get("TELEGRAM_BOT_USERNAME", "NOT_SET"),
+        "settings_value": settings.TELEGRAM_BOT_USERNAME,
+        "all_telegram_vars": {
+            k: v for k, v in os.environ.items()
+            if "TELEGRAM" in k.upper()
+        }
+    }
