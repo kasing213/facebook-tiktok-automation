@@ -5,7 +5,10 @@ import logging
 from aiogram import Router, types
 from aiogram.filters import Command
 
-from src.db import mongo_manager
+from src.services.invoice_service import invoice_service
+from src.services.screenshot_service import screenshot_service
+from src.services.sales_service import sales_service
+from src.services.promo_service import promo_service
 from src.bot.services.linking import get_user_by_telegram_id
 
 logger = logging.getLogger(__name__)
@@ -26,21 +29,37 @@ async def cmd_status(message: types.Message):
         )
         return
 
-    # Check MongoDB connections
-    mongo_status = await mongo_manager.health_check()
+    # Check PostgreSQL schema connections
+    services_status = []
+
+    try:
+        invoice_stats = await invoice_service.get_stats()
+        services_status.append(("Invoice Generator", invoice_stats.get("status") == "connected"))
+    except Exception:
+        services_status.append(("Invoice Generator", False))
+
+    try:
+        screenshot_stats = await screenshot_service.get_stats()
+        services_status.append(("Screenshot Verifier", screenshot_stats.get("status") == "connected"))
+    except Exception:
+        services_status.append(("Screenshot Verifier", False))
+
+    try:
+        sales_stats = await sales_service.get_stats()
+        services_status.append(("Audit Sales", sales_stats.get("status") == "connected"))
+    except Exception:
+        services_status.append(("Audit Sales", False))
+
+    try:
+        promo_stats = await promo_service.get_stats()
+        services_status.append(("Ads Alert", promo_stats.get("status") == "connected"))
+    except Exception:
+        services_status.append(("Ads Alert", False))
 
     # Build status message
     status_lines = ["<b>System Status</b>\n"]
 
-    # MongoDB services
-    services = [
-        ("Invoice Generator", "invoice", mongo_status.get("invoice", False)),
-        ("Screenshot Verifier", "scriptclient", mongo_status.get("scriptclient", False)),
-        ("Audit Sales", "audit_sales", mongo_status.get("audit_sales", False)),
-        ("Ads Alert", "ads_alert", mongo_status.get("ads_alert", False)),
-    ]
-
-    for name, key, connected in services:
+    for name, connected in services_status:
         icon = "🟢" if connected else "🔴"
         status_text = "Connected" if connected else "Not configured"
         status_lines.append(f"{icon} <b>{name}:</b> {status_text}")
