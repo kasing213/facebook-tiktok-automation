@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
-from src.db import init_postgres, close_postgres, mongo_manager
+from src.db import init_postgres, close_postgres
 from src.bot import create_bot, run_bot
 from src.api import invoice, scriptclient, audit_sales, ads_alert
 
@@ -35,13 +35,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"PostgreSQL initialization error: {e}")
 
     try:
-        # Connect to MongoDB databases (with timeouts)
-        await mongo_manager.connect()
-        logger.info("MongoDB connections initialized")
-    except Exception as e:
-        logger.error(f"MongoDB connection error: {e}")
-
-    try:
         # Start Telegram bot in background
         bot_task = asyncio.create_task(run_bot())
         logger.info("Telegram bot task started")
@@ -61,7 +54,6 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
 
-    await mongo_manager.close()
     close_postgres()
     logger.info("API Gateway shutdown complete")
 
@@ -119,17 +111,31 @@ async def health():
 @app.get("/health/detailed", tags=["system"])
 async def health_detailed():
     """Detailed health check with database status."""
+    from src.db.postgres import get_db_session
+    from sqlalchemy import text
+
+    postgres_ok = False
+    schemas_ok = {}
+
     try:
-        mongo_status = await mongo_manager.health_check()
-    except Exception:
-        mongo_status = {"error": "check failed"}
+        with get_db_session() as db:
+            # Check if schemas exist
+            for schema in ["invoice", "scriptclient", "audit_sales", "ads_alert"]:
+                result = db.execute(
+                    text(f"SELECT schema_name FROM information_schema.schemata WHERE schema_name = :schema"),
+                    {"schema": schema}
+                ).fetchone()
+                schemas_ok[schema] = result is not None
+            postgres_ok = True
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
 
     return {
-        "status": "ok",
+        "status": "ok" if postgres_ok else "degraded",
         "service": "api-gateway",
         "databases": {
-            "postgresql": settings.DATABASE_URL != "",
-            "mongodb": mongo_status,
+            "postgresql": postgres_ok,
+            "schemas": schemas_ok,
         }
     }
 
