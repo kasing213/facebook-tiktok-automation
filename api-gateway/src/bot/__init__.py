@@ -49,12 +49,20 @@ def create_bot():
 
 async def run_bot():
     """Run the Telegram bot polling."""
-    bot, dp = _init_bot()
+    import asyncio
+
+    try:
+        bot, dp = _init_bot()
+    except Exception as e:
+        logger.error(f"Failed to initialize bot: {e}", exc_info=True)
+        # Keep running to not crash the app
+        while True:
+            await asyncio.sleep(3600)
+        return
 
     if bot is None or dp is None:
         logger.warning("Bot not initialized - skipping polling")
         # Keep running to not crash the app
-        import asyncio
         while True:
             await asyncio.sleep(3600)
         return
@@ -63,5 +71,5 @@ async def run_bot():
     try:
         await dp.start_polling(bot)
     except Exception as e:
-        logger.error(f"Bot error: {e}")
+        logger.error(f"Bot polling error: {e}", exc_info=True)
         raise
