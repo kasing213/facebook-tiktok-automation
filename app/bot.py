@@ -1,5 +1,6 @@
 # app/bot.py
 from aiogram import Bot, Dispatcher, types
+from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 import asyncio
@@ -19,7 +20,10 @@ async def on_startup(bot: Bot):
 
 def make_bot_dp():
     s = get_settings()
-    bot = Bot(token=s.TELEGRAM_BOT_TOKEN.get_secret_value(), parse_mode=ParseMode.HTML)
+    bot = Bot(
+        token=s.TELEGRAM_BOT_TOKEN.get_secret_value(),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     dp = Dispatcher()
     log = get_logger()
 

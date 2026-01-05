@@ -19,6 +19,7 @@ def _init_bot():
         return _bot, _dp
 
     from aiogram import Bot, Dispatcher
+    from aiogram.client.default import DefaultBotProperties
     from aiogram.enums import ParseMode
     from src.config import settings
     from src.bot.handlers import start, status, invoice, verify, sales, promo, help_cmd
@@ -27,7 +28,10 @@ def _init_bot():
         logger.warning("TELEGRAM_BOT_TOKEN not set - bot will not start")
         return None, None
 
-    _bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, parse_mode=ParseMode.HTML)
+    _bot = Bot(
+        token=settings.TELEGRAM_BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     _dp = Dispatcher()
 
     # Register handlers
