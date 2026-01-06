@@ -215,7 +215,7 @@ const InvoiceListPage: React.FC = () => {
     exportInvoices,
     clearError
   } = useInvoices()
-  const { canAccessExport, canAccessPdf } = useSubscription()
+  const { canAccessExport } = useSubscription()
 
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 import { useInvoices } from '../../../hooks/useInvoices'
 import { InvoiceForm } from '../../invoice'
-import { InvoiceCreate, CustomerCreate } from '../../../types/invoice'
+import { InvoiceCreate, InvoiceUpdate, CustomerCreate } from '../../../types/invoice'
 
 const Container = styled.div`
   max-width: 900px;
@@ -182,8 +182,9 @@ const InvoiceCreatePage: React.FC = () => {
     fetchCustomers()
   }, [fetchCustomers])
 
-  const handleSubmit = async (data: InvoiceCreate) => {
-    const invoice = await createInvoice(data)
+  const handleSubmit = async (data: InvoiceCreate | InvoiceUpdate) => {
+    // In create page, data will always be InvoiceCreate
+    const invoice = await createInvoice(data as InvoiceCreate)
     navigate(`/dashboard/invoices/${invoice.id}`)
   }
 
