@@ -10,8 +10,20 @@ import DashboardLayout from './components/layouts/DashboardLayout'
 import OverviewPage from './components/dashboard/OverviewPage'
 import UsagePage from './components/dashboard/UsagePage'
 import LogsPage from './components/dashboard/LogsPage'
-import IntegrationsPage from './components/dashboard/IntegrationsPage'
 import SettingsPage from './components/dashboard/SettingsPage'
+import { InvoiceListPage, InvoiceCreatePage, InvoiceDetailPage } from './components/dashboard/invoices'
+import {
+  IntegrationsOverviewPage,
+  FacebookIntegrationPage,
+  TikTokIntegrationPage,
+  TelegramIntegrationPage,
+  InvoiceIntegrationPage
+} from './components/dashboard/integrations'
+import {
+  BillingOverviewPage,
+  PricingPage,
+  PaymentHistoryPage
+} from './components/dashboard/billing'
 import { authService } from './services/api'
 
 // Protected Route component
@@ -45,7 +57,21 @@ function App() {
           <Route index element={<OverviewPage />} />
           <Route path="usage" element={<UsagePage />} />
           <Route path="logs" element={<LogsPage />} />
-          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="integrations">
+            <Route index element={<IntegrationsOverviewPage />} />
+            <Route path="facebook" element={<FacebookIntegrationPage />} />
+            <Route path="tiktok" element={<TikTokIntegrationPage />} />
+            <Route path="telegram" element={<TelegramIntegrationPage />} />
+            <Route path="invoice" element={<InvoiceIntegrationPage />} />
+          </Route>
+          <Route path="billing">
+            <Route index element={<BillingOverviewPage />} />
+            <Route path="pricing" element={<PricingPage />} />
+            <Route path="payments" element={<PaymentHistoryPage />} />
+          </Route>
+          <Route path="invoices" element={<InvoiceListPage />} />
+          <Route path="invoices/new" element={<InvoiceCreatePage />} />
+          <Route path="invoices/:id" element={<InvoiceDetailPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

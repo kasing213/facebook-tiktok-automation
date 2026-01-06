@@ -16,6 +16,9 @@ from app.core.models import User
 from app.routes.data_deletion import router as data_deletion_router
 from app.routes.ip_management import router as ip_mgmt_router
 from app.routes.telegram import router as telegram_router
+from app.routes.integrations.invoice import router as invoice_integration_router
+from app.routes.subscriptions import router as subscription_router
+from app.routes.billing import router as billing_router
 
 
 # Request/Response models
@@ -57,6 +60,17 @@ async def lifespan(app: FastAPI):
     init_db()
     log.info("🚀 FB/TikTok Automation API started (env=%s)", s.ENV)
     log_monitoring_snapshot(log, collect_monitoring_snapshot(s), context="startup")
+
+    # Seed mock invoice data if in mock mode
+    if s.INVOICE_MOCK_MODE:
+        from app.services import invoice_mock_service
+        result = invoice_mock_service.seed_sample_data()
+        if result.get("seeded"):
+            log.info(f"📋 [MOCK] Invoice API running in mock mode - seeded {result['customers']} customers, {result['invoices']} invoices")
+        else:
+            log.info("📋 [MOCK] Invoice API running in mock mode (data already exists)")
+        if not s.INVOICE_TIER_ENFORCEMENT:
+            log.info("📋 [MOCK] Tier enforcement DISABLED - all features available")
 
     # Start background tasks
     token_refresh_task = None
@@ -140,6 +154,9 @@ app.include_router(webhook_router)
 app.include_router(data_deletion_router)
 app.include_router(ip_mgmt_router)
 app.include_router(telegram_router)
+app.include_router(invoice_integration_router)
+app.include_router(subscription_router)
+app.include_router(billing_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")

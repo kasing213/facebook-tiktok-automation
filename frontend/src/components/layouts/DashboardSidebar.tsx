@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -69,24 +69,101 @@ const NavItem = styled(Link)<{ $active: boolean }>`
   }
 `
 
-const NavIcon = styled.span`
-  font-size: 1.125rem;
-  width: 20px;
+
+
+// Accordion styled components
+const AccordionToggle = styled.button<{ $active: boolean; $expanded: boolean }>`
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.5rem;
+  width: 100%;
+  border: none;
+  background: ${props => props.$active ?
+    'linear-gradient(135deg, rgba(74, 144, 226, 0.15) 0%, rgba(42, 82, 152, 0.15) 100%)' :
+    'transparent'};
+  color: ${props => props.$active ? '#4a90e2' : '#6b7280'};
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+
+  &:hover {
+    background: ${props => props.$active ?
+      'linear-gradient(135deg, rgba(74, 144, 226, 0.2) 0%, rgba(42, 82, 152, 0.2) 100%)' :
+      '#f3f4f6'};
+    color: ${props => props.$active ? '#4a90e2' : '#1f2937'};
+  }
 `
 
-const NavLabel = styled.span`
-  flex: 1;
+const ChevronIcon = styled.span<{ $expanded: boolean }>`
+  margin-left: auto;
+  transition: transform 0.2s ease;
+  transform: ${props => props.$expanded ? 'rotate(180deg)' : 'rotate(0)'};
+  font-size: 0.75rem;
 `
 
-const menuItems = [
-  { path: '/dashboard', label: 'Overview', icon: '📊' },
-  { path: '/dashboard/usage', label: 'Usage', icon: '📈' },
-  { path: '/dashboard/logs', label: 'Logs', icon: '📄' },
-  { path: '/dashboard/integrations', label: 'Integrations', icon: '🔌' },
-  { path: '/dashboard/settings', label: 'Settings', icon: '⚙️' }
+const SubMenu = styled.ul<{ $expanded: boolean }>`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  max-height: ${props => props.$expanded ? '500px' : '0'};
+  transition: max-height 0.3s ease;
+  background: #f9fafb;
+`
+
+const SubNavItem = styled(Link)<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 1.5rem 0.625rem 3rem;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  color: ${props => props.$active ? '#4a90e2' : '#6b7280'};
+  background: ${props => props.$active ? '#e8f2fc' : 'transparent'};
+  border-left: ${props => props.$active ? '3px solid #4a90e2' : '3px solid transparent'};
+
+  &:hover {
+    background: ${props => props.$active ? '#e8f2fc' : '#f3f4f6'};
+    color: ${props => props.$active ? '#4a90e2' : '#1f2937'};
+  }
+`
+
+interface MenuItem {
+  path: string
+  label: string
+  children?: MenuItem[]
+}
+
+const menuItems: MenuItem[] = [
+  { path: '/dashboard', label: 'Overview' },
+  { path: '/dashboard/usage', label: 'Usage' },
+  { path: '/dashboard/logs', label: 'Logs' },
+  {
+    path: '/dashboard/integrations',
+    label: 'Integrations',
+    children: [
+      { path: '/dashboard/integrations/facebook', label: 'Facebook' },
+      { path: '/dashboard/integrations/tiktok', label: 'TikTok' },
+      { path: '/dashboard/integrations/telegram', label: 'Telegram' },
+      { path: '/dashboard/integrations/invoice', label: 'Invoice Generator' },
+    ]
+  },
+  {
+    path: '/dashboard/billing',
+    label: 'Billing',
+    children: [
+      { path: '/dashboard/billing', label: 'Overview' },
+      { path: '/dashboard/billing/pricing', label: 'Pricing' },
+      { path: '/dashboard/billing/payments', label: 'Payment History' },
+    ]
+  },
+  { path: '/dashboard/invoices', label: 'Invoices' },
+  { path: '/dashboard/settings', label: 'Settings' }
 ]
 
 const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
@@ -96,6 +173,28 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   onNavigate
 }) => {
   const location = useLocation()
+
+  // Auto-expand accordion if current path is a child route
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(() => {
+    const initial = new Set<string>()
+    if (location.pathname.startsWith('/dashboard/integrations')) {
+      initial.add('/dashboard/integrations')
+    }
+    if (location.pathname.startsWith('/dashboard/billing')) {
+      initial.add('/dashboard/billing')
+    }
+    return initial
+  })
+
+  // Update expanded state when route changes
+  useEffect(() => {
+    if (location.pathname.startsWith('/dashboard/integrations')) {
+      setExpandedMenus(prev => new Set([...prev, '/dashboard/integrations']))
+    }
+    if (location.pathname.startsWith('/dashboard/billing')) {
+      setExpandedMenus(prev => new Set([...prev, '/dashboard/billing']))
+    }
+  }, [location.pathname])
 
   // Close sidebar when route changes (mobile only)
   useEffect(() => {
@@ -123,22 +222,70 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     }
   }
 
+  const toggleAccordion = (path: string) => {
+    setExpandedMenus(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }
+
+  const isMenuActive = (basePath: string) => {
+    return location.pathname.startsWith(basePath)
+  }
+
+  const renderMenuItem = (item: MenuItem) => {
+    if (item.children) {
+      const isExpanded = expandedMenus.has(item.path)
+      const hasActiveChild = isMenuActive(item.path)
+
+      return (
+        <li key={item.path}>
+          <AccordionToggle
+            $active={hasActiveChild}
+            $expanded={isExpanded}
+            onClick={() => toggleAccordion(item.path)}
+          >
+            <span style={{ flex: 1 }}>{item.label}</span>
+            <ChevronIcon $expanded={isExpanded}>&#9662;</ChevronIcon>
+          </AccordionToggle>
+          <SubMenu $expanded={isExpanded}>
+            {item.children.map(child => (
+              <li key={child.path}>
+                <SubNavItem
+                  to={child.path}
+                  $active={location.pathname === child.path}
+                  onClick={handleNavigate}
+                >
+                  {child.label}
+                </SubNavItem>
+              </li>
+            ))}
+          </SubMenu>
+        </li>
+      )
+    }
+
+    const isActive = location.pathname === item.path
+    return (
+      <li key={item.path}>
+        <NavItem to={item.path} $active={isActive} onClick={handleNavigate}>
+          {item.label}
+        </NavItem>
+      </li>
+    )
+  }
+
   // Don't render desktop sidebar on mobile devices
   if (!mobile) {
     return (
       <SidebarContainer>
         <NavList>
-          {menuItems.map(item => {
-            const isActive = location.pathname === item.path
-            return (
-              <li key={item.path}>
-                <NavItem to={item.path} $active={isActive}>
-                  <NavIcon>{item.icon}</NavIcon>
-                  <NavLabel>{item.label}</NavLabel>
-                </NavItem>
-              </li>
-            )
-          })}
+          {menuItems.map(renderMenuItem)}
         </NavList>
       </SidebarContainer>
     )
@@ -150,21 +297,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       <Overlay $isOpen={isOpen} onClick={onClose} />
       <SidebarContainer $mobile $isOpen={isOpen}>
         <NavList>
-          {menuItems.map(item => {
-            const isActive = location.pathname === item.path
-            return (
-              <li key={item.path}>
-                <NavItem
-                  to={item.path}
-                  $active={isActive}
-                  onClick={handleNavigate}
-                >
-                  <NavIcon>{item.icon}</NavIcon>
-                  <NavLabel>{item.label}</NavLabel>
-                </NavItem>
-              </li>
-            )
-          })}
+          {menuItems.map(renderMenuItem)}
         </NavList>
       </SidebarContainer>
     </>
