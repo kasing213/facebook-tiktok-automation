@@ -105,7 +105,7 @@ def init_db() -> None:
             # Test basic connectivity
             result = conn.execute(text("SELECT version()"))
             version = result.fetchone()[0]
-            print(f"✅ Connected to PostgreSQL: {version}")
+            print(f"[OK] Connected to PostgreSQL: {version}")
 
             # Check if core tables exist
             result = conn.execute(text("""
@@ -116,7 +116,7 @@ def init_db() -> None:
             """))
 
             if not result.fetchone():
-                print("⚠️  WARNING: Core tables not found. Run 'alembic upgrade head' to create schema.")
+                print("[WARNING] Core tables not found. Run 'alembic upgrade head' to create schema.")
             else:
                 # Check table count for basic validation
                 result = conn.execute(text("""
@@ -125,7 +125,7 @@ def init_db() -> None:
                     WHERE table_schema = 'public'
                 """))
                 table_count = result.fetchone()[0]
-                print(f"✅ Database schema validated. Found {table_count} tables.")
+                print(f"[OK] Database schema validated. Found {table_count} tables.")
 
     except Exception as e:
         # Avoid Unicode emojis on Windows console

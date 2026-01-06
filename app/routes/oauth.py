@@ -19,6 +19,13 @@ from app.deps import (
 )
 from app.core.models import Platform, User
 from app.routes.auth import get_current_user
+from app.core.exceptions import (
+    OAuthInitiationFailed, OAuthStateMismatch, OAuthCodeExchangeFailed,
+    TokenNotFound, TokenRefreshFailed, TokenValidationFailed, NoTokenConnected,
+    PageNotFound, PostToPageFailed, InsightsRetrievalFailed, VideoUploadFailed,
+    TenantMismatch, InvalidUUIDFormat, TokenOwnershipError, DatabaseError,
+    InvalidSignedRequest, DataDeletionFailed, InvalidConfirmationCode
+)
 
 router = APIRouter(prefix="/auth", tags=["oauth"])
 
@@ -33,27 +40,33 @@ def facebook_authorize(
     """Initiate Facebook OAuth authorization flow"""
     try:
         if tenant_id and str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"Facebook OAuth tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         auth_url = facebook_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
-        logger.info(f"Facebook OAuth initiated for tenant {current_user.tenant_id}")
+        logger.info(f"Facebook OAuth initiated for user {current_user.email} in tenant {current_user.tenant_id}")
         return RedirectResponse(url=auth_url)
+    except TenantMismatch:
+        raise
     except Exception as e:
-        logger.error(f"Facebook OAuth initiation failed: {e}")
-        raise HTTPException(status_code=500, detail="OAuth initiation failed")
+        logger.error(f"Facebook OAuth initiation failed for user {current_user.email}: {str(e)}")
+        raise OAuthInitiationFailed(platform="Facebook", reason=str(e))
 
 
 @router.get("/facebook/authorize-url")
 def facebook_authorize_url(
     facebook_oauth: FacebookOAuthProvider,
+    logger: LoggerDep,
     current_user: User = Depends(get_current_user),
     tenant_id: str = Query(None, description="Tenant ID for OAuth flow"),
 ):
     """Get Facebook OAuth authorization URL for the current user"""
     if tenant_id and str(current_user.tenant_id) != tenant_id:
-        raise HTTPException(status_code=403, detail="Tenant mismatch")
+        logger.warning(f"Facebook OAuth URL tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+        raise TenantMismatch()
 
     auth_url = facebook_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
+    logger.info(f"Facebook OAuth URL generated for user {current_user.email}")
     return {"auth_url": auth_url}
 
 
@@ -67,28 +80,59 @@ async def facebook_callback(
     state: str = Query(..., description="OAuth state parameter")
 ):
     """Handle Facebook OAuth callback"""
+    import httpx
+    import traceback
+
     try:
+        logger.info(f"Facebook OAuth callback received: code_length={len(code)}, state_length={len(state)}")
+
         # Validate state and extract tenant info
-        state_data = await facebook_oauth.validate_state(state)
-        tenant_id = state_data["tenant_id"]
+        try:
+            state_data = await facebook_oauth.validate_state(state)
+        except ValueError as ve:
+            logger.error(f"Facebook OAuth state validation failed: {str(ve)}")
+            raise OAuthStateMismatch(platform="Facebook")
+
+        if not state_data:
+            logger.warning("Facebook OAuth callback received with invalid state")
+            raise OAuthStateMismatch(platform="Facebook")
+
+        tenant_id = state_data.get("tenant_id")
         user_id = state_data.get("user_id")
-        if not user_id:
-            raise ValueError("Missing user in OAuth state")
+        logger.info(f"Facebook OAuth state validated: tenant_id={tenant_id}, user_id={user_id}")
+
+        if not tenant_id or not user_id:
+            logger.warning("Facebook OAuth state missing tenant_id or user_id")
+            raise OAuthStateMismatch(platform="Facebook")
+
         try:
             user_uuid = UUID(user_id)
             tenant_uuid = UUID(tenant_id)
         except ValueError:
-            raise ValueError("Invalid tenant or user in OAuth state")
+            logger.error(f"Invalid UUID format in OAuth state: tenant={tenant_id}, user={user_id}")
+            raise InvalidUUIDFormat(field_name="OAuth state", value=f"tenant={tenant_id}, user={user_id}")
 
         # Exchange code for tokens
-        oauth_result = await facebook_oauth.exchange(code)
-        logger.info(f"Facebook OAuth successful for tenant {tenant_id}")
+        try:
+            oauth_result = await facebook_oauth.exchange(code)
+            logger.info(f"Facebook OAuth code exchange successful for user {user_id} in tenant {tenant_id}")
+        except httpx.HTTPStatusError as http_err:
+            error_body = http_err.response.text if http_err.response else "No response body"
+            logger.error(f"Facebook API error during code exchange: status={http_err.response.status_code}, body={error_body}")
+            raise OAuthCodeExchangeFailed(platform="Facebook", reason=f"Facebook API returned {http_err.response.status_code}: {error_body[:200]}")
 
         # Store tokens securely (including page tokens)
-        token = auth_service.store_oauth_token(tenant_uuid, oauth_result, user_id=user_uuid)
+        try:
+            token = auth_service.store_oauth_token(tenant_uuid, oauth_result, user_id=user_uuid)
+            logger.info(f"Facebook OAuth token stored: token_id={token.id}")
+        except Exception as db_err:
+            logger.error(f"Database error storing OAuth token: {str(db_err)}\n{traceback.format_exc()}")
+            raise OAuthCodeExchangeFailed(platform="Facebook", reason=f"Failed to store token: {str(db_err)}")
 
         # Get page tokens for response
         page_tokens = auth_service.get_facebook_page_tokens(tenant_uuid, user_id=user_uuid)
+
+        logger.info(f"Facebook OAuth completed: stored token {token.id}, found {len(page_tokens)} pages")
 
         # Redirect to frontend dashboard with success message
         frontend_base = str(settings.FRONTEND_URL).rstrip("/")
@@ -96,12 +140,15 @@ async def facebook_callback(
         frontend_url = f"{frontend_base}/dashboard?{frontend_query}"
         return RedirectResponse(url=frontend_url)
 
-    except ValueError as e:
-        logger.error(f"Facebook OAuth validation failed: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except (OAuthStateMismatch, InvalidUUIDFormat, OAuthCodeExchangeFailed):
+        raise
+    except httpx.HTTPStatusError as http_err:
+        error_body = http_err.response.text if http_err.response else "No response body"
+        logger.error(f"Facebook API HTTP error: status={http_err.response.status_code}, body={error_body}")
+        raise OAuthCodeExchangeFailed(platform="Facebook", reason=f"Facebook API error: {error_body[:200]}")
     except Exception as e:
-        logger.error(f"Facebook OAuth callback failed: {e}")
-        raise HTTPException(status_code=500, detail="OAuth callback failed")
+        logger.error(f"Facebook OAuth callback failed: {type(e).__name__}: {str(e)}\n{traceback.format_exc()}")
+        raise OAuthCodeExchangeFailed(platform="Facebook", reason=str(e))
 
 
 @router.get("/tiktok/authorize")
@@ -114,27 +161,33 @@ def tiktok_authorize(
     """Initiate TikTok OAuth authorization flow"""
     try:
         if tenant_id and str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"TikTok OAuth tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         auth_url = tiktok_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
-        logger.info(f"TikTok OAuth initiated for tenant {current_user.tenant_id}")
+        logger.info(f"TikTok OAuth initiated for user {current_user.email} in tenant {current_user.tenant_id}")
         return RedirectResponse(url=auth_url)
+    except TenantMismatch:
+        raise
     except Exception as e:
-        logger.error(f"TikTok OAuth initiation failed: {e}")
-        raise HTTPException(status_code=500, detail="OAuth initiation failed")
+        logger.error(f"TikTok OAuth initiation failed for user {current_user.email}: {str(e)}")
+        raise OAuthInitiationFailed(platform="TikTok", reason=str(e))
 
 
 @router.get("/tiktok/authorize-url")
 def tiktok_authorize_url(
     tiktok_oauth: TikTokOAuthProvider,
+    logger: LoggerDep,
     current_user: User = Depends(get_current_user),
     tenant_id: str = Query(None, description="Tenant ID for OAuth flow"),
 ):
     """Get TikTok OAuth authorization URL for the current user"""
     if tenant_id and str(current_user.tenant_id) != tenant_id:
-        raise HTTPException(status_code=403, detail="Tenant mismatch")
+        logger.warning(f"TikTok OAuth URL tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+        raise TenantMismatch()
 
     auth_url = tiktok_oauth.auth_url(str(current_user.tenant_id), user_id=str(current_user.id))
+    logger.info(f"TikTok OAuth URL generated for user {current_user.email}")
     return {"auth_url": auth_url}
 
 
@@ -151,22 +204,32 @@ async def tiktok_callback(
     try:
         # Validate state and extract tenant info
         state_data = await tiktok_oauth.validate_state(state)
-        tenant_id = state_data["tenant_id"]
+        if not state_data:
+            logger.warning("TikTok OAuth callback received with invalid state")
+            raise OAuthStateMismatch(platform="TikTok")
+
+        tenant_id = state_data.get("tenant_id")
         code_verifier = state_data.get("code_verifier")
-        if not code_verifier:
-            raise ValueError("Missing TikTok PKCE code verifier")
         user_id = state_data.get("user_id")
-        if not user_id:
-            raise ValueError("Missing user in OAuth state")
+
+        if not code_verifier:
+            logger.error("TikTok OAuth state missing PKCE code verifier")
+            raise OAuthStateMismatch(platform="TikTok")
+
+        if not tenant_id or not user_id:
+            logger.warning("TikTok OAuth state missing tenant_id or user_id")
+            raise OAuthStateMismatch(platform="TikTok")
+
         try:
             user_uuid = UUID(user_id)
             tenant_uuid = UUID(tenant_id)
         except ValueError:
-            raise ValueError("Invalid tenant or user in OAuth state")
+            logger.error(f"Invalid UUID format in TikTok OAuth state: tenant={tenant_id}, user={user_id}")
+            raise InvalidUUIDFormat(field_name="OAuth state", value=f"tenant={tenant_id}, user={user_id}")
 
         # Exchange code for tokens
         oauth_result = await tiktok_oauth.exchange(code, code_verifier=code_verifier)
-        logger.info(f"TikTok OAuth successful for tenant {tenant_id}")
+        logger.info(f"TikTok OAuth code exchange successful for user {user_id} in tenant {tenant_id}")
 
         # Store tokens securely (including user info)
         token = auth_service.store_oauth_token(tenant_uuid, oauth_result, user_id=user_uuid)
@@ -174,18 +237,19 @@ async def tiktok_callback(
         # Get creator info for response
         creator_info = auth_service.get_tiktok_creator_info(tenant_uuid, user_id=user_uuid)
 
+        logger.info(f"TikTok OAuth completed: stored token {token.id}, creator: {creator_info.get('display_name', 'unknown') if creator_info else 'none'}")
+
         # Redirect to frontend dashboard with success message
         frontend_base = str(settings.FRONTEND_URL).rstrip("/")
         frontend_query = urlencode({"success": "tiktok", "tenant_id": tenant_id})
         frontend_url = f"{frontend_base}/dashboard?{frontend_query}"
         return RedirectResponse(url=frontend_url)
 
-    except ValueError as e:
-        logger.error(f"TikTok OAuth validation failed: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except (OAuthStateMismatch, InvalidUUIDFormat):
+        raise
     except Exception as e:
-        logger.error(f"TikTok OAuth callback failed: {e}")
-        raise HTTPException(status_code=500, detail="OAuth callback failed")
+        logger.error(f"TikTok OAuth callback failed: {str(e)}")
+        raise OAuthCodeExchangeFailed(platform="TikTok", reason=str(e))
 
 
 @router.get("/status/{tenant_id}")
@@ -198,7 +262,8 @@ def oauth_status(
     """Get OAuth status for a tenant"""
     try:
         if str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"OAuth status tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         facebook_tokens = auth_service.get_tenant_tokens(
             current_user.tenant_id,
@@ -210,6 +275,8 @@ def oauth_status(
             Platform.tiktok,
             user_id=current_user.id
         )
+
+        logger.info(f"OAuth status retrieved for user {current_user.email}: {len(facebook_tokens)} Facebook, {len(tiktok_tokens)} TikTok tokens")
 
         return {
             "tenant_id": tenant_id,
@@ -243,9 +310,11 @@ def oauth_status(
             }
         }
 
+    except TenantMismatch:
+        raise
     except Exception as e:
-        logger.error(f"OAuth status check failed: {e}")
-        raise HTTPException(status_code=500, detail="Status check failed")
+        logger.error(f"OAuth status check failed for user {current_user.email}: {str(e)}")
+        raise DatabaseError(operation="retrieve OAuth connection status")
 
 
 @router.get("/facebook/pages/{tenant_id}")
@@ -258,12 +327,16 @@ def get_facebook_pages(
     """Get Facebook pages for a tenant"""
     try:
         if str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"Facebook pages tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         page_tokens = auth_service.get_facebook_page_tokens(
             current_user.tenant_id,
             user_id=current_user.id
         )
+
+        logger.info(f"Retrieved {len(page_tokens)} Facebook pages for user {current_user.email}")
+
         return {
             "tenant_id": tenant_id,
             "pages": [{
@@ -274,9 +347,11 @@ def get_facebook_pages(
                 "tasks": page["meta"].get("tasks", [])
             } for page in page_tokens]
         }
+    except TenantMismatch:
+        raise
     except Exception as e:
-        logger.error(f"Failed to get Facebook pages for tenant {tenant_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve pages")
+        logger.error(f"Failed to get Facebook pages for user {current_user.email}: {str(e)}")
+        raise DatabaseError(operation="retrieve your Facebook pages")
 
 
 @router.post("/facebook/pages/{page_id}/post")
@@ -291,7 +366,8 @@ async def post_to_facebook_page(
     """Post message to Facebook page"""
     try:
         if str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"Facebook post tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         # Get Facebook API client for the tenant
         api_client = auth_service.get_facebook_api_client(
@@ -299,7 +375,8 @@ async def post_to_facebook_page(
             user_id=current_user.id
         )
         if not api_client:
-            raise HTTPException(status_code=404, detail="No Facebook token found for tenant")
+            logger.warning(f"No Facebook token found for user {current_user.email}")
+            raise NoTokenConnected(platform="Facebook", tenant_id=tenant_id)
 
         # Get page token
         page_tokens = auth_service.get_facebook_page_tokens(
@@ -313,24 +390,26 @@ async def post_to_facebook_page(
                 break
 
         if not page_token:
-            raise HTTPException(status_code=404, detail="Page not found or not authorized")
+            logger.warning(f"Page {page_id} not found for user {current_user.email}")
+            raise PageNotFound(page_id=page_id)
 
         # Post to page
         result = await api_client.post_to_page(page_id, message, page_token)
-        logger.info(f"Posted to Facebook page {page_id} for tenant {tenant_id}")
+        logger.info(f"Successfully posted to Facebook page {page_id} for user {current_user.email}")
 
         return {
             "status": "success",
+            "message": "Your post has been published successfully.",
             "page_id": page_id,
             "post_id": result.get("id"),
-            "message": message
+            "content": message
         }
 
-    except HTTPException:
+    except (TenantMismatch, NoTokenConnected, PageNotFound):
         raise
     except Exception as e:
-        logger.error(f"Failed to post to Facebook page {page_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to post to page")
+        logger.error(f"Failed to post to Facebook page {page_id} for user {current_user.email}: {str(e)}")
+        raise PostToPageFailed(page_id=page_id, reason=str(e))
 
 
 @router.post("/facebook/token/{token_id}/refresh")
@@ -343,26 +422,39 @@ async def refresh_facebook_token(
     """Refresh Facebook token"""
     try:
         token_uuid = UUID(token_id)
+    except ValueError:
+        logger.warning(f"Invalid token ID format: {token_id} by user {current_user.email}")
+        raise InvalidUUIDFormat(field_name="token ID", value=token_id)
+
+    try:
         token = auth_service.ad_token_repo.get_by_id(token_uuid)
-        if not token or token.user_id != current_user.id:
-            raise HTTPException(status_code=404, detail="Token not found")
+        if not token:
+            logger.warning(f"Facebook token {token_id} not found for user {current_user.email}")
+            raise TokenNotFound(token_id=token_id, platform="Facebook")
+
+        if token.user_id != current_user.id:
+            logger.warning(f"User {current_user.email} tried to refresh token {token_id} owned by another user")
+            raise TokenOwnershipError(token_id=token_id)
 
         success = await auth_service.refresh_facebook_token(token_uuid, user_id=current_user.id)
 
         if success:
-            logger.info(f"Facebook token {token_id} refreshed successfully")
-            return {"status": "success", "token_id": token_id, "valid": True}
+            logger.info(f"Facebook token {token_id} refreshed successfully for user {current_user.email}")
+            return {
+                "status": "success",
+                "message": "Your Facebook connection has been refreshed successfully.",
+                "token_id": token_id,
+                "valid": True
+            }
         else:
-            logger.warning(f"Facebook token {token_id} refresh failed")
-            return {"status": "failed", "token_id": token_id, "valid": False}
+            logger.warning(f"Facebook token {token_id} refresh failed for user {current_user.email}")
+            raise TokenRefreshFailed(platform="Facebook", reason="The token could not be refreshed")
 
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid token ID format")
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Not authorized to refresh this token")
+    except (InvalidUUIDFormat, TokenNotFound, TokenOwnershipError, TokenRefreshFailed):
+        raise
     except Exception as e:
-        logger.error(f"Failed to refresh Facebook token {token_id}: {e}")
-        raise HTTPException(status_code=500, detail="Token refresh failed")
+        logger.error(f"Failed to refresh Facebook token {token_id} for user {current_user.email}: {str(e)}")
+        raise TokenRefreshFailed(platform="Facebook", reason=str(e))
 
 
 @router.get("/facebook/insights/{page_id}")
@@ -376,7 +468,8 @@ async def get_facebook_page_insights(
     """Get Facebook page insights"""
     try:
         if str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"Facebook insights tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         # Get page token
         page_tokens = auth_service.get_facebook_page_tokens(
@@ -390,7 +483,8 @@ async def get_facebook_page_insights(
                 break
 
         if not page_token:
-            raise HTTPException(status_code=404, detail="Page not found or not authorized")
+            logger.warning(f"Page {page_id} not found for insights request by user {current_user.email}")
+            raise PageNotFound(page_id=page_id)
 
         # Get insights using Facebook API client
         api_client = auth_service.get_facebook_api_client(
@@ -399,16 +493,18 @@ async def get_facebook_page_insights(
         )
         insights = await api_client.get_page_insights(page_id, page_token)
 
+        logger.info(f"Retrieved insights for Facebook page {page_id} for user {current_user.email}")
+
         return {
             "page_id": page_id,
             "insights": insights
         }
 
-    except HTTPException:
+    except (TenantMismatch, PageNotFound):
         raise
     except Exception as e:
-        logger.error(f"Failed to get insights for Facebook page {page_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve insights")
+        logger.error(f"Failed to get insights for Facebook page {page_id} for user {current_user.email}: {str(e)}")
+        raise InsightsRetrievalFailed(page_id=page_id, reason=str(e))
 
 
 # TikTok-specific routes
@@ -422,24 +518,28 @@ def get_tiktok_creator_info(
     """Get TikTok creator information for a tenant"""
     try:
         if str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"TikTok creator info tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         creator_info = auth_service.get_tiktok_creator_info(
             current_user.tenant_id,
             user_id=current_user.id
         )
         if not creator_info:
-            raise HTTPException(status_code=404, detail="No TikTok account connected for tenant")
+            logger.info(f"No TikTok account connected for user {current_user.email}")
+            raise NoTokenConnected(platform="TikTok", tenant_id=tenant_id)
+
+        logger.info(f"Retrieved TikTok creator info for user {current_user.email}")
 
         return {
             "tenant_id": tenant_id,
             "creator": creator_info
         }
-    except HTTPException:
+    except (TenantMismatch, NoTokenConnected):
         raise
     except Exception as e:
-        logger.error(f"Failed to get TikTok creator info for tenant {tenant_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve creator information")
+        logger.error(f"Failed to get TikTok creator info for user {current_user.email}: {str(e)}")
+        raise DatabaseError(operation="retrieve your TikTok creator information")
 
 
 @router.post("/tiktok/token/{token_id}/validate")
@@ -452,26 +552,44 @@ async def validate_tiktok_token(
     """Validate TikTok token"""
     try:
         token_uuid = UUID(token_id)
+    except ValueError:
+        logger.warning(f"Invalid token ID format: {token_id} by user {current_user.email}")
+        raise InvalidUUIDFormat(field_name="token ID", value=token_id)
+
+    try:
         token = auth_service.ad_token_repo.get_by_id(token_uuid)
-        if not token or token.user_id != current_user.id:
-            raise HTTPException(status_code=404, detail="Token not found")
+        if not token:
+            logger.warning(f"TikTok token {token_id} not found for user {current_user.email}")
+            raise TokenNotFound(token_id=token_id, platform="TikTok")
+
+        if token.user_id != current_user.id:
+            logger.warning(f"User {current_user.email} tried to validate token {token_id} owned by another user")
+            raise TokenOwnershipError(token_id=token_id)
 
         is_valid = await auth_service.validate_tiktok_token(token_uuid, user_id=current_user.id)
 
         if is_valid:
-            logger.info(f"TikTok token {token_id} is valid")
-            return {"status": "success", "token_id": token_id, "valid": True}
+            logger.info(f"TikTok token {token_id} validated successfully for user {current_user.email}")
+            return {
+                "status": "success",
+                "message": "Your TikTok connection is valid and working.",
+                "token_id": token_id,
+                "valid": True
+            }
         else:
-            logger.warning(f"TikTok token {token_id} is invalid")
-            return {"status": "failed", "token_id": token_id, "valid": False}
+            logger.warning(f"TikTok token {token_id} is invalid for user {current_user.email}")
+            return {
+                "status": "invalid",
+                "message": "Your TikTok connection is no longer valid. Please reconnect your account.",
+                "token_id": token_id,
+                "valid": False
+            }
 
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid token ID format")
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Not authorized to validate this token")
+    except (InvalidUUIDFormat, TokenNotFound, TokenOwnershipError):
+        raise
     except Exception as e:
-        logger.error(f"Failed to validate TikTok token {token_id}: {e}")
-        raise HTTPException(status_code=500, detail="Token validation failed")
+        logger.error(f"Failed to validate TikTok token {token_id} for user {current_user.email}: {str(e)}")
+        raise TokenValidationFailed(platform="TikTok", reason=str(e))
 
 
 @router.post("/tiktok/upload")
@@ -488,7 +606,8 @@ async def upload_tiktok_video(
     """Upload video to TikTok"""
     try:
         if str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"TikTok upload tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         # Get TikTok API client for the tenant
         api_client = auth_service.get_tiktok_api_client(
@@ -496,7 +615,8 @@ async def upload_tiktok_video(
             user_id=current_user.id
         )
         if not api_client:
-            raise HTTPException(status_code=404, detail="No TikTok token found for tenant")
+            logger.warning(f"No TikTok token found for user {current_user.email}")
+            raise NoTokenConnected(platform="TikTok", tenant_id=tenant_id)
 
         # Upload video
         result = await api_client.upload_video(
@@ -506,21 +626,22 @@ async def upload_tiktok_video(
             privacy_level=privacy_level
         )
 
-        logger.info(f"Video uploaded to TikTok for tenant {tenant_id}: {result.publish_id}")
+        logger.info(f"Video uploaded to TikTok for user {current_user.email}: publish_id={result.publish_id}")
 
         return {
             "status": result.status,
+            "message": "Your video has been submitted for publishing.",
             "publish_id": result.publish_id,
             "video_url": result.video_url,
             "error_code": result.error_code,
             "error_message": result.error_message
         }
 
-    except HTTPException:
+    except (TenantMismatch, NoTokenConnected):
         raise
     except Exception as e:
-        logger.error(f"Failed to upload video to TikTok for tenant {tenant_id}: {e}")
-        raise HTTPException(status_code=500, detail="Video upload failed")
+        logger.error(f"Failed to upload video to TikTok for user {current_user.email}: {str(e)}")
+        raise VideoUploadFailed(reason=str(e))
 
 
 @router.get("/tiktok/video/{publish_id}/status")
@@ -534,7 +655,8 @@ async def get_tiktok_video_status(
     """Get TikTok video status"""
     try:
         if str(current_user.tenant_id) != tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant mismatch")
+            logger.warning(f"TikTok video status tenant mismatch: user {current_user.email} tried to access tenant {tenant_id}")
+            raise TenantMismatch()
 
         # Get TikTok API client for the tenant
         api_client = auth_service.get_tiktok_api_client(
@@ -542,21 +664,24 @@ async def get_tiktok_video_status(
             user_id=current_user.id
         )
         if not api_client:
-            raise HTTPException(status_code=404, detail="No TikTok token found for tenant")
+            logger.warning(f"No TikTok token found for user {current_user.email}")
+            raise NoTokenConnected(platform="TikTok", tenant_id=tenant_id)
 
         # Get video status
         status = await api_client.get_video_status(publish_id)
+
+        logger.info(f"Retrieved TikTok video status for publish_id={publish_id} for user {current_user.email}")
 
         return {
             "publish_id": publish_id,
             "status": status
         }
 
-    except HTTPException:
+    except (TenantMismatch, NoTokenConnected):
         raise
     except Exception as e:
-        logger.error(f"Failed to get TikTok video status {publish_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve video status")
+        logger.error(f"Failed to get TikTok video status {publish_id} for user {current_user.email}: {str(e)}")
+        raise DatabaseError(operation="retrieve your video status")
 
 
 @router.post("/facebook/data-deletion")
@@ -583,29 +708,33 @@ async def facebook_data_deletion(
     try:
         # Handle both POST (from Facebook) and GET (for testing)
         if request.method == "GET":
+            logger.info("Facebook data deletion endpoint health check")
             return {
                 "status": "ok",
-                "message": "Facebook Data Deletion endpoint is active",
+                "message": "Facebook Data Deletion endpoint is active and ready to process requests.",
                 "url": f"{settings.BASE_URL}/auth/facebook/data-deletion"
             }
 
         if not signed_request:
-            raise HTTPException(status_code=400, detail="Missing signed_request parameter")
+            logger.warning("Facebook data deletion request missing signed_request parameter")
+            raise InvalidSignedRequest()
 
         # Parse signed request from Facebook
         user_data = parse_signed_request(signed_request, settings.FB_APP_SECRET.get_secret_value())
 
         if not user_data:
-            raise HTTPException(status_code=400, detail="Invalid signed_request")
+            logger.warning("Facebook data deletion request has invalid signed_request")
+            raise InvalidSignedRequest()
 
         user_id = user_data.get("user_id")
         if not user_id:
-            raise HTTPException(status_code=400, detail="Missing user_id in signed_request")
+            logger.warning("Facebook data deletion request missing user_id")
+            raise InvalidSignedRequest()
 
         # Delete or anonymize user data from database
         deletion_result = auth_service.delete_facebook_user_data(user_id)
 
-        logger.info(f"Facebook data deletion request processed for user {user_id}")
+        logger.info(f"Facebook data deletion request processed successfully for Facebook user {user_id}")
 
         # Generate a confirmation code (you can store this for tracking)
         confirmation_code = base64.urlsafe_b64encode(f"{user_id}:{deletion_result['timestamp']}".encode()).decode()
@@ -616,11 +745,11 @@ async def facebook_data_deletion(
             "confirmation_code": confirmation_code
         })
 
-    except HTTPException:
+    except InvalidSignedRequest:
         raise
     except Exception as e:
-        logger.error(f"Facebook data deletion callback failed: {e}")
-        raise HTTPException(status_code=500, detail="Data deletion request failed")
+        logger.error(f"Facebook data deletion callback failed: {str(e)}")
+        raise DataDeletionFailed(user_id=user_id if 'user_id' in dir() else "unknown")
 
 
 @router.get("/facebook/data-deletion-status")
@@ -677,3 +806,48 @@ def parse_signed_request(signed_request: str, app_secret: str) -> dict | None:
         return data
     except Exception:
         return None
+
+
+@router.get("/debug/state-store")
+async def debug_state_store(
+    facebook_oauth: FacebookOAuthProvider,
+    logger: LoggerDep,
+    settings: SettingsDep
+):
+    """
+    Debug endpoint to check OAuth state store health.
+    Only enabled in non-production environments.
+    """
+    if settings.ENV == "production":
+        raise HTTPException(status_code=404, detail="Not found")
+
+    logger.info("Debug state store endpoint accessed")
+    state_store = facebook_oauth.state_store
+    store_type = type(state_store).__name__
+
+    # Check Redis connection if using Redis
+    redis_status = "not_configured"
+    if settings.REDIS_URL:
+        try:
+            from app.integrations.oauth import RedisState
+            if RedisState and isinstance(state_store, RedisState):
+                # Test Redis connection
+                test_key = "debug_test"
+                await state_store.put(test_key, "test_value", 10)
+                result = await state_store.get(test_key)
+                redis_status = "connected" if result == "test_value" else "error"
+            else:
+                redis_status = "redis_unavailable_using_memory"
+        except Exception as e:
+            redis_status = f"error: {str(e)}"
+    else:
+        redis_status = "not_configured_using_memory"
+
+    return {
+        "state_store_type": store_type,
+        "redis_url_configured": bool(settings.REDIS_URL),
+        "redis_status": redis_status,
+        "base_url": facebook_oauth.base_url,
+        "fb_app_id_configured": bool(settings.FB_APP_ID),
+        "environment": settings.ENV
+    }

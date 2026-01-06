@@ -43,6 +43,16 @@ class IPRuleType(str, enum.Enum):
     blacklist = "blacklist"
     auto_banned = "auto_banned"
 
+class SubscriptionTier(str, enum.Enum):
+    free = "free"
+    pro = "pro"
+
+class SubscriptionStatus(str, enum.Enum):
+    active = "active"
+    cancelled = "cancelled"
+    past_due = "past_due"
+    incomplete = "incomplete"
+
 # Multi-tenant core models
 class Tenant(Base):
     """Core tenant model for multi-tenant isolation"""
@@ -333,5 +343,42 @@ class TelegramLinkCode(Base):
         Index("idx_telegram_link_code_code", "code", unique=True),
         Index("idx_telegram_link_code_expires", "expires_at"),
         Index("idx_telegram_link_code_user", "user_id"),
+    )
+
+
+class Subscription(Base):
+    """User subscription for tiered features (Invoice Pro, etc.)"""
+    __tablename__ = "subscription"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), nullable=False, unique=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+
+    # Stripe fields
+    stripe_customer_id = Column(String(255), nullable=True, unique=True)
+    stripe_subscription_id = Column(String(255), nullable=True, unique=True)
+
+    # Subscription details
+    tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.free, nullable=False)
+    status = Column(Enum(SubscriptionStatus), nullable=True)  # null for free tier
+    current_period_start = Column(DateTime(timezone=True), nullable=True)
+    current_period_end = Column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end = Column(Boolean, default=False, nullable=False)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc),
+                       onupdate=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    # Relationships
+    user = relationship("User", backref="subscription", uselist=False)
+    tenant = relationship("Tenant", backref="subscriptions")
+
+    __table_args__ = (
+        Index("idx_subscription_user", "user_id", unique=True),
+        Index("idx_subscription_tenant", "tenant_id"),
+        Index("idx_subscription_stripe_customer", "stripe_customer_id"),
+        Index("idx_subscription_stripe_sub", "stripe_subscription_id"),
+        Index("idx_subscription_tier", "tier"),
     )
 

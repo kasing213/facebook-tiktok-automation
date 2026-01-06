@@ -58,6 +58,20 @@ class Settings(BaseSettings):
     FACEBOOK_WEBHOOK_VERIFY_TOKEN: SecretStr = Field(default="my_facebook_verify_token_change_me", description="Facebook webhook verification token")
     TIKTOK_WEBHOOK_VERIFY_TOKEN: SecretStr = Field(default="my_tiktok_verify_token_change_me", description="TikTok webhook verification token")
 
+    # Invoice API Integration
+    INVOICE_API_URL: str = Field(default="", description="External Invoice API base URL")
+    INVOICE_API_KEY: SecretStr = Field(default=SecretStr(""), description="Invoice API authentication key")
+
+    # Stripe Integration
+    STRIPE_SECRET_KEY: SecretStr = Field(default=SecretStr(""), description="Stripe secret key")
+    STRIPE_WEBHOOK_SECRET: SecretStr = Field(default=SecretStr(""), description="Stripe webhook signing secret")
+    STRIPE_PRICE_ID_MONTHLY: str = Field(default="", description="Stripe monthly price ID for Pro subscription")
+    STRIPE_PRICE_ID_YEARLY: str = Field(default="", description="Stripe yearly price ID for Pro subscription")
+
+    # Invoice Mock Mode (for testing without external API)
+    INVOICE_MOCK_MODE: bool = Field(default=False, description="Use mock in-memory Invoice API instead of external service")
+    INVOICE_TIER_ENFORCEMENT: bool = Field(default=True, description="Enforce Pro tier for PDF/Export features (disable for testing)")
+
     # API Server settings
     API_HOST: str = Field(default="0.0.0.0", description="API server host")
     API_PORT: int = Field(default=8000, description="API server port", ge=1024, le=65535)
