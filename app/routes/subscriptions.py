@@ -1,12 +1,11 @@
 # app/routes/subscriptions.py
 """
-Stripe subscription management routes for tiered feature access.
+Subscription management routes - Stripe disabled (not available in Cambodia).
+All users get Pro tier access for free during beta.
 """
-import stripe
 from datetime import datetime, timezone
 from typing import Optional
-from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -28,6 +27,8 @@ class SubscriptionStatusResponse(BaseModel):
     cancel_at_period_end: bool
     can_access_pdf: bool
     can_access_export: bool
+    stripe_available: bool = False
+    region_message: Optional[str] = None
 
 
 class CheckoutSessionResponse(BaseModel):
@@ -43,33 +44,22 @@ class PortalSessionResponse(BaseModel):
 
 class CreateCheckoutRequest(BaseModel):
     """Request to create a checkout session"""
-    price_type: str  # "monthly" or "yearly"
+    price_type: str
     success_url: Optional[str] = None
     cancel_url: Optional[str] = None
 
 
-def get_stripe_client():
-    """Initialize and return Stripe client"""
-    settings = get_settings()
-    secret_key = settings.STRIPE_SECRET_KEY.get_secret_value()
-    if not secret_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Stripe is not configured"
-        )
-    stripe.api_key = secret_key
-    return stripe
-
-
 def get_or_create_subscription(db: Session, user: User) -> Subscription:
-    """Get existing subscription or create a free tier subscription for user"""
+    """Get existing subscription or create a Pro tier subscription for user (beta period)"""
     subscription = db.query(Subscription).filter(Subscription.user_id == user.id).first()
 
     if not subscription:
+        # Give everyone Pro tier during beta (Stripe not available in Cambodia)
         subscription = Subscription(
             user_id=user.id,
             tenant_id=user.tenant_id,
-            tier=SubscriptionTier.free
+            tier=SubscriptionTier.pro,  # Pro for everyone during beta
+            status=SubscriptionStatus.active
         )
         db.add(subscription)
         db.commit()
@@ -79,19 +69,8 @@ def get_or_create_subscription(db: Session, user: User) -> Subscription:
 
 
 def has_pro_access(subscription: Subscription) -> bool:
-    """Check if user has Pro tier access"""
-    if subscription.tier != SubscriptionTier.pro:
-        return False
-
-    # Check if subscription is active
-    if subscription.status not in [SubscriptionStatus.active, None]:
-        return False
-
-    # Check if subscription hasn't expired
-    if subscription.current_period_end:
-        if subscription.current_period_end < datetime.now(timezone.utc):
-            return False
-
+    """Check if user has Pro tier access - Always true during beta"""
+    # During beta, everyone has Pro access (Stripe not available in Cambodia)
     return True
 
 
@@ -102,20 +81,20 @@ async def get_subscription_status(
 ):
     """
     Get the current user's subscription status.
-
-    Returns tier information and feature access flags.
+    During beta, all users have Pro access for free.
     """
     subscription = get_or_create_subscription(db, current_user)
-    is_pro = has_pro_access(subscription)
 
     return SubscriptionStatusResponse(
-        tier=subscription.tier.value,
-        status=subscription.status.value if subscription.status else None,
-        stripe_customer_id=subscription.stripe_customer_id,
-        current_period_end=subscription.current_period_end.isoformat() if subscription.current_period_end else None,
-        cancel_at_period_end=subscription.cancel_at_period_end,
-        can_access_pdf=is_pro,
-        can_access_export=is_pro
+        tier="pro",  # Everyone is Pro during beta
+        status="active",
+        stripe_customer_id=None,
+        current_period_end=None,
+        cancel_at_period_end=False,
+        can_access_pdf=True,  # All features enabled
+        can_access_export=True,  # All features enabled
+        stripe_available=False,
+        region_message="All Pro features are free during our beta period. Payment processing will be available soon."
     )
 
 
@@ -126,86 +105,12 @@ async def create_checkout_session(
     db: Session = Depends(get_db)
 ):
     """
-    Create a Stripe checkout session for subscription purchase.
-
-    Args:
-        request: Contains price_type ("monthly" or "yearly")
-
-    Returns:
-        Checkout URL to redirect user to Stripe
+    Create checkout session - Disabled (Stripe not available in Cambodia).
     """
-    settings = get_settings()
-    stripe_client = get_stripe_client()
-
-    # Get price ID based on type
-    if request.price_type == "monthly":
-        price_id = settings.STRIPE_PRICE_ID_MONTHLY
-    elif request.price_type == "yearly":
-        price_id = settings.STRIPE_PRICE_ID_YEARLY
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="price_type must be 'monthly' or 'yearly'"
-        )
-
-    if not price_id:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Stripe {request.price_type} price not configured"
-        )
-
-    subscription = get_or_create_subscription(db, current_user)
-
-    # Use existing Stripe customer if available
-    customer_id = subscription.stripe_customer_id
-
-    # Create Stripe customer if doesn't exist
-    if not customer_id:
-        customer = stripe_client.Customer.create(
-            email=current_user.email,
-            metadata={
-                "user_id": str(current_user.id),
-                "tenant_id": str(current_user.tenant_id)
-            }
-        )
-        customer_id = customer.id
-
-        # Save customer ID
-        subscription.stripe_customer_id = customer_id
-        db.commit()
-
-    # Build URLs
-    frontend_url = str(settings.FRONTEND_URL).rstrip('/')
-    success_url = request.success_url or f"{frontend_url}/dashboard/integrations?subscription=success"
-    cancel_url = request.cancel_url or f"{frontend_url}/dashboard/integrations?subscription=cancelled"
-
-    # Create checkout session
-    try:
-        checkout_session = stripe_client.checkout.Session.create(
-            customer=customer_id,
-            mode="subscription",
-            payment_method_types=["card"],
-            line_items=[{
-                "price": price_id,
-                "quantity": 1
-            }],
-            success_url=success_url,
-            cancel_url=cancel_url,
-            metadata={
-                "user_id": str(current_user.id),
-                "tenant_id": str(current_user.tenant_id)
-            }
-        )
-
-        return CheckoutSessionResponse(
-            checkout_url=checkout_session.url,
-            session_id=checkout_session.id
-        )
-    except stripe.error.StripeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create checkout session: {str(e)}"
-        )
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Payment processing is not yet available in your region. All Pro features are currently free during our beta period."
+    )
 
 
 @router.post("/create-portal", response_model=PortalSessionResponse)
@@ -214,187 +119,33 @@ async def create_portal_session(
     db: Session = Depends(get_db)
 ):
     """
-    Create a Stripe billing portal session for subscription management.
-
-    Returns:
-        Portal URL to redirect user to Stripe billing portal
+    Create billing portal session - Disabled (Stripe not available in Cambodia).
     """
-    settings = get_settings()
-    stripe_client = get_stripe_client()
-
-    subscription = get_or_create_subscription(db, current_user)
-
-    if not subscription.stripe_customer_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active subscription found. Please subscribe first."
-        )
-
-    frontend_url = str(settings.FRONTEND_URL).rstrip('/')
-    return_url = f"{frontend_url}/dashboard/integrations"
-
-    try:
-        portal_session = stripe_client.billing_portal.Session.create(
-            customer=subscription.stripe_customer_id,
-            return_url=return_url
-        )
-
-        return PortalSessionResponse(portal_url=portal_session.url)
-    except stripe.error.StripeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create portal session: {str(e)}"
-        )
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Payment processing is not yet available in your region. All Pro features are currently free during our beta period."
+    )
 
 
 @router.post("/webhook")
-async def stripe_webhook(
-    request: Request,
-    stripe_signature: str = Header(None, alias="Stripe-Signature"),
-    db: Session = Depends(get_db)
-):
+async def stripe_webhook():
     """
-    Handle Stripe webhook events.
-
-    Processes subscription lifecycle events:
-    - customer.subscription.created
-    - customer.subscription.updated
-    - customer.subscription.deleted
-    - invoice.payment_succeeded
-    - invoice.payment_failed
+    Stripe webhook - Disabled (Stripe not available in Cambodia).
     """
-    settings = get_settings()
-    stripe_client = get_stripe_client()
-
-    webhook_secret = settings.STRIPE_WEBHOOK_SECRET.get_secret_value()
-    if not webhook_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Webhook secret not configured"
-        )
-
-    payload = await request.body()
-
-    try:
-        event = stripe_client.Webhook.construct_event(
-            payload, stripe_signature, webhook_secret
-        )
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError:
-        raise HTTPException(status_code=400, detail="Invalid signature")
-
-    event_type = event["type"]
-    data = event["data"]["object"]
-
-    # Handle subscription events
-    if event_type in ["customer.subscription.created", "customer.subscription.updated"]:
-        await handle_subscription_update(db, data)
-    elif event_type == "customer.subscription.deleted":
-        await handle_subscription_deleted(db, data)
-    elif event_type == "invoice.payment_failed":
-        await handle_payment_failed(db, data)
-
-    return {"status": "received"}
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Stripe webhooks are disabled"
+    )
 
 
-async def handle_subscription_update(db: Session, stripe_subscription: dict):
-    """Handle subscription created/updated events"""
-    customer_id = stripe_subscription["customer"]
-    subscription_id = stripe_subscription["id"]
-    stripe_status = stripe_subscription["status"]
-
-    # Find subscription by Stripe customer ID
-    subscription = db.query(Subscription).filter(
-        Subscription.stripe_customer_id == customer_id
-    ).first()
-
-    if not subscription:
-        # Try to find by metadata
-        return  # Can't process without matching subscription
-
-    # Update subscription
-    subscription.stripe_subscription_id = subscription_id
-    subscription.tier = SubscriptionTier.pro
-
-    # Map Stripe status to our status
-    status_map = {
-        "active": SubscriptionStatus.active,
-        "past_due": SubscriptionStatus.past_due,
-        "canceled": SubscriptionStatus.cancelled,
-        "incomplete": SubscriptionStatus.incomplete,
-        "incomplete_expired": SubscriptionStatus.cancelled,
-        "trialing": SubscriptionStatus.active,
-        "unpaid": SubscriptionStatus.past_due
-    }
-    subscription.status = status_map.get(stripe_status, SubscriptionStatus.incomplete)
-
-    # Update period dates
-    if "current_period_start" in stripe_subscription:
-        subscription.current_period_start = datetime.fromtimestamp(
-            stripe_subscription["current_period_start"], tz=timezone.utc
-        )
-    if "current_period_end" in stripe_subscription:
-        subscription.current_period_end = datetime.fromtimestamp(
-            stripe_subscription["current_period_end"], tz=timezone.utc
-        )
-
-    subscription.cancel_at_period_end = stripe_subscription.get("cancel_at_period_end", False)
-
-    db.commit()
-
-
-async def handle_subscription_deleted(db: Session, stripe_subscription: dict):
-    """Handle subscription deleted event"""
-    customer_id = stripe_subscription["customer"]
-
-    subscription = db.query(Subscription).filter(
-        Subscription.stripe_customer_id == customer_id
-    ).first()
-
-    if subscription:
-        subscription.tier = SubscriptionTier.free
-        subscription.status = SubscriptionStatus.cancelled
-        subscription.stripe_subscription_id = None
-        db.commit()
-
-
-async def handle_payment_failed(db: Session, invoice: dict):
-    """Handle payment failed event"""
-    customer_id = invoice["customer"]
-
-    subscription = db.query(Subscription).filter(
-        Subscription.stripe_customer_id == customer_id
-    ).first()
-
-    if subscription:
-        subscription.status = SubscriptionStatus.past_due
-        db.commit()
-
-
-# Dependency for checking Pro tier access
+# Dependency for checking Pro tier access - Always grants access during beta
 async def require_pro_tier(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> User:
     """
     Dependency that requires Pro tier subscription.
-
-    Use this in routes that need Pro tier access:
-    @router.get("/protected")
-    async def protected_route(user: User = Depends(require_pro_tier)):
-        ...
+    During beta, all users have Pro access (Stripe not available in Cambodia).
     """
-    subscription = get_or_create_subscription(db, current_user)
-
-    if not has_pro_access(subscription):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "error": "pro_required",
-                "message": "This feature requires a Pro subscription",
-                "upgrade_url": "/dashboard/integrations"
-            }
-        )
-
+    # Everyone has Pro access during beta
     return current_user
