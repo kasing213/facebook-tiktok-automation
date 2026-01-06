@@ -1,378 +1,110 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
-import { useSubscription } from '../../../hooks/useSubscription'
-import { usePaymentHistory } from '../../../hooks/usePaymentHistory'
-import { billingApi } from '../../../services/billingApi'
-import { PaymentMethod } from '../../../types/billing'
-import {
-  PageContainer,
-  PageHeader,
-  PageTitle,
-  Card,
-  CardTitle,
-  CardGrid,
-  SummaryCard,
-  SummaryLabel,
-  SummaryValue,
-  SummarySubtext,
-  PaymentMethodCard,
-  CardBrandIcon,
-  CardDetails,
-  CardNumber,
-  CardExpiry,
-  Table,
-  TableHead,
-  TableRow,
-  TableHeader,
-  TableCell,
-  StatusBadge,
-  DownloadLink,
-  PrimaryButton,
-  SecondaryButton,
-  TierBadge,
-  EmptyState,
-  EmptyIcon,
-  EmptyText,
-  LoadingSpinner,
-  ErrorMessage
-} from './shared/styles'
 
-const HeaderActions = styled.div`
-  display: flex;
-  gap: 0.75rem;
+const PageContainer = styled.div`
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
 `
 
-const QuickLinks = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
+const ComingSoonCard = styled.div`
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 2px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 4rem 2rem;
+  text-align: center;
 `
 
-const QuickLink = styled.button`
-  background: transparent;
-  border: none;
-  color: #4a90e2;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
+const IconWrapper = styled.div`
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+`
+
+const Title = styled.h1`
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.75rem 0;
+`
+
+const Subtitle = styled.p`
+  font-size: 1.125rem;
+  color: #64748b;
+  margin: 0 0 2rem 0;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+`
+
+const BetaBadge = styled.div`
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-
-  &:hover {
-    text-decoration: underline;
-  }
-`
-
-const PaymentMethodSection = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-`
-
-const NoPaymentMethod = styled.div`
-  color: #6b7280;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  font-weight: 600;
   font-size: 0.9375rem;
 `
 
+const FeatureList = styled.div`
+  margin-top: 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e2e8f0;
+`
+
+const FeatureTitle = styled.h3`
+  font-size: 1rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 1rem 0;
+`
+
+const FeatureGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+`
+
+const FeatureTag = styled.span`
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+`
+
 export function BillingOverviewPage() {
-  const navigate = useNavigate()
-  const {
-    status,
-    tier,
-    isPro,
-    loading: subscriptionLoading,
-    error: subscriptionError,
-    openBillingPortal,
-    portalLoading
-  } = useSubscription()
-
-  const {
-    payments,
-    loading: paymentsLoading,
-    downloadInvoice,
-    downloadingId
-  } = usePaymentHistory({ pageSize: 5 })
-
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
-  const [paymentMethodLoading, setPaymentMethodLoading] = useState(true)
-
-  // Fetch payment method
-  useEffect(() => {
-    async function fetchPaymentMethod() {
-      try {
-        const method = await billingApi.getPaymentMethod()
-        setPaymentMethod(method)
-      } catch {
-        // Silently fail - payment method is optional
-      } finally {
-        setPaymentMethodLoading(false)
-      }
-    }
-    fetchPaymentMethod()
-  }, [])
-
-  // Format date
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'N/A'
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  }
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
-
-  // Get plan name
-  const getPlanName = () => {
-    if (!isPro) return 'Free'
-    if (status?.current_period_end) {
-      // Check if yearly based on period length
-      const periodEnd = new Date(status.current_period_end)
-      const now = new Date()
-      const daysRemaining = Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-      return daysRemaining > 35 ? 'Pro Yearly' : 'Pro Monthly'
-    }
-    return 'Pro'
-  }
-
-  // Get next payment info
-  const getNextPayment = () => {
-    if (!isPro || !status?.current_period_end) {
-      return { date: null, amount: null }
-    }
-    if (status.cancel_at_period_end) {
-      return { date: status.current_period_end, amount: null }
-    }
-    // Assume monthly price for simplicity
-    return { date: status.current_period_end, amount: 9.99 }
-  }
-
-  const nextPayment = getNextPayment()
-
-  if (subscriptionLoading) {
-    return (
-      <PageContainer>
-        <LoadingSpinner />
-      </PageContainer>
-    )
-  }
-
   return (
     <PageContainer>
-      <PageHeader>
-        <PageTitle>Billing</PageTitle>
-        <HeaderActions>
-          <SecondaryButton
-            onClick={() => navigate('/dashboard/billing/payments')}
-          >
-            View All Payments
-          </SecondaryButton>
-          {isPro && (
-            <PrimaryButton
-              onClick={openBillingPortal}
-              disabled={portalLoading}
-            >
-              {portalLoading ? 'Loading...' : 'Manage Subscription'}
-            </PrimaryButton>
-          )}
-        </HeaderActions>
-      </PageHeader>
+      <ComingSoonCard>
+        <IconWrapper>💳</IconWrapper>
+        <Title>Billing Coming Soon</Title>
+        <Subtitle>
+          We're working on bringing payment processing to Cambodia.
+          Until then, enjoy all Pro features for free!
+        </Subtitle>
+        <BetaBadge>
+          <span>✓</span>
+          All Features Free During Beta
+        </BetaBadge>
 
-      {subscriptionError && (
-        <ErrorMessage>{subscriptionError}</ErrorMessage>
-      )}
-
-      {/* Summary Cards */}
-      <CardGrid>
-        <SummaryCard>
-          <SummaryLabel>Current Plan</SummaryLabel>
-          <SummaryValue style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {getPlanName()}
-            <TierBadge $tier={tier}>{tier.toUpperCase()}</TierBadge>
-          </SummaryValue>
-          {!isPro && (
-            <SummarySubtext>
-              <QuickLink onClick={() => navigate('/dashboard/billing/pricing')}>
-                Upgrade to Pro →
-              </QuickLink>
-            </SummarySubtext>
-          )}
-          {isPro && status?.cancel_at_period_end && (
-            <SummarySubtext style={{ color: '#dc3545' }}>
-              Cancels on {formatDate(status.current_period_end)}
-            </SummarySubtext>
-          )}
-        </SummaryCard>
-
-        <SummaryCard>
-          <SummaryLabel>Next Payment</SummaryLabel>
-          {nextPayment.date ? (
-            <>
-              <SummaryValue>
-                {status?.cancel_at_period_end ? 'Cancelled' : formatCurrency(nextPayment.amount || 0)}
-              </SummaryValue>
-              <SummarySubtext>
-                {status?.cancel_at_period_end
-                  ? `Access until ${formatDate(nextPayment.date)}`
-                  : `Due ${formatDate(nextPayment.date)}`}
-              </SummarySubtext>
-            </>
-          ) : (
-            <>
-              <SummaryValue>-</SummaryValue>
-              <SummarySubtext>No upcoming payments</SummarySubtext>
-            </>
-          )}
-        </SummaryCard>
-
-        <SummaryCard>
-          <SummaryLabel>Payment Method</SummaryLabel>
-          {paymentMethodLoading ? (
-            <SummarySubtext>Loading...</SummarySubtext>
-          ) : paymentMethod ? (
-            <>
-              <SummaryValue style={{ fontSize: '1.25rem' }}>
-                {paymentMethod.brand?.toUpperCase() || 'Card'} •••• {paymentMethod.last4}
-              </SummaryValue>
-              <SummarySubtext>
-                Expires {paymentMethod.expiryMonth}/{paymentMethod.expiryYear}
-              </SummarySubtext>
-            </>
-          ) : (
-            <>
-              <SummaryValue style={{ fontSize: '1.25rem', color: '#6b7280' }}>
-                No card on file
-              </SummaryValue>
-              {isPro && (
-                <SummarySubtext>
-                  <QuickLink onClick={openBillingPortal}>
-                    Add payment method →
-                  </QuickLink>
-                </SummarySubtext>
-              )}
-            </>
-          )}
-        </SummaryCard>
-      </CardGrid>
-
-      {/* Payment Method Card (detailed view) */}
-      <Card>
-        <CardTitle>Payment Method</CardTitle>
-        <PaymentMethodSection>
-          {paymentMethod ? (
-            <PaymentMethodCard>
-              <CardBrandIcon $brand={paymentMethod.brand}>
-                {paymentMethod.brand?.slice(0, 4) || 'CARD'}
-              </CardBrandIcon>
-              <CardDetails>
-                <CardNumber>
-                  {paymentMethod.brand?.charAt(0).toUpperCase()}{paymentMethod.brand?.slice(1)} ending in {paymentMethod.last4}
-                </CardNumber>
-                <CardExpiry>
-                  Expires {paymentMethod.expiryMonth?.toString().padStart(2, '0')}/{paymentMethod.expiryYear}
-                </CardExpiry>
-              </CardDetails>
-            </PaymentMethodCard>
-          ) : (
-            <NoPaymentMethod>
-              {isPro
-                ? 'No payment method on file. Add one to ensure uninterrupted service.'
-                : 'Add a payment method when you upgrade to Pro.'}
-            </NoPaymentMethod>
-          )}
-          <SecondaryButton
-            onClick={openBillingPortal}
-            disabled={portalLoading}
-          >
-            {paymentMethod ? 'Update' : 'Add Card'}
-          </SecondaryButton>
-        </PaymentMethodSection>
-      </Card>
-
-      {/* Recent Payments */}
-      <Card>
-        <CardTitle>Recent Payments</CardTitle>
-        {paymentsLoading ? (
-          <LoadingSpinner />
-        ) : payments.length === 0 ? (
-          <EmptyState>
-            <EmptyIcon>--</EmptyIcon>
-            <EmptyText>No payment history yet</EmptyText>
-          </EmptyState>
-        ) : (
-          <>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableHeader>Date</TableHeader>
-                  <TableHeader>Description</TableHeader>
-                  <TableHeader>Amount</TableHeader>
-                  <TableHeader>Status</TableHeader>
-                  <TableHeader></TableHeader>
-                </TableRow>
-              </TableHead>
-              <tbody>
-                {payments.slice(0, 5).map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>{formatDate(payment.date)}</TableCell>
-                    <TableCell>{payment.description}</TableCell>
-                    <TableCell>{formatCurrency(payment.amount)}</TableCell>
-                    <TableCell>
-                      <StatusBadge $status={payment.status}>
-                        {payment.status}
-                      </StatusBadge>
-                    </TableCell>
-                    <TableCell>
-                      {(payment.invoicePdfUrl || payment.invoiceUrl) && (
-                        <DownloadLink
-                          onClick={() => downloadInvoice(payment)}
-                          disabled={downloadingId === payment.id}
-                        >
-                          {downloadingId === payment.id ? 'Downloading...' : 'PDF'}
-                        </DownloadLink>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </tbody>
-            </Table>
-            <QuickLinks>
-              <QuickLink onClick={() => navigate('/dashboard/billing/payments')}>
-                View all payments →
-              </QuickLink>
-            </QuickLinks>
-          </>
-        )}
-      </Card>
-
-      {/* Upgrade CTA for free users */}
-      {!isPro && (
-        <Card style={{ background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f4ff 100%)', border: '2px solid #4a90e2' }}>
-          <CardTitle style={{ color: '#2a5298' }}>Upgrade to Pro</CardTitle>
-          <p style={{ color: '#4a90e2', margin: '0 0 1rem 0' }}>
-            Unlock PDF downloads, data exports, priority support, and more.
-          </p>
-          <PrimaryButton onClick={() => navigate('/dashboard/billing/pricing')}>
-            View Pricing Plans →
-          </PrimaryButton>
-        </Card>
-      )}
+        <FeatureList>
+          <FeatureTitle>Currently included for free:</FeatureTitle>
+          <FeatureGrid>
+            <FeatureTag>Unlimited Invoices</FeatureTag>
+            <FeatureTag>PDF Downloads</FeatureTag>
+            <FeatureTag>Data Export</FeatureTag>
+            <FeatureTag>Facebook Integration</FeatureTag>
+            <FeatureTag>TikTok Integration</FeatureTag>
+            <FeatureTag>Telegram Notifications</FeatureTag>
+          </FeatureGrid>
+        </FeatureList>
+      </ComingSoonCard>
     </PageContainer>
   )
 }

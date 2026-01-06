@@ -1,62 +1,61 @@
 import { useNavigate } from 'react-router-dom'
-import { usePaymentHistory } from '../../../hooks/usePaymentHistory'
-import {
-  PageContainer,
-  PageHeader,
-  PageTitle,
-  BackLink,
-  Card,
-  Table,
-  TableHead,
-  TableRow,
-  TableHeader,
-  TableCell,
-  StatusBadge,
-  DownloadLink,
-  Pagination,
-  PaginationInfo,
-  PaginationButtons,
-  PaginationButton,
-  EmptyState,
-  EmptyIcon,
-  EmptyText,
-  LoadingSpinner,
-  ErrorMessage
-} from './shared/styles'
+import styled from 'styled-components'
+
+const PageContainer = styled.div`
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+`
+
+const BackLink = styled.button`
+  background: none;
+  border: none;
+  color: #4a90e2;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &:hover {
+    text-decoration: underline;
+  }
+`
+
+const ComingSoonCard = styled.div`
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 2px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 4rem 2rem;
+  text-align: center;
+`
+
+const IconWrapper = styled.div`
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+`
+
+const Title = styled.h1`
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.75rem 0;
+`
+
+const Subtitle = styled.p`
+  font-size: 1.125rem;
+  color: #64748b;
+  margin: 0;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+`
 
 export function PaymentHistoryPage() {
   const navigate = useNavigate()
-  const {
-    payments,
-    total,
-    page,
-    totalPages,
-    loading,
-    error,
-    hasPrevPage,
-    hasNextPage,
-    nextPage,
-    prevPage,
-    downloadInvoice,
-    downloadingId
-  } = usePaymentHistory({ pageSize: 10 })
-
-  // Format date
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  }
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
-  }
 
   return (
     <PageContainer>
@@ -64,119 +63,14 @@ export function PaymentHistoryPage() {
         ← Back to Billing
       </BackLink>
 
-      <PageHeader>
-        <PageTitle>Payment History</PageTitle>
-      </PageHeader>
-
-      {error && <ErrorMessage>{error}</ErrorMessage>}
-
-      <Card>
-        {loading ? (
-          <LoadingSpinner />
-        ) : payments.length === 0 ? (
-          <EmptyState>
-            <EmptyIcon>--</EmptyIcon>
-            <EmptyText>No payment history yet</EmptyText>
-            <p style={{ color: '#9ca3af', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-              When you make a purchase, your payments will appear here.
-            </p>
-          </EmptyState>
-        ) : (
-          <>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableHeader>Date</TableHeader>
-                  <TableHeader>Description</TableHeader>
-                  <TableHeader>Amount</TableHeader>
-                  <TableHeader>Status</TableHeader>
-                  <TableHeader>Invoice</TableHeader>
-                </TableRow>
-              </TableHead>
-              <tbody>
-                {payments.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>{formatDate(payment.date)}</TableCell>
-                    <TableCell>{payment.description}</TableCell>
-                    <TableCell style={{ fontWeight: 600 }}>
-                      {formatCurrency(payment.amount)}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge $status={payment.status}>
-                        {payment.status}
-                      </StatusBadge>
-                    </TableCell>
-                    <TableCell>
-                      {payment.invoicePdfUrl || payment.invoiceUrl ? (
-                        <DownloadLink
-                          onClick={() => downloadInvoice(payment)}
-                          disabled={downloadingId === payment.id}
-                        >
-                          {downloadingId === payment.id ? 'Opening...' : 'Download PDF'}
-                        </DownloadLink>
-                      ) : (
-                        <span style={{ color: '#9ca3af' }}>-</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </tbody>
-            </Table>
-
-            {totalPages > 1 && (
-              <Pagination>
-                <PaginationInfo>
-                  Showing {(page - 1) * 10 + 1} - {Math.min(page * 10, total)} of {total} payments
-                </PaginationInfo>
-                <PaginationButtons>
-                  <PaginationButton
-                    onClick={prevPage}
-                    disabled={!hasPrevPage}
-                  >
-                    Previous
-                  </PaginationButton>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(p => {
-                      // Show first, last, and pages around current
-                      if (p === 1 || p === totalPages) return true
-                      if (Math.abs(p - page) <= 1) return true
-                      return false
-                    })
-                    .map((p, idx, arr) => {
-                      // Add ellipsis if there's a gap
-                      const prev = arr[idx - 1]
-                      const showEllipsis = prev && p - prev > 1
-
-                      return (
-                        <span key={p}>
-                          {showEllipsis && (
-                            <span style={{ padding: '0 0.5rem', color: '#6b7280' }}>...</span>
-                          )}
-                          <PaginationButton
-                            $active={p === page}
-                            onClick={() => {
-                              if (p !== page) {
-                                // Use goToPage from hook if needed
-                              }
-                            }}
-                          >
-                            {p}
-                          </PaginationButton>
-                        </span>
-                      )
-                    })}
-                  <PaginationButton
-                    onClick={nextPage}
-                    disabled={!hasNextPage}
-                  >
-                    Next
-                  </PaginationButton>
-                </PaginationButtons>
-              </Pagination>
-            )}
-          </>
-        )}
-      </Card>
+      <ComingSoonCard>
+        <IconWrapper>📋</IconWrapper>
+        <Title>Payment History Coming Soon</Title>
+        <Subtitle>
+          Your payment history will appear here once billing is enabled.
+          Currently all features are free during beta.
+        </Subtitle>
+      </ComingSoonCard>
     </PageContainer>
   )
 }
