@@ -1,0 +1,6 @@
+export { default as IntegrationsOverviewPage } from './IntegrationsOverviewPage'
+export { default as FacebookIntegrationPage } from './FacebookIntegrationPage'
+export { default as TikTokIntegrationPage } from './TikTokIntegrationPage'
+export { default as TelegramIntegrationPage } from './TelegramIntegrationPage'
+export { default as InvoiceIntegrationPage } from './InvoiceIntegrationPage'
+export { default as StripeIntegrationPage } from './StripeIntegrationPage'
