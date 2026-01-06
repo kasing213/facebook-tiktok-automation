@@ -346,7 +346,8 @@ const IconWrapper = styled.div`
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 1.75rem;
+  font-size: 1rem;
+  font-weight: 700;
   margin-bottom: 1.25rem;
 `
 
@@ -445,7 +446,7 @@ await automation.schedulePost({
           </FeatureCard>
 
           <FeatureCard>
-            <IconWrapper>📄</IconWrapper>
+            <IconWrapper>INV</IconWrapper>
             <FeatureTitle>Invoice Generator</FeatureTitle>
             <FeatureDescription>
               Generate professional invoices automatically for your campaigns and services. Integration coming soon.
@@ -456,7 +457,7 @@ await automation.schedulePost({
           </FeatureCard>
 
           <FeatureCard>
-            <IconWrapper>📊</IconWrapper>
+            <IconWrapper>API</IconWrapper>
             <FeatureTitle>Analytics API</FeatureTitle>
             <FeatureDescription>
               Advanced analytics and reporting API for comprehensive insights into your social media performance. Integration coming soon.

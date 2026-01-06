@@ -32,18 +32,30 @@ const HamburgerButton = styled.button`
   display: none;
   background: none;
   border: none;
-  font-size: 1.5rem;
   cursor: pointer;
   padding: 0.5rem;
   color: #6b7280;
+  width: 32px;
+  height: 32px;
 
   &:hover {
     color: #4a90e2;
   }
 
   @media (max-width: 768px) {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
   }
+`
+
+const HamburgerLine = styled.span`
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
 `
 
 const Logo = styled.div`
@@ -193,7 +205,14 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
     if (path === '/dashboard') return 'Overview'
     if (path.includes('/usage')) return 'Usage'
     if (path.includes('/logs')) return 'Logs'
+    // Integration sub-pages
+    if (path === '/dashboard/integrations/facebook') return 'Facebook Integration'
+    if (path === '/dashboard/integrations/tiktok') return 'TikTok Integration'
+    if (path === '/dashboard/integrations/telegram') return 'Telegram Integration'
+    if (path === '/dashboard/integrations/invoice') return 'Invoice Generator'
+    if (path === '/dashboard/integrations/stripe') return 'Stripe Payments'
     if (path.includes('/integrations')) return 'Integrations'
+    if (path.includes('/invoices')) return 'Invoices'
     if (path.includes('/settings')) return 'Settings'
     return 'Dashboard'
   }
@@ -228,7 +247,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
     <HeaderContainer>
       <LeftSection>
         <HamburgerButton onClick={onMenuClick}>
-          ☰
+          <HamburgerLine />
+          <HamburgerLine />
+          <HamburgerLine />
         </HamburgerButton>
         <Logo onClick={() => navigate('/')}>LOGO</Logo>
         <PageTitle>{getPageTitle()}</PageTitle>
@@ -238,7 +259,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
         <WorkspaceSelector ref={workspaceRef}>
           <WorkspaceButton onClick={() => setWorkspaceOpen(!workspaceOpen)}>
             <span>{currentTenant?.name || 'Select Workspace'}</span>
-            <span>{workspaceOpen ? '▲' : '▼'}</span>
+            <span style={{ fontSize: '0.625rem' }}>{workspaceOpen ? '\u25B2' : '\u25BC'}</span>
           </WorkspaceButton>
           <Dropdown isOpen={workspaceOpen}>
             {tenants.map(tenant => (
@@ -247,7 +268,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
                 onClick={() => handleTenantSwitch(tenant.id)}
               >
                 {tenant.name}
-                {tenant.id === currentTenantId && ' ✓'}
+                {tenant.id === currentTenantId && <span style={{ marginLeft: 'auto', color: '#4a90e2' }}>&#10003;</span>}
               </DropdownItem>
             ))}
           </Dropdown>
@@ -259,11 +280,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
           </UserAvatar>
           <Dropdown isOpen={userMenuOpen}>
             <DropdownItem onClick={() => navigate('/dashboard/settings')}>
-              ⚙️ Settings
+              Settings
             </DropdownItem>
             <Divider />
             <DropdownItem onClick={handleLogout}>
-              🚪 Logout
+              Logout
             </DropdownItem>
           </Dropdown>
         </WorkspaceSelector>

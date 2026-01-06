@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 import { useAuth, useOAuth } from '../../hooks/useAuth'
 import { useTelegram } from '../../hooks/useTelegram'
+import { useSubscription } from '../../hooks/useSubscription'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorMessage } from '../ErrorMessage'
 import SocialIcon from '../SocialIcon'
@@ -70,8 +71,10 @@ const SuccessMessage = styled.div`
   gap: 0.5rem;
 
   &:before {
-    content: "✅";
+    content: "\\2713";
     font-size: 1.125rem;
+    font-weight: 700;
+    color: #28a745;
   }
 `
 
@@ -290,8 +293,175 @@ const ExpiryText = styled.p`
   margin-top: 0.5rem;
 `
 
+const TierBadge = styled.span<{ tier: 'free' | 'pro' }>`
+  padding: 0.375rem 0.875rem;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  ${props => props.tier === 'pro' ? `
+    background: linear-gradient(135deg, #ffd700 0%, #ff9500 100%);
+    color: #1f2937;
+  ` : `
+    background: #e5e7eb;
+    color: #6b7280;
+  `}
+`
+
+const FeatureList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+`
+
+const FeatureItem = styled.li<{ available: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  font-size: 0.9375rem;
+  color: ${props => props.available ? '#1f2937' : '#9ca3af'};
+
+  &:before {
+    content: "${props => props.available ? '✓' : '✗'}";
+    color: ${props => props.available ? '#28a745' : '#dc3545'};
+    font-weight: 700;
+  }
+`
+
+const UpgradeButton = styled.button`
+  background: linear-gradient(135deg, #ffd700 0%, #ff9500 100%);
+  color: #1f2937;
+  border: none;
+  padding: 0.875rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  margin-top: 1rem;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+  }
+`
+
+const OpenButton = styled.button`
+  background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+  color: white;
+  border: none;
+  padding: 0.875rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  margin-top: 0.75rem;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+  }
+`
+
+const PricingOptions = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+`
+
+const PriceButton = styled.button<{ recommended?: boolean }>`
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+
+  ${props => props.recommended ? `
+    background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+    color: white;
+    border: none;
+  ` : `
+    background: white;
+    color: #4a90e2;
+    border: 2px solid #4a90e2;
+  `}
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  small {
+    display: block;
+    font-weight: 400;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    opacity: 0.8;
+  }
+`
+
+const SubscriptionInfo = styled.div`
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+`
+
+const SubscriptionDetail = styled.p`
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+`
+
+const ManageButton = styled.button`
+  background: white;
+  color: #4a90e2;
+  border: 2px solid #4a90e2;
+  padding: 0.625rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 0.75rem;
+
+  &:hover:not(:disabled) {
+    background: #f0f7ff;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`
+
 const IntegrationsPage: React.FC = () => {
   const location = useLocation()
+  const navigate = useNavigate()
   const [tenantId, setTenantId] = useState<string>('')
   const [successMessage, setSuccessMessage] = useState<string>('')
 
@@ -303,18 +473,29 @@ const IntegrationsPage: React.FC = () => {
     }
   }, [])
 
-  // Handle OAuth redirect success message
+  // Handle OAuth redirect and subscription success messages
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search)
     const urlSuccess = urlParams.get('success')
+    const subscription = urlParams.get('subscription')
 
     if (urlSuccess) {
       const platform = urlSuccess === 'facebook' ? 'Facebook' : 'TikTok'
       setSuccessMessage(`${platform} account connected successfully!`)
+    }
 
-      // Clean up URL parameters
+    if (subscription === 'success') {
+      setSuccessMessage('Subscription activated successfully! You now have Pro access.')
+      refreshSubscriptionStatus()
+    } else if (subscription === 'cancelled') {
+      setSuccessMessage('Checkout cancelled. You can try again anytime.')
+    }
+
+    // Clean up URL parameters
+    if (urlSuccess || subscription) {
       const newUrl = new URL(window.location.href)
       newUrl.searchParams.delete('success')
+      newUrl.searchParams.delete('subscription')
       window.history.replaceState({}, '', newUrl.pathname)
     }
 
@@ -338,10 +519,24 @@ const IntegrationsPage: React.FC = () => {
     fetchStatus: refreshTelegramStatus,
     clearError: clearTelegramError
   } = useTelegram()
+  const {
+    tier,
+    isPro,
+    features,
+    checkoutLoading,
+    portalLoading,
+    error: subscriptionError,
+    startCheckout,
+    openBillingPortal,
+    fetchStatus: refreshSubscriptionStatus,
+    periodEnd,
+    cancelAtPeriodEnd
+  } = useSubscription()
 
   const handleRefresh = () => {
     refreshAuthStatus()
     refreshTelegramStatus()
+    refreshSubscriptionStatus()
   }
 
   const handleConnectTelegram = async () => {
@@ -397,7 +592,7 @@ const IntegrationsPage: React.FC = () => {
       <Header>
         <Title>Integrations</Title>
         <RefreshButton onClick={handleRefresh} disabled={loading}>
-          {loading ? <LoadingSpinner size="small" /> : '🔄'}
+          {loading && <LoadingSpinner size="small" />}
           Refresh
         </RefreshButton>
       </Header>
@@ -438,7 +633,7 @@ const IntegrationsPage: React.FC = () => {
             {authStatus.facebook?.connected && (
               <div>
                 <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
-                  ✅ Valid tokens: {authStatus.facebook.valid_tokens}
+                  Valid tokens: {authStatus.facebook.valid_tokens}
                 </p>
 
                 {authStatus.facebook.accounts && authStatus.facebook.accounts.length > 0 && (
@@ -447,7 +642,7 @@ const IntegrationsPage: React.FC = () => {
                       <TokenItem key={index}>
                         <div><strong>Account:</strong> {account.account_name || account.account_ref}</div>
                         <TokenMeta>
-                          Valid: {account.is_valid ? 'Yes ✓' : 'No ✗'} |
+                          Valid: {account.is_valid ? 'Yes' : 'No'} |
                           {account.expires_at ?
                             ` Expires: ${new Date(account.expires_at).toLocaleDateString()}` :
                             ' No expiration'
@@ -502,7 +697,7 @@ const IntegrationsPage: React.FC = () => {
             {authStatus.tiktok?.connected && (
               <div>
                 <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
-                  ✅ Valid tokens: {authStatus.tiktok.valid_tokens}
+                  Valid tokens: {authStatus.tiktok.valid_tokens}
                 </p>
 
                 {authStatus.tiktok.accounts && authStatus.tiktok.accounts.length > 0 && (
@@ -511,7 +706,7 @@ const IntegrationsPage: React.FC = () => {
                       <TokenItem key={index}>
                         <div><strong>Account:</strong> {account.account_name || account.account_ref}</div>
                         <TokenMeta>
-                          Valid: {account.is_valid ? 'Yes ✓' : 'No ✗'} |
+                          Valid: {account.is_valid ? 'Yes' : 'No'} |
                           {account.expires_at ?
                             ` Expires: ${new Date(account.expires_at).toLocaleDateString()}` :
                             ' No expiration'
@@ -552,7 +747,18 @@ const IntegrationsPage: React.FC = () => {
           {/* Telegram Integration */}
           <IntegrationCard connected={telegramStatus?.connected || false}>
             <CardHeader>
-              <span style={{ fontSize: '2rem' }}>✈️</span>
+              <span style={{
+                width: '28px',
+                height: '28px',
+                background: '#0088cc',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 700
+              }}>TG</span>
               <PlatformName>Telegram</PlatformName>
               <StatusBadge connected={telegramStatus?.connected || false}>
                 {telegramStatus?.connected ? 'Connected' : 'Disconnected'}
@@ -566,7 +772,7 @@ const IntegrationsPage: React.FC = () => {
             {telegramStatus?.connected && (
               <div>
                 <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
-                  ✅ Connected as @{telegramStatus.telegram_username || telegramStatus.telegram_user_id}
+                  Connected as @{telegramStatus.telegram_username || telegramStatus.telegram_user_id}
                 </p>
                 {telegramStatus.linked_at && (
                   <TokenMeta>
@@ -593,10 +799,7 @@ const IntegrationsPage: React.FC = () => {
                     Generating...
                   </>
                 ) : (
-                  <>
-                    <span>✈️</span>
-                    Connect Telegram
-                  </>
+                  'Connect Telegram'
                 )}
               </TelegramButton>
             )}
@@ -612,7 +815,6 @@ const IntegrationsPage: React.FC = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <span>✈️</span>
                   Open Telegram Bot
                 </DeepLinkButton>
                 <ExpiryText>
@@ -628,27 +830,137 @@ const IntegrationsPage: React.FC = () => {
             )}
           </IntegrationCard>
 
-          {/* Future Integrations Placeholders */}
-          <IntegrationCard connected={false}>
+          {/* Invoice Generator Integration */}
+          <IntegrationCard connected={true}>
             <CardHeader>
-              <span style={{ fontSize: '2rem' }}>📄</span>
+              <span style={{
+                width: '28px',
+                height: '28px',
+                background: 'linear-gradient(135deg, #4a90e2 0%, #2a5298 100%)',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '0.75rem',
+                fontWeight: 700
+              }}>INV</span>
               <PlatformName>Invoice Generator</PlatformName>
-              <StatusBadge connected={false}>Coming Soon</StatusBadge>
+              <TierBadge tier={tier}>
+                {isPro ? 'Pro' : 'Free'}
+              </TierBadge>
             </CardHeader>
+
             <Description>
-              Generate professional invoices automatically. Integration coming soon.
+              Professional invoicing with customer management, PDF generation, and export features.
             </Description>
+
+            <FeatureList>
+              <FeatureItem available={features.createInvoices}>Create & View Invoices</FeatureItem>
+              <FeatureItem available={features.manageCustomers}>Manage Customers</FeatureItem>
+              <FeatureItem available={features.downloadPdf}>PDF Download</FeatureItem>
+              <FeatureItem available={features.exportData}>Excel/CSV Export</FeatureItem>
+            </FeatureList>
+
+            {!isPro && (
+              <UpgradeButton
+                onClick={() => startCheckout('monthly')}
+                disabled={checkoutLoading}
+              >
+                {checkoutLoading ? (
+                  <>
+                    <LoadingSpinner size="small" />
+                    Processing...
+                  </>
+                ) : (
+                  'Upgrade to Pro'
+                )}
+              </UpgradeButton>
+            )}
+
+            <OpenButton onClick={() => navigate('/dashboard/invoices')}>
+              Open Invoice Generator
+            </OpenButton>
+
+            {subscriptionError && (
+              <ErrorText>Error: {subscriptionError}</ErrorText>
+            )}
           </IntegrationCard>
 
-          <IntegrationCard connected={false}>
+          {/* Stripe Payments / Subscription Management */}
+          <IntegrationCard connected={isPro}>
             <CardHeader>
-              <span style={{ fontSize: '2rem' }}>📊</span>
-              <PlatformName>Analytics API</PlatformName>
-              <StatusBadge connected={false}>Coming Soon</StatusBadge>
+              <span style={{
+                width: '28px',
+                height: '28px',
+                background: 'linear-gradient(135deg, #635bff 0%, #7a73ff 100%)',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '0.625rem',
+                fontWeight: 700
+              }}>PAY</span>
+              <PlatformName>Stripe Payments</PlatformName>
+              <StatusBadge connected={isPro}>
+                {isPro ? 'Active' : 'Not Subscribed'}
+              </StatusBadge>
             </CardHeader>
+
             <Description>
-              Advanced analytics and reporting API. Integration coming soon.
+              Manage your subscription and billing through Stripe's secure payment platform.
             </Description>
+
+            {isPro && (
+              <SubscriptionInfo>
+                <SubscriptionDetail>
+                  <strong>Status:</strong> Active
+                </SubscriptionDetail>
+                {periodEnd && (
+                  <SubscriptionDetail>
+                    <strong>{cancelAtPeriodEnd ? 'Expires' : 'Renews'}:</strong>{' '}
+                    {new Date(periodEnd).toLocaleDateString()}
+                  </SubscriptionDetail>
+                )}
+                {cancelAtPeriodEnd && (
+                  <SubscriptionDetail style={{ color: '#dc3545' }}>
+                    Your subscription will not renew
+                  </SubscriptionDetail>
+                )}
+                <ManageButton
+                  onClick={openBillingPortal}
+                  disabled={portalLoading}
+                >
+                  {portalLoading ? 'Loading...' : 'Manage Billing'}
+                </ManageButton>
+              </SubscriptionInfo>
+            )}
+
+            {!isPro && (
+              <>
+                <Description style={{ marginTop: '1rem' }}>
+                  Upgrade to Pro for full access to PDF downloads and data exports.
+                </Description>
+                <PricingOptions>
+                  <PriceButton
+                    onClick={() => startCheckout('monthly')}
+                    disabled={checkoutLoading}
+                  >
+                    $9.99/mo
+                    <small>Monthly billing</small>
+                  </PriceButton>
+                  <PriceButton
+                    recommended
+                    onClick={() => startCheckout('yearly')}
+                    disabled={checkoutLoading}
+                  >
+                    $99/year
+                    <small>Save 17%</small>
+                  </PriceButton>
+                </PricingOptions>
+              </>
+            )}
           </IntegrationCard>
         </IntegrationsGrid>
       )}

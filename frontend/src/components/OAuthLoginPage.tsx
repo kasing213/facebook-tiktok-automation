@@ -152,7 +152,8 @@ const StatusItem = styled.div<{ connected: boolean }>`
   font-size: 0.9rem;
 
   &:before {
-    content: "${props => props.connected ? '✅' : '❌'}";
+    content: "${props => props.connected ? '\\2713' : '\\2717'}";
+    font-weight: 700;
   }
 
   color: ${props => props.connected ? '#28a745' : '#dc3545'};

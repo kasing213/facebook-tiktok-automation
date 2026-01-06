@@ -48,9 +48,11 @@ const StatusMessage = styled.p<{ type: 'loading' | 'success' | 'error' }>`
 const SuccessIcon = styled.div`
   font-size: 3rem;
   margin-bottom: 1rem;
+  color: #28a745;
 
   &:before {
-    content: "✅";
+    content: "\\2713";
+    font-weight: 700;
   }
 `
 

@@ -14,8 +14,17 @@ const ErrorContainer = styled.div`
   gap: 0.5rem;
 
   &:before {
-    content: "⚠️";
+    content: "!";
     font-size: 1rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
   }
 `
 

@@ -70,8 +70,10 @@ const SuccessMessage = styled.div`
   gap: 0.5rem;
 
   &:before {
-    content: "✅";
+    content: "\\2713";
     font-size: 1rem;
+    font-weight: 700;
+    color: #28a745;
   }
 `
 
@@ -289,7 +291,7 @@ const Dashboard: React.FC = () => {
         <Title>Dashboard</Title>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <RefreshButton onClick={handleRefresh} disabled={loading}>
-            {loading ? <LoadingSpinner size="small" /> : '🔄'}
+            {loading && <LoadingSpinner size="small" />}
             Refresh
           </RefreshButton>
           <BackButton onClick={handleBackToLogin}>

@@ -83,7 +83,14 @@ const MetricHeader = styled.div`
 `
 
 const MetricIcon = styled.div`
-  font-size: 1.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+  padding: 0.375rem 0.5rem;
+  border-radius: 6px;
+  min-width: 2rem;
+  text-align: center;
 `
 
 const MetricLabel = styled.div`
@@ -240,7 +247,7 @@ const UsagePage: React.FC = () => {
       <MetricsGrid>
         <MetricCard>
           <MetricHeader>
-            <MetricIcon>📡</MetricIcon>
+            <MetricIcon>API</MetricIcon>
             <MetricLabel>Total API Calls</MetricLabel>
           </MetricHeader>
           <MetricValue>12,529</MetricValue>
@@ -249,7 +256,7 @@ const UsagePage: React.FC = () => {
 
         <MetricCard>
           <MetricHeader>
-            <MetricIcon>💾</MetricIcon>
+            <MetricIcon>DATA</MetricIcon>
             <MetricLabel>Data Processed</MetricLabel>
           </MetricHeader>
           <MetricValue>18.3 GB</MetricValue>
@@ -258,7 +265,7 @@ const UsagePage: React.FC = () => {
 
         <MetricCard>
           <MetricHeader>
-            <MetricIcon>⏱️</MetricIcon>
+            <MetricIcon>TIME</MetricIcon>
             <MetricLabel>Avg Response Time</MetricLabel>
           </MetricHeader>
           <MetricValue>245ms</MetricValue>
@@ -267,7 +274,7 @@ const UsagePage: React.FC = () => {
 
         <MetricCard>
           <MetricHeader>
-            <MetricIcon>🎯</MetricIcon>
+            <MetricIcon>RATE</MetricIcon>
             <MetricLabel>Success Rate</MetricLabel>
           </MetricHeader>
           <MetricValue>98.5%</MetricValue>
@@ -278,7 +285,7 @@ const UsagePage: React.FC = () => {
       <ChartSection>
         <SectionTitle>Usage Comparison by Service</SectionTitle>
         <PlaceholderChart>
-          📊 Bar chart comparing service usage will be displayed here
+          Bar chart comparing service usage will be displayed here
         </PlaceholderChart>
       </ChartSection>
 

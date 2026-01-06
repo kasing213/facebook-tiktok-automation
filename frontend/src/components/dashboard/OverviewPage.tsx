@@ -44,10 +44,6 @@ const CardHeader = styled.div`
   margin-bottom: 1rem;
 `
 
-const CardIcon = styled.div`
-  font-size: 1.5rem;
-`
-
 const CardLabel = styled.div`
   font-size: 0.875rem;
   font-weight: 500;
@@ -218,18 +214,16 @@ const OverviewPage: React.FC = () => {
       <SummaryCardsGrid>
         <SummaryCard>
           <CardHeader>
-            <CardIcon>📊</CardIcon>
             <CardLabel>Total Requests</CardLabel>
           </CardHeader>
           <CardValue>1,234</CardValue>
           <CardChange $positive={true}>
-            ↑ +12% from last week
+            +12% from last week
           </CardChange>
         </SummaryCard>
 
         <SummaryCard>
           <CardHeader>
-            <CardIcon>🔗</CardIcon>
             <CardLabel>Active Integrations</CardLabel>
           </CardHeader>
           <CardValue>2</CardValue>
@@ -240,23 +234,21 @@ const OverviewPage: React.FC = () => {
 
         <SummaryCard>
           <CardHeader>
-            <CardIcon>✅</CardIcon>
             <CardLabel>Success Rate</CardLabel>
           </CardHeader>
           <CardValue>98.5%</CardValue>
           <CardChange $positive={true}>
-            ↑ +1.2% from last week
+            +1.2% from last week
           </CardChange>
         </SummaryCard>
 
         <SummaryCard>
           <CardHeader>
-            <CardIcon>⚡</CardIcon>
             <CardLabel>Avg Response Time</CardLabel>
           </CardHeader>
           <CardValue>245ms</CardValue>
           <CardChange $positive={true}>
-            ↓ -15ms from last week
+            -15ms from last week
           </CardChange>
         </SummaryCard>
       </SummaryCardsGrid>
@@ -264,7 +256,7 @@ const OverviewPage: React.FC = () => {
       <ChartSection>
         <SectionTitle>Activity Over Time</SectionTitle>
         <PlaceholderChart>
-          📈 Chart visualization will be added here (Chart.js or Recharts)
+          Chart visualization will be added here (Chart.js or Recharts)
         </PlaceholderChart>
       </ChartSection>
 
