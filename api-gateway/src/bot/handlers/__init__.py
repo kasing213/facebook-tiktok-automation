@@ -1,7 +1,7 @@
 # api-gateway/src/bot/handlers/__init__.py
 """Bot command handlers."""
 
-from . import start, status, invoice, verify, sales, promo, help_cmd
+from . import start, status, invoice, verify, sales, promo, help_cmd, ocr
 
 __all__ = [
     "start",
@@ -11,4 +11,5 @@ __all__ = [
     "sales",
     "promo",
     "help_cmd",
+    "ocr",
 ]

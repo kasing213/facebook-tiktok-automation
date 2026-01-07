@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Server
     PORT: int = Field(default=8001)
 
+    # OCR Verification Service
+    OCR_API_URL: str = Field(default="", description="OCR verification service URL")
+    OCR_API_KEY: str = Field(default="", description="OCR API authentication key")
+
 
 # Global settings instance
 settings = Settings()
