@@ -2,15 +2,19 @@
 """
 Security utilities for password hashing and JWT token generation.
 """
-from datetime import datetime, timedelta
-from typing import Optional
+import hashlib
+import secrets
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Tuple
 import bcrypt
 from jose import JWTError, jwt
 from app.core.config import get_settings
 
 # JWT settings
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 15  # Reduced from 30 for better security
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
 def hash_password(password: str) -> str:
@@ -79,3 +83,73 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+def create_access_token_with_jti(
+    data: dict, expires_delta: Optional[timedelta] = None
+) -> Tuple[str, str, datetime]:
+    """
+    Create a JWT access token with a unique JTI (JWT ID) claim.
+
+    Args:
+        data: Dictionary of data to encode in the token
+        expires_delta: Optional expiration time delta
+
+    Returns:
+        Tuple of (encoded JWT token, JTI, expiration datetime)
+    """
+    to_encode = data.copy()
+    jti = str(uuid.uuid4())
+
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    to_encode.update({"exp": expire, "jti": jti})
+
+    settings = get_settings()
+    secret_key = settings.MASTER_SECRET_KEY.get_secret_value()
+
+    encoded_jwt = jwt.encode(to_encode, secret_key, algorithm=ALGORITHM)
+    return encoded_jwt, jti, expire
+
+
+def create_refresh_token() -> Tuple[str, str]:
+    """
+    Create a secure refresh token.
+
+    Returns:
+        Tuple of (raw token for cookie, SHA-256 hash for database storage)
+    """
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hash_refresh_token(raw_token)
+    return raw_token, token_hash
+
+
+def hash_refresh_token(token: str) -> str:
+    """
+    Hash a refresh token using SHA-256.
+
+    Args:
+        token: Raw refresh token string
+
+    Returns:
+        SHA-256 hex digest of the token
+    """
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def verify_refresh_token(raw_token: str, stored_hash: str) -> bool:
+    """
+    Verify a refresh token against its stored hash.
+
+    Args:
+        raw_token: The raw refresh token from the cookie
+        stored_hash: The SHA-256 hash stored in the database
+
+    Returns:
+        True if the token matches, False otherwise
+    """
+    computed_hash = hash_refresh_token(raw_token)
+    return secrets.compare_digest(computed_hash, stored_hash)

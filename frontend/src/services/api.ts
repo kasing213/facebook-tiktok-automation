@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { AuthStatus, Tenant, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, User } from '../types/auth'
 
 // Create axios instance with base configuration
@@ -14,7 +14,60 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable cookies for cross-origin requests (refresh token)
 })
+
+// Extend AxiosRequestConfig to include _retry flag
+interface RetryableRequest extends InternalAxiosRequestConfig {
+  _retry?: boolean
+}
+
+// Token utilities
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    // Check if token expires within the next 30 seconds (buffer)
+    return payload.exp * 1000 < Date.now() + 30000
+  } catch {
+    return true
+  }
+}
+
+// Flag to prevent multiple simultaneous refresh attempts
+let isRefreshing = false
+let refreshSubscribers: ((token: string) => void)[] = []
+
+function subscribeTokenRefresh(callback: (token: string) => void) {
+  refreshSubscribers.push(callback)
+}
+
+function onTokenRefreshed(token: string) {
+  refreshSubscribers.forEach(callback => callback(token))
+  refreshSubscribers = []
+}
+
+/**
+ * Refresh the access token using the httpOnly refresh token cookie
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const response = await axios.post(
+      `${API_URL}/auth/refresh`,
+      {},
+      { withCredentials: true }
+    )
+    const newToken = response.data.access_token
+    if (newToken) {
+      localStorage.setItem('access_token', newToken)
+      return newToken
+    }
+    return null
+  } catch (error) {
+    console.error('[API] Token refresh failed:', error)
+    localStorage.removeItem('access_token')
+    return null
+  }
+}
 
 // Request interceptor
 api.interceptors.request.use(
@@ -31,10 +84,59 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor
+// Response interceptor with automatic token refresh
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetryableRequest
+
+    // Handle 401 errors with automatic token refresh
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      // Skip refresh for login/register/refresh endpoints
+      const skipRefreshPaths = ['/auth/login', '/auth/register', '/auth/refresh']
+      if (skipRefreshPaths.some(path => originalRequest.url?.includes(path))) {
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        // Wait for ongoing refresh to complete
+        return new Promise((resolve, reject) => {
+          subscribeTokenRefresh((token: string) => {
+            if (token) {
+              originalRequest.headers.Authorization = `Bearer ${token}`
+              resolve(api(originalRequest))
+            } else {
+              reject(error)
+            }
+          })
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      try {
+        const newToken = await refreshAccessToken()
+        isRefreshing = false
+
+        if (newToken) {
+          onTokenRefreshed(newToken)
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
+          return api(originalRequest)
+        } else {
+          // Refresh failed - redirect to login
+          onTokenRefreshed('')
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
+      } catch (refreshError) {
+        isRefreshing = false
+        onTokenRefreshed('')
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      }
+    }
+
     // Handle common errors
     console.error('API Error:', error.response?.data || error.message)
     return Promise.reject(error)
@@ -197,6 +299,7 @@ export const authService = {
 
   /**
    * Login with username and password
+   * Access token is returned in response, refresh token is set as httpOnly cookie
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
@@ -209,9 +312,10 @@ export const authService = {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
+        withCredentials: true, // Accept refresh token cookie
       })
 
-      // Store token in localStorage
+      // Store access token in localStorage
       if (response.data.access_token) {
         localStorage.setItem('access_token', response.data.access_token)
       }
@@ -250,17 +354,71 @@ export const authService = {
   },
 
   /**
-   * Logout - clear stored token
+   * Logout - revoke tokens on backend and clear local storage
    */
-  logout() {
-    localStorage.removeItem('access_token')
+  async logout(): Promise<void> {
+    try {
+      // Call backend to blacklist access token and revoke refresh token
+      await api.post('/auth/logout', {}, { withCredentials: true })
+    } catch (error) {
+      // Logout should succeed even if backend call fails
+      console.error('Backend logout failed:', error)
+    } finally {
+      // Always clear local storage
+      localStorage.removeItem('access_token')
+    }
   },
 
   /**
-   * Check if user is authenticated
+   * Check if user is authenticated (has valid, non-expired token)
    */
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('access_token')
+    const token = localStorage.getItem('access_token')
+    if (!token) return false
+    return !isTokenExpired(token)
+  },
+
+  /**
+   * Manually refresh the access token
+   */
+  async refreshToken(): Promise<string | null> {
+    return refreshAccessToken()
+  },
+
+  /**
+   * Revoke all sessions (logout from all devices)
+   */
+  async revokeAllSessions(): Promise<{ message: string; revoked_count: number }> {
+    try {
+      const response = await api.post('/auth/revoke-all-sessions', {}, { withCredentials: true })
+      localStorage.removeItem('access_token')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to revoke sessions:', error)
+      throw new Error(`Failed to revoke sessions: ${error.response?.data?.detail || error.message}`)
+    }
+  },
+
+  /**
+   * Get all active sessions for the current user
+   */
+  async getActiveSessions(): Promise<{
+    sessions: Array<{
+      id: string
+      device_info: string
+      ip_address: string
+      created_at: string
+      expires_at: string
+    }>
+    count: number
+  }> {
+    try {
+      const response = await api.get('/auth/sessions')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to get sessions:', error)
+      throw new Error(`Failed to get sessions: ${error.response?.data?.detail || error.message}`)
+    }
   }
 
 }

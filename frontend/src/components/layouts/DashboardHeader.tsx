@@ -238,8 +238,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
     window.location.reload() // Reload to refresh auth status with new tenant
   }
 
-  const handleLogout = () => {
-    authService.logout()
+  const handleLogout = async () => {
+    await authService.logout()
     navigate('/login')
   }
 

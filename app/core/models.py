@@ -346,6 +346,52 @@ class TelegramLinkCode(Base):
     )
 
 
+class RefreshToken(Base):
+    """Refresh tokens for rotating token authentication"""
+    __tablename__ = "refresh_token"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    token_hash = Column(String(64), nullable=False, unique=True)  # SHA-256 hash
+    family_id = Column(UUID(as_uuid=True), nullable=False)  # For token rotation detection
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    replaced_by_id = Column(UUID(as_uuid=True), nullable=True)  # Points to new token if rotated
+    device_info = Column(String(255), nullable=True)  # User agent/device fingerprint
+    ip_address = Column(String(45), nullable=True)
+
+    # Relationships
+    user = relationship("User", backref="refresh_tokens")
+    tenant = relationship("Tenant", backref="refresh_tokens")
+
+    __table_args__ = (
+        Index("idx_refresh_token_hash", "token_hash", unique=True),
+        Index("idx_refresh_token_user", "user_id"),
+        Index("idx_refresh_token_family", "family_id"),
+        Index("idx_refresh_token_expires", "expires_at"),
+    )
+
+
+class TokenBlacklist(Base):
+    """Blacklisted JWT tokens (for logout and security revocations)"""
+    __tablename__ = "token_blacklist"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    jti = Column(String(36), nullable=False, unique=True)  # JWT ID claim
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)  # When token naturally expires
+    revoked_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    reason = Column(String(50), nullable=True)  # 'logout', 'password_change', 'security_revoke'
+
+    __table_args__ = (
+        Index("idx_token_blacklist_jti", "jti", unique=True),
+        Index("idx_token_blacklist_expires", "expires_at"),
+        Index("idx_token_blacklist_user", "user_id"),
+    )
+
+
 class Subscription(Base):
     """User subscription for tiered features (Invoice Pro, etc.)"""
     __tablename__ = "subscription"

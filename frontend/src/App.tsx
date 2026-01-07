@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import HomePage from './components/HomePage'
 import LoginPageNew from './components/LoginPageNew'
@@ -26,10 +27,49 @@ import {
 } from './components/dashboard/billing'
 import { authService } from './services/api'
 
-// Protected Route component
+// Protected Route component with token refresh support
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const isAuthenticated = authService.isAuthenticated()
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+  const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      // Check if we have a valid non-expired token
+      if (authService.isAuthenticated()) {
+        setAuthState('authenticated')
+        return
+      }
+
+      // Token is expired or missing, try to refresh
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        // Token exists but expired, attempt refresh
+        try {
+          const newToken = await authService.refreshToken()
+          if (newToken) {
+            setAuthState('authenticated')
+            return
+          }
+        } catch {
+          // Refresh failed
+        }
+      }
+
+      setAuthState('unauthenticated')
+    }
+
+    checkAuth()
+  }, [])
+
+  if (authState === 'loading') {
+    // Show loading spinner while checking auth
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    )
+  }
+
+  return authState === 'authenticated' ? <>{children}</> : <Navigate to="/login" replace />
 }
 
 function App() {

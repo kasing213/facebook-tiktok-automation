@@ -89,6 +89,12 @@ class Settings(BaseSettings):
     # IP Blocking Configuration
     TRUST_PROXY_HEADERS: bool = Field(default=True, description="Trust X-Forwarded-For headers from proxies")
 
+    # Refresh Token Cookie Configuration
+    REFRESH_TOKEN_COOKIE_NAME: str = Field(default="refresh_token", description="Name of the refresh token cookie")
+    REFRESH_TOKEN_COOKIE_SECURE: bool = Field(default=True, description="Require HTTPS for refresh token cookie")
+    REFRESH_TOKEN_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = Field(default="none", description="SameSite attribute for refresh token cookie")
+    REFRESH_TOKEN_COOKIE_DOMAIN: str | None = Field(default=None, description="Domain for refresh token cookie (None for current domain)")
+
     @field_validator('DATABASE_URL')
     @classmethod
     def validate_database_url(cls, v: str) -> str:

@@ -2,10 +2,11 @@
 """
 Authentication routes for user login, registration, and password management.
 """
+import datetime as dt
 from datetime import timedelta
 from typing import Optional
-from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from uuid import UUID, uuid4
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Cookie
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
@@ -16,10 +17,19 @@ from app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
+    create_access_token_with_jti,
+    create_refresh_token,
+    hash_refresh_token,
     decode_access_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    REFRESH_TOKEN_EXPIRE_DAYS,
 )
-from app.repositories import UserRepository
+from app.core.cookies import (
+    set_refresh_token_cookie,
+    clear_refresh_token_cookie,
+    get_refresh_token_cookie_name,
+)
+from app.repositories import UserRepository, RefreshTokenRepository, TokenBlacklistRepository
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -102,6 +112,13 @@ async def get_current_user(
     if user_id is None:
         raise credentials_exception
 
+    # Check if token is blacklisted (logout, security revocation)
+    jti = payload.get("jti")
+    if jti:
+        blacklist_repo = TokenBlacklistRepository(db)
+        if blacklist_repo.is_blacklisted(jti):
+            raise credentials_exception
+
     user_repo = UserRepository(db)
     user = user_repo.get_by_id(UUID(user_id))
 
@@ -169,6 +186,8 @@ async def register_user(
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
@@ -176,11 +195,13 @@ async def login(
     User login with username and password.
 
     Args:
+        request: FastAPI request object
+        response: FastAPI response object (for setting cookies)
         form_data: OAuth2 password form (username, password)
         db: Database session
 
     Returns:
-        JWT access token
+        JWT access token (refresh token set as httpOnly cookie)
 
     Raises:
         HTTPException: If credentials are invalid
@@ -214,14 +235,39 @@ async def login(
 
     # Update last login
     user_repo.update_last_login(user.id)
-    db.commit()
 
-    # Create access token
+    # Create access token with JTI for blacklist support
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
+    access_token, jti, token_exp = create_access_token_with_jti(
         data={"sub": str(user.id), "tenant_id": str(user.tenant_id)},
         expires_delta=access_token_expires
     )
+
+    # Create refresh token
+    raw_refresh_token, refresh_token_hash = create_refresh_token()
+    family_id = uuid4()  # New token family for this login session
+    refresh_expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+    # Get device info and IP for security tracking
+    device_info = request.headers.get("User-Agent", "")[:255]
+    ip_address = request.client.host if request.client else None
+
+    # Store refresh token in database
+    refresh_repo = RefreshTokenRepository(db)
+    refresh_repo.create_token(
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        token_hash=refresh_token_hash,
+        family_id=family_id,
+        expires_at=refresh_expires_at,
+        device_info=device_info,
+        ip_address=ip_address,
+    )
+
+    db.commit()
+
+    # Set refresh token as httpOnly cookie
+    set_refresh_token_cookie(response, raw_refresh_token)
 
     return Token(access_token=access_token)
 
@@ -284,16 +330,228 @@ async def change_password(
 
 
 @router.post("/logout")
-async def logout(current_user: User = Depends(get_current_user)):
+async def logout(
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    User logout (client should discard token).
+    User logout - blacklists current access token and revokes refresh token.
 
     Args:
+        request: FastAPI request object
+        response: FastAPI response object
         current_user: Current user from JWT token
+        db: Database session
 
     Returns:
         Success message
     """
-    # In a stateless JWT system, logout is handled client-side by discarding the token
-    # If you need server-side token blacklisting, implement a token blacklist here
+    # Get current access token and blacklist it
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        payload = decode_access_token(token)
+        if payload:
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if jti and exp:
+                blacklist_repo = TokenBlacklistRepository(db)
+                expires_at = dt.datetime.fromtimestamp(exp, tz=dt.timezone.utc)
+                blacklist_repo.add_to_blacklist(
+                    jti=jti,
+                    user_id=current_user.id,
+                    expires_at=expires_at,
+                    reason="logout"
+                )
+
+    # Revoke refresh token from cookie
+    cookie_name = get_refresh_token_cookie_name()
+    refresh_token = request.cookies.get(cookie_name)
+    if refresh_token:
+        refresh_repo = RefreshTokenRepository(db)
+        token_hash = hash_refresh_token(refresh_token)
+        stored_token = refresh_repo.get_by_hash(token_hash)
+        if stored_token:
+            refresh_repo.revoke_token(stored_token.id)
+
+    db.commit()
+
+    # Clear refresh token cookie
+    clear_refresh_token_cookie(response)
+
     return {"message": "Logged out successfully"}
+
+
+@router.post("/refresh", response_model=Token)
+async def refresh_access_token(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh access token using refresh token from httpOnly cookie.
+    Implements token rotation - old refresh token is invalidated.
+
+    Args:
+        request: FastAPI request object (contains refresh token cookie)
+        response: FastAPI response object (for setting new cookie)
+        db: Database session
+
+    Returns:
+        New JWT access token
+
+    Raises:
+        HTTPException: If refresh token is invalid, expired, or revoked
+    """
+    cookie_name = get_refresh_token_cookie_name()
+    raw_refresh_token = request.cookies.get(cookie_name)
+
+    if not raw_refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Find the refresh token in database
+    token_hash = hash_refresh_token(raw_refresh_token)
+    refresh_repo = RefreshTokenRepository(db)
+    stored_token = refresh_repo.get_by_hash(token_hash)
+
+    if not stored_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check if token was already revoked (potential token theft/reuse)
+    if stored_token.revoked_at is not None:
+        # Token reuse detected - revoke entire token family for security
+        refresh_repo.revoke_family(stored_token.family_id)
+        db.commit()
+        clear_refresh_token_cookie(response)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked. Please login again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check if token has expired
+    now = dt.datetime.now(dt.timezone.utc)
+    if stored_token.expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Get user
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_id(stored_token.user_id)
+
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Create new access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token, jti, token_exp = create_access_token_with_jti(
+        data={"sub": str(user.id), "tenant_id": str(user.tenant_id)},
+        expires_delta=access_token_expires
+    )
+
+    # Rotate refresh token - create new one and revoke old
+    new_raw_token, new_token_hash = create_refresh_token()
+    refresh_expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+    device_info = request.headers.get("User-Agent", "")[:255]
+    ip_address = request.client.host if request.client else None
+
+    new_refresh_token = refresh_repo.create_token(
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        token_hash=new_token_hash,
+        family_id=stored_token.family_id,  # Keep same family for rotation tracking
+        expires_at=refresh_expires_at,
+        device_info=device_info,
+        ip_address=ip_address,
+    )
+
+    # Revoke old refresh token (mark as replaced)
+    refresh_repo.revoke_token(stored_token.id, replaced_by_id=new_refresh_token.id)
+
+    db.commit()
+
+    # Set new refresh token cookie
+    set_refresh_token_cookie(response, new_raw_token)
+
+    return Token(access_token=access_token)
+
+
+@router.post("/revoke-all-sessions")
+async def revoke_all_sessions(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Revoke all refresh tokens for the current user (logout from all devices).
+
+    Args:
+        response: FastAPI response object
+        current_user: Current user from JWT token
+        db: Database session
+
+    Returns:
+        Success message with count of revoked sessions
+    """
+    refresh_repo = RefreshTokenRepository(db)
+    revoked_count = refresh_repo.revoke_user_tokens(current_user.id)
+    db.commit()
+
+    # Clear current session's cookie
+    clear_refresh_token_cookie(response)
+
+    return {
+        "message": f"Successfully revoked {revoked_count} session(s)",
+        "revoked_count": revoked_count
+    }
+
+
+@router.get("/sessions")
+async def get_active_sessions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all active sessions for the current user.
+
+    Args:
+        current_user: Current user from JWT token
+        db: Database session
+
+    Returns:
+        List of active sessions with device info
+    """
+    refresh_repo = RefreshTokenRepository(db)
+    sessions = refresh_repo.get_user_active_sessions(current_user.id)
+
+    return {
+        "sessions": [
+            {
+                "id": str(session.id),
+                "device_info": session.device_info,
+                "ip_address": session.ip_address,
+                "created_at": session.created_at.isoformat(),
+                "expires_at": session.expires_at.isoformat(),
+            }
+            for session in sessions
+        ],
+        "count": len(sessions)
+    }
