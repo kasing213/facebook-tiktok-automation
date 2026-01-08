@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     INVOICE_MOCK_MODE: bool = Field(default=False, description="Use mock in-memory Invoice API instead of external service")
     INVOICE_TIER_ENFORCEMENT: bool = Field(default=True, description="Enforce Pro tier for PDF/Export features (disable for testing)")
 
+    # OCR Verification Service
+    OCR_API_URL: str = Field(default="", description="OCR verification service base URL")
+    OCR_API_KEY: SecretStr = Field(default=SecretStr(""), description="OCR API authentication key")
+
     # API Server settings
     API_HOST: str = Field(default="0.0.0.0", description="API server host")
     API_PORT: int = Field(default=8000, description="API server port", ge=1024, le=65535)

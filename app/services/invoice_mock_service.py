@@ -187,6 +187,14 @@ def create_invoice(data: Dict) -> Dict:
         "status": "draft",
         "due_date": data.get("due_date"),
         "notes": data.get("notes"),
+        # Payment verification fields
+        "bank": data.get("bank"),
+        "expected_account": data.get("expected_account") or data.get("expectedAccount"),
+        "currency": data.get("currency", "KHR"),
+        "verification_status": "pending",
+        "verified_at": None,
+        "verified_by": None,
+        "verification_note": None,
         "created_at": _now_iso(),
         "updated_at": _now_iso()
     }
@@ -262,6 +270,49 @@ def delete_invoice(invoice_id: str) -> bool:
     return False
 
 
+def verify_invoice(invoice_id: str, data: Dict) -> Optional[Dict]:
+    """
+    Update verification status of an invoice.
+
+    Args:
+        invoice_id: The invoice ID
+        data: Dict with verificationStatus, verifiedBy, verificationNote
+
+    Returns:
+        Updated invoice or None if not found
+    """
+    if invoice_id not in _invoices:
+        return None
+
+    invoice = _invoices[invoice_id]
+
+    # Update verification fields
+    verification_status = data.get("verificationStatus") or data.get("verification_status")
+    if verification_status:
+        invoice["verification_status"] = verification_status
+
+    verified_by = data.get("verifiedBy") or data.get("verified_by")
+    if verified_by:
+        invoice["verified_by"] = verified_by
+
+    verification_note = data.get("verificationNote") or data.get("verification_note")
+    if verification_note is not None:
+        invoice["verification_note"] = verification_note
+
+    # Set verified_at timestamp if status is verified
+    if verification_status == "verified":
+        invoice["verified_at"] = _now_iso()
+        # Also update invoice status to paid when verified
+        invoice["status"] = "paid"
+
+    invoice["updated_at"] = _now_iso()
+
+    # Return with customer info
+    result = invoice.copy()
+    result["customer"] = _customers.get(invoice["customer_id"])
+    return result
+
+
 # ============================================================================
 # Statistics
 # ============================================================================
@@ -304,12 +355,36 @@ def generate_pdf(invoice_id: str) -> Optional[bytes]:
     invoice_num = invoice["invoice_number"]
     customer_name = invoice.get("customer", {}).get("name", "Unknown")
     total = invoice["total"]
+    currency = invoice.get("currency", "KHR")
+    bank = invoice.get("bank") or "N/A"
+    expected_account = invoice.get("expected_account") or "N/A"
+    verification_status = invoice.get("verification_status", "pending").upper()
 
-    # Build PDF content
+    # Format amount with currency
+    if currency == "KHR":
+        amount_str = f"{total:,.0f} KHR"
+    else:
+        amount_str = f"${total:.2f} {currency}"
+
+    # Verification badge
+    if verification_status == "VERIFIED":
+        badge = "[VERIFIED]"
+    elif verification_status == "REJECTED":
+        badge = "[REJECTED]"
+    else:
+        badge = "[PENDING]"
+
+    # Build PDF content with payment info
     content = f"""Invoice: {invoice_num}
 Customer: {customer_name}
-Total: ${total:.2f}
+Total: {amount_str}
 Status: {invoice["status"]}
+Verification: {badge}
+
+Payment Information:
+Bank: {bank}
+Account: {expected_account}
+Amount: {amount_str}
 
 This is a mock PDF generated for testing purposes."""
 
@@ -325,18 +400,29 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
 endobj
 4 0 obj
-<< /Length {len(content) + 50} >>
+<< /Length {len(content) + 200} >>
 stream
 BT
+/F1 14 Tf
+450 750 Td
+({badge}) Tj
 /F1 12 Tf
 50 700 Td
 ({invoice_num}) Tj
 0 -20 Td
 (Customer: {customer_name}) Tj
 0 -20 Td
-(Total: ${total:.2f}) Tj
+(Total: {amount_str}) Tj
 0 -20 Td
 (Status: {invoice["status"]}) Tj
+0 -40 Td
+(--- Payment Information ---) Tj
+0 -20 Td
+(Bank: {bank}) Tj
+0 -20 Td
+(Account: {expected_account}) Tj
+0 -20 Td
+(Amount: {amount_str}) Tj
 0 -40 Td
 (Mock PDF for testing) Tj
 ET
@@ -352,11 +438,11 @@ xref
 0000000058 00000 n
 0000000115 00000 n
 0000000266 00000 n
-0000000{350 + len(content):03d} 00000 n
+0000000{450 + len(content):03d} 00000 n
 trailer
 << /Size 6 /Root 1 0 R >>
 startxref
-{450 + len(content)}
+{550 + len(content)}
 %%EOF"""
 
     return pdf_content.encode('latin-1')

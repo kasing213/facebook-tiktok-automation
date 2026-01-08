@@ -11,7 +11,7 @@ tier-gated based on configuration.
 """
 
 from typing import Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, Response, Query, UploadFile, File, Form
 from pydantic import BaseModel
 import httpx
 
@@ -20,6 +20,7 @@ from app.routes.auth import get_current_user
 from app.core.models import User
 from app.routes.subscriptions import require_pro_tier
 from app.services import invoice_mock_service as mock_svc
+from app.services.ocr_service import get_ocr_service
 
 router = APIRouter(prefix="/api/integrations/invoice", tags=["invoice-integration"])
 
@@ -61,6 +62,10 @@ class InvoiceCreate(BaseModel):
     due_date: Optional[str] = None
     notes: Optional[str] = None
     discount: Optional[float] = 0
+    # Payment verification fields
+    bank: Optional[str] = None
+    expected_account: Optional[str] = None
+    currency: Optional[str] = "KHR"
 
 
 class InvoiceUpdate(BaseModel):
@@ -70,6 +75,17 @@ class InvoiceUpdate(BaseModel):
     notes: Optional[str] = None
     discount: Optional[float] = None
     status: Optional[str] = None
+    # Payment verification fields
+    bank: Optional[str] = None
+    expected_account: Optional[str] = None
+    currency: Optional[str] = None
+
+
+class InvoiceVerify(BaseModel):
+    """Invoice verification request."""
+    verification_status: str  # pending, verified, rejected
+    verified_by: Optional[str] = None
+    verification_note: Optional[str] = None
 
 
 # Helper functions
@@ -464,6 +480,213 @@ async def delete_invoice(
         return {"status": "deleted", "id": invoice_id}
 
     return await proxy_request("DELETE", f"/api/invoices/{invoice_id}")
+
+
+# ============================================================================
+# Invoice verification endpoint
+# ============================================================================
+
+@router.patch("/invoices/{invoice_id}/verify")
+async def verify_invoice(
+    invoice_id: str,
+    data: InvoiceVerify,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update verification status of an invoice.
+
+    Used by OCR verification service to mark invoices as verified/rejected.
+
+    Args:
+        invoice_id: The invoice ID to verify
+        data: Verification data including status, verifiedBy, and optional note
+    """
+    # Validate verification_status
+    valid_statuses = ["pending", "verified", "rejected"]
+    if data.verification_status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid verification_status. Must be one of: {valid_statuses}"
+        )
+
+    if is_mock_mode():
+        invoice = mock_svc.verify_invoice(invoice_id, data.model_dump(exclude_none=True))
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        return invoice
+
+    return await proxy_request(
+        "PATCH",
+        f"/api/invoices/{invoice_id}/verify",
+        json_data=data.model_dump(exclude_none=True)
+    )
+
+
+# ============================================================================
+# Screenshot OCR verification endpoint
+# ============================================================================
+
+@router.post("/invoices/{invoice_id}/screenshot")
+async def upload_invoice_screenshot(
+    invoice_id: str,
+    image: UploadFile = File(..., description="Payment screenshot image"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload a payment screenshot for OCR verification.
+
+    This endpoint:
+    1. Retrieves the invoice to get expected payment details
+    2. Sends the screenshot to OCR service for verification
+    3. Updates the invoice verification status based on OCR result
+
+    Args:
+        invoice_id: The invoice ID to verify payment for
+        image: The payment screenshot image file
+    """
+    ocr_service = get_ocr_service()
+
+    if not ocr_service.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="OCR service not configured. Set OCR_API_URL and OCR_API_KEY."
+        )
+
+    # Get the invoice to build expected payment
+    if is_mock_mode():
+        invoice = mock_svc.get_invoice(invoice_id)
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+    else:
+        invoice = await proxy_request("GET", f"/api/invoices/{invoice_id}")
+
+    # Build expected payment from invoice
+    expected_payment = {
+        "amount": invoice.get("total"),
+        "currency": invoice.get("currency", "KHR"),
+        "toAccount": invoice.get("expected_account"),
+        "bank": invoice.get("bank"),
+    }
+
+    # Read image data
+    image_data = await image.read()
+    if not image_data:
+        raise HTTPException(status_code=400, detail="Empty image file")
+
+    # Send to OCR service
+    ocr_result = await ocr_service.verify_screenshot(
+        image_data=image_data,
+        filename=image.filename or "screenshot.jpg",
+        invoice_id=invoice_id,
+        expected_payment=expected_payment,
+        customer_id=invoice.get("customer_id")
+    )
+
+    # Check if OCR succeeded
+    if ocr_result.get("success") is False:
+        return {
+            "success": False,
+            "invoice_id": invoice_id,
+            "ocr_result": ocr_result,
+            "message": ocr_result.get("message", "OCR verification failed")
+        }
+
+    # Extract verification status from OCR result
+    verification = ocr_result.get("verification", {})
+    verification_status = verification.get("status", "pending")
+
+    # Map OCR status to invoice verification status
+    if verification_status == "verified":
+        invoice_verification_status = "verified"
+    elif verification_status == "rejected":
+        invoice_verification_status = "rejected"
+    else:
+        invoice_verification_status = "pending"
+
+    # Update invoice with verification result
+    verify_data = {
+        "verification_status": invoice_verification_status,
+        "verified_by": "ocr-verification-service",
+        "verification_note": f"OCR Record: {ocr_result.get('recordId', 'N/A')}. {verification.get('rejectionReason', '')}"
+    }
+
+    if is_mock_mode():
+        updated_invoice = mock_svc.verify_invoice(invoice_id, verify_data)
+    else:
+        updated_invoice = await proxy_request(
+            "PATCH",
+            f"/api/invoices/{invoice_id}/verify",
+            json_data=verify_data
+        )
+
+    return {
+        "success": True,
+        "invoice_id": invoice_id,
+        "verification_status": invoice_verification_status,
+        "ocr_result": ocr_result,
+        "invoice": updated_invoice
+    }
+
+
+@router.post("/verify-screenshot")
+async def verify_standalone_screenshot(
+    image: UploadFile = File(..., description="Payment screenshot image"),
+    invoice_id: Optional[str] = Form(None, description="Optional invoice ID"),
+    expected_amount: Optional[float] = Form(None, description="Expected payment amount"),
+    expected_currency: Optional[str] = Form(None, description="Expected currency (KHR/USD)"),
+    expected_account: Optional[str] = Form(None, description="Expected recipient account"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Verify a payment screenshot without requiring an invoice.
+
+    Use this for standalone screenshot verification or when you want to
+    manually specify expected payment details.
+
+    Args:
+        image: The payment screenshot image file
+        invoice_id: Optional invoice ID to link the verification
+        expected_amount: Expected payment amount
+        expected_currency: Expected currency code (default: KHR)
+        expected_account: Expected recipient account number
+    """
+    ocr_service = get_ocr_service()
+
+    if not ocr_service.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="OCR service not configured. Set OCR_API_URL and OCR_API_KEY."
+        )
+
+    # Read image data
+    image_data = await image.read()
+    if not image_data:
+        raise HTTPException(status_code=400, detail="Empty image file")
+
+    # Build expected payment if provided
+    expected_payment = None
+    if expected_amount is not None or expected_currency or expected_account:
+        expected_payment = {}
+        if expected_amount is not None:
+            expected_payment["amount"] = expected_amount
+        if expected_currency:
+            expected_payment["currency"] = expected_currency
+        if expected_account:
+            expected_payment["toAccount"] = expected_account
+
+    # Send to OCR service
+    ocr_result = await ocr_service.verify_screenshot(
+        image_data=image_data,
+        filename=image.filename or "screenshot.jpg",
+        invoice_id=invoice_id,
+        expected_payment=expected_payment
+    )
+
+    return {
+        "success": ocr_result.get("success", True) if "error" not in ocr_result else False,
+        "invoice_id": invoice_id,
+        "ocr_result": ocr_result
+    }
 
 
 # ============================================================================

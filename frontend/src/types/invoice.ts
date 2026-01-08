@@ -2,6 +2,10 @@
 
 export type InvoiceStatus = 'draft' | 'pending' | 'paid' | 'overdue' | 'cancelled'
 
+export type VerificationStatus = 'pending' | 'verified' | 'rejected'
+
+export type Currency = 'KHR' | 'USD'
+
 export interface Customer {
   id: string
   name: string
@@ -56,6 +60,14 @@ export interface Invoice {
   status: InvoiceStatus
   due_date?: string
   notes?: string
+  // Payment verification fields
+  bank?: string
+  expected_account?: string
+  currency: Currency
+  verification_status: VerificationStatus
+  verified_at?: string
+  verified_by?: string
+  verification_note?: string
   created_at: string
   updated_at: string
 }
@@ -66,6 +78,10 @@ export interface InvoiceCreate {
   due_date?: string
   notes?: string
   discount?: number
+  // Payment verification fields
+  bank?: string
+  expected_account?: string
+  currency?: Currency
 }
 
 export interface InvoiceUpdate {
@@ -74,6 +90,16 @@ export interface InvoiceUpdate {
   notes?: string
   discount?: number
   status?: InvoiceStatus
+  // Payment verification fields
+  bank?: string
+  expected_account?: string
+  currency?: Currency
+}
+
+export interface InvoiceVerify {
+  verification_status: VerificationStatus
+  verified_by?: string
+  verification_note?: string
 }
 
 export interface InvoiceStats {

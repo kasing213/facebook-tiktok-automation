@@ -155,6 +155,133 @@ class InvoiceService:
             logger.error(f"Error searching customers: {e}")
             return []
 
+    async def get_invoice_by_id(self, invoice_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single invoice by ID with payment verification fields."""
+        try:
+            with get_db_session() as db:
+                result = db.execute(
+                    text("""
+                        SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
+                               i.amount, i.status, i.items, i.meta,
+                               i.bank, i.expected_account, i.currency,
+                               i.verification_status, i.verified_at, i.verified_by, i.verification_note,
+                               i.created_at, i.updated_at,
+                               c.name as customer_name
+                        FROM invoice.invoice i
+                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                        WHERE i.id = :invoice_id
+                    """),
+                    {"invoice_id": invoice_id}
+                )
+                row = result.fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": str(row.id),
+                    "tenant_id": str(row.tenant_id),
+                    "customer_id": str(row.customer_id),
+                    "customer_name": row.customer_name,
+                    "invoice_number": row.invoice_number,
+                    "amount": float(row.amount),
+                    "status": row.status,
+                    "items": row.items or [],
+                    "meta": row.meta or {},
+                    "bank": row.bank,
+                    "expected_account": row.expected_account,
+                    "currency": row.currency or "KHR",
+                    "verification_status": row.verification_status or "pending",
+                    "verified_at": row.verified_at.isoformat() if row.verified_at else None,
+                    "verified_by": row.verified_by,
+                    "verification_note": row.verification_note,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                    "updated_at": row.updated_at.isoformat() if row.updated_at else None
+                }
+        except Exception as e:
+            logger.error(f"Error getting invoice by ID: {e}")
+            return None
+
+    async def get_invoice_by_number(self, invoice_number: str) -> Optional[Dict[str, Any]]:
+        """Get a single invoice by invoice number."""
+        try:
+            with get_db_session() as db:
+                result = db.execute(
+                    text("""
+                        SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
+                               i.amount, i.status, i.items, i.meta,
+                               i.bank, i.expected_account, i.currency,
+                               i.verification_status, i.verified_at, i.verified_by, i.verification_note,
+                               i.created_at, i.updated_at,
+                               c.name as customer_name
+                        FROM invoice.invoice i
+                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                        WHERE i.invoice_number = :invoice_number
+                    """),
+                    {"invoice_number": invoice_number}
+                )
+                row = result.fetchone()
+                if not row:
+                    return None
+                return {
+                    "id": str(row.id),
+                    "tenant_id": str(row.tenant_id),
+                    "customer_id": str(row.customer_id),
+                    "customer_name": row.customer_name,
+                    "invoice_number": row.invoice_number,
+                    "amount": float(row.amount),
+                    "status": row.status,
+                    "items": row.items or [],
+                    "meta": row.meta or {},
+                    "bank": row.bank,
+                    "expected_account": row.expected_account,
+                    "currency": row.currency or "KHR",
+                    "verification_status": row.verification_status or "pending",
+                    "verified_at": row.verified_at.isoformat() if row.verified_at else None,
+                    "verified_by": row.verified_by,
+                    "verification_note": row.verification_note,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                    "updated_at": row.updated_at.isoformat() if row.updated_at else None
+                }
+        except Exception as e:
+            logger.error(f"Error getting invoice by number: {e}")
+            return None
+
+    async def update_invoice_verification(
+        self,
+        invoice_id: str,
+        verification_status: str,
+        verified_by: str = "telegram-ocr-bot",
+        verification_note: Optional[str] = None
+    ) -> bool:
+        """Update invoice verification status."""
+        try:
+            with get_db_session() as db:
+                verified_at = datetime.utcnow() if verification_status == "verified" else None
+
+                db.execute(
+                    text("""
+                        UPDATE invoice.invoice
+                        SET verification_status = :verification_status,
+                            verified_at = :verified_at,
+                            verified_by = :verified_by,
+                            verification_note = :verification_note,
+                            status = CASE WHEN :verification_status = 'verified' THEN 'paid' ELSE status END,
+                            updated_at = NOW()
+                        WHERE id = :invoice_id
+                    """),
+                    {
+                        "invoice_id": invoice_id,
+                        "verification_status": verification_status,
+                        "verified_at": verified_at,
+                        "verified_by": verified_by,
+                        "verification_note": verification_note
+                    }
+                )
+                db.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Error updating invoice verification: {e}")
+            return False
+
 
 # Global service instance
 invoice_service = InvoiceService()
