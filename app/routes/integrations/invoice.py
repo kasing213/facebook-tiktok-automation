@@ -20,7 +20,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.routes.auth import get_current_user
 from app.core.models import User
-from app.core.database import get_db
+from app.core.db import get_db
 from app.routes.subscriptions import require_pro_tier
 from app.services import invoice_mock_service as mock_svc
 from app.services.ocr_service import get_ocr_service
@@ -821,7 +821,7 @@ async def export_invoices(
     # Check tier enforcement
     if is_tier_enforced():
         from app.routes.subscriptions import has_pro_access, get_or_create_subscription
-        from app.core.database import get_db
+        from app.core.db import get_db
         db = next(get_db())
         try:
             subscription = get_or_create_subscription(db, current_user)
@@ -1163,7 +1163,7 @@ async def download_invoice_pdf(
     if is_tier_enforced():
         # Manually check Pro tier (can't use Depends conditionally)
         from app.routes.subscriptions import has_pro_access, get_or_create_subscription
-        from app.core.database import get_db
+        from app.core.db import get_db
         db = next(get_db())
         try:
             subscription = get_or_create_subscription(db, current_user)
