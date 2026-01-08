@@ -10,14 +10,17 @@ All routes require JWT authentication. PDF/Export features can be
 tier-gated based on configuration.
 """
 
-from typing import Optional, Any
+from typing import Optional, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Response, Query, UploadFile, File, Form
 from pydantic import BaseModel
 import httpx
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.routes.auth import get_current_user
 from app.core.models import User
+from app.core.database import get_db
 from app.routes.subscriptions import require_pro_tier
 from app.services import invoice_mock_service as mock_svc
 from app.services.ocr_service import get_ocr_service
@@ -296,6 +299,422 @@ async def delete_customer(
 
 
 # ============================================================================
+# Registered Clients (from Telegram Bot)
+# These are clients registered via /register_client bot command.
+# They are stored in PostgreSQL invoice.customer table with telegram info.
+# ============================================================================
+
+class RegisteredClientResponse(BaseModel):
+    """Response model for registered client."""
+    id: str
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
+    telegram_username: Optional[str] = None
+    telegram_linked: bool = False
+    telegram_linked_at: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+@router.get("/registered-clients")
+async def list_registered_clients(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
+    telegram_linked: Optional[bool] = Query(default=None, description="Filter by Telegram linked status")
+):
+    """
+    List clients registered via Telegram bot for the current merchant.
+
+    These are clients created with /register_client command and are scoped
+    to the current user (merchant) and their tenant.
+
+    Args:
+        limit: Maximum number of results (default 50)
+        skip: Offset for pagination
+        telegram_linked: Optional filter - True for linked clients only, False for unlinked
+    """
+    try:
+        # Build query with tenant + merchant scoping
+        query = """
+            SELECT
+                id, tenant_id, merchant_id, name, email, phone, address,
+                telegram_chat_id, telegram_username, telegram_linked_at,
+                created_at, updated_at
+            FROM invoice.customer
+            WHERE tenant_id = :tenant_id
+              AND merchant_id = :merchant_id
+        """
+        params = {
+            "tenant_id": str(current_user.tenant_id),
+            "merchant_id": str(current_user.id),
+            "limit": limit,
+            "offset": skip
+        }
+
+        # Add telegram_linked filter if specified
+        if telegram_linked is True:
+            query += " AND telegram_chat_id IS NOT NULL"
+        elif telegram_linked is False:
+            query += " AND telegram_chat_id IS NULL"
+
+        query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+
+        result = db.execute(text(query), params)
+        rows = result.fetchall()
+
+        clients = []
+        for row in rows:
+            clients.append({
+                "id": str(row.id),
+                "name": row.name,
+                "email": row.email,
+                "phone": row.phone,
+                "address": row.address,
+                "telegram_chat_id": row.telegram_chat_id,
+                "telegram_username": row.telegram_username,
+                "telegram_linked": row.telegram_chat_id is not None,
+                "telegram_linked_at": row.telegram_linked_at.isoformat() if row.telegram_linked_at else None,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None
+            })
+
+        # Get total count for pagination
+        count_query = """
+            SELECT COUNT(*) FROM invoice.customer
+            WHERE tenant_id = :tenant_id AND merchant_id = :merchant_id
+        """
+        if telegram_linked is True:
+            count_query += " AND telegram_chat_id IS NOT NULL"
+        elif telegram_linked is False:
+            count_query += " AND telegram_chat_id IS NULL"
+
+        count_result = db.execute(text(count_query), {
+            "tenant_id": str(current_user.tenant_id),
+            "merchant_id": str(current_user.id)
+        })
+        total = count_result.scalar()
+
+        return {
+            "clients": clients,
+            "total": total,
+            "limit": limit,
+            "skip": skip
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch registered clients: {str(e)}"
+        )
+
+
+@router.get("/registered-clients/{client_id}")
+async def get_registered_client(
+    client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    include_pending_invoices: bool = Query(default=False, description="Include pending invoices")
+):
+    """
+    Get a specific registered client by ID.
+
+    Validates ownership chain (tenant_id + merchant_id) before returning.
+
+    Args:
+        client_id: The client UUID
+        include_pending_invoices: If True, includes list of pending invoices for this client
+    """
+    try:
+        # Query with ownership validation
+        result = db.execute(
+            text("""
+                SELECT
+                    id, tenant_id, merchant_id, name, email, phone, address,
+                    telegram_chat_id, telegram_username, telegram_linked_at,
+                    created_at, updated_at
+                FROM invoice.customer
+                WHERE id = :client_id
+                  AND tenant_id = :tenant_id
+                  AND merchant_id = :merchant_id
+            """),
+            {
+                "client_id": client_id,
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id)
+            }
+        )
+        row = result.fetchone()
+
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="Client not found or access denied"
+            )
+
+        client = {
+            "id": str(row.id),
+            "name": row.name,
+            "email": row.email,
+            "phone": row.phone,
+            "address": row.address,
+            "telegram_chat_id": row.telegram_chat_id,
+            "telegram_username": row.telegram_username,
+            "telegram_linked": row.telegram_chat_id is not None,
+            "telegram_linked_at": row.telegram_linked_at.isoformat() if row.telegram_linked_at else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None
+        }
+
+        # Include pending invoices if requested
+        if include_pending_invoices:
+            invoices_result = db.execute(
+                text("""
+                    SELECT
+                        id, invoice_number, amount, currency, bank,
+                        expected_account, status, verification_status, created_at
+                    FROM invoice.invoice
+                    WHERE customer_id = :client_id
+                      AND verification_status IN ('pending', 'rejected')
+                      AND status != 'cancelled'
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                """),
+                {"client_id": client_id}
+            )
+            pending = []
+            for inv in invoices_result.fetchall():
+                pending.append({
+                    "id": str(inv.id),
+                    "invoice_number": inv.invoice_number,
+                    "amount": float(inv.amount) if inv.amount else 0,
+                    "currency": inv.currency or "KHR",
+                    "bank": inv.bank,
+                    "expected_account": inv.expected_account,
+                    "status": inv.status,
+                    "verification_status": inv.verification_status,
+                    "created_at": inv.created_at.isoformat() if inv.created_at else None
+                })
+            client["pending_invoices"] = pending
+
+        return client
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch client: {str(e)}"
+        )
+
+
+@router.post("/registered-clients/{client_id}/generate-link")
+async def generate_client_link_code(
+    client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a new Telegram registration link for a client.
+
+    Use this to re-send or regenerate a link for a client who hasn't
+    connected their Telegram yet.
+
+    Args:
+        client_id: The client UUID
+    """
+    import secrets
+
+    try:
+        # Verify client exists and belongs to this merchant
+        client_result = db.execute(
+            text("""
+                SELECT id, name, telegram_chat_id
+                FROM invoice.customer
+                WHERE id = :client_id
+                  AND tenant_id = :tenant_id
+                  AND merchant_id = :merchant_id
+            """),
+            {
+                "client_id": client_id,
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id)
+            }
+        )
+        client = client_result.fetchone()
+
+        if not client:
+            raise HTTPException(
+                status_code=404,
+                detail="Client not found or access denied"
+            )
+
+        if client.telegram_chat_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Client already has Telegram connected"
+            )
+
+        # Generate cryptographically secure token (64 chars)
+        code = secrets.token_urlsafe(32)
+
+        # Insert new link code
+        result = db.execute(
+            text("""
+                INSERT INTO invoice.client_link_code
+                    (tenant_id, merchant_id, customer_id, code)
+                VALUES (:tenant_id, :merchant_id, :customer_id, :code)
+                RETURNING id, code, expires_at
+            """),
+            {
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id),
+                "customer_id": client_id,
+                "code": code
+            }
+        )
+        db.commit()
+        row = result.fetchone()
+
+        # Build Telegram link
+        settings = get_settings()
+        bot_username = settings.TELEGRAM_BOT_USERNAME or "KS_automations_bot"
+
+        return {
+            "client_id": client_id,
+            "client_name": client.name,
+            "code": row.code,
+            "link": f"https://t.me/{bot_username}?start=client_{row.code}",
+            "expires_at": row.expires_at.isoformat() if row.expires_at else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate link code: {str(e)}"
+        )
+
+
+# ============================================================================
+# Telegram Invoice Notification Helper
+# ============================================================================
+
+async def send_invoice_to_telegram(
+    invoice: dict,
+    customer: dict,
+    db: Session
+) -> dict:
+    """
+    Send invoice notification to client's Telegram.
+
+    Args:
+        invoice: The created invoice data
+        customer: Customer record with telegram_chat_id
+        db: Database session
+
+    Returns:
+        Result dict with success status
+    """
+    settings = get_settings()
+
+    # Check if api-gateway URL is configured
+    api_gateway_url = getattr(settings, 'API_GATEWAY_URL', None)
+    if not api_gateway_url:
+        return {"sent": False, "reason": "API_GATEWAY_URL not configured"}
+
+    telegram_chat_id = customer.get("telegram_chat_id")
+    if not telegram_chat_id:
+        return {"sent": False, "reason": "Customer has no Telegram linked"}
+
+    # Build notification message
+    currency = invoice.get("currency", "KHR")
+    amount = invoice.get("total") or invoice.get("amount") or 0
+
+    if currency == "KHR":
+        amount_str = f"{amount:,.0f} KHR"
+    else:
+        amount_str = f"${amount:.2f}"
+
+    # Send via api-gateway internal endpoint
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{api_gateway_url}/internal/telegram/send-invoice",
+                json={
+                    "chat_id": telegram_chat_id,
+                    "invoice_number": invoice.get("invoice_number", "N/A"),
+                    "amount": amount_str,
+                    "currency": currency,
+                    "bank": invoice.get("bank"),
+                    "expected_account": invoice.get("expected_account"),
+                    "due_date": invoice.get("due_date"),
+                    "customer_name": customer.get("name"),
+                    "invoice_id": invoice.get("id")
+                }
+            )
+            if response.status_code == 200:
+                return {"sent": True, "telegram_chat_id": telegram_chat_id}
+            else:
+                return {"sent": False, "reason": f"API Gateway returned {response.status_code}"}
+    except Exception as e:
+        return {"sent": False, "reason": str(e)}
+
+
+async def get_registered_customer_for_invoice(
+    customer_id: str,
+    tenant_id: str,
+    merchant_id: str,
+    db: Session
+) -> Optional[dict]:
+    """
+    Check if customer_id is a registered client with Telegram.
+
+    Args:
+        customer_id: Customer UUID
+        tenant_id: Tenant UUID for scoping
+        merchant_id: Merchant UUID for scoping
+        db: Database session
+
+    Returns:
+        Customer dict with telegram info, or None if not found
+    """
+    try:
+        result = db.execute(
+            text("""
+                SELECT
+                    id, name, email, phone,
+                    telegram_chat_id, telegram_username
+                FROM invoice.customer
+                WHERE id = :customer_id
+                  AND tenant_id = :tenant_id
+                  AND merchant_id = :merchant_id
+            """),
+            {
+                "customer_id": customer_id,
+                "tenant_id": tenant_id,
+                "merchant_id": merchant_id
+            }
+        )
+        row = result.fetchone()
+        if row:
+            return {
+                "id": str(row.id),
+                "name": row.name,
+                "email": row.email,
+                "phone": row.phone,
+                "telegram_chat_id": row.telegram_chat_id,
+                "telegram_username": row.telegram_username
+            }
+        return None
+    except Exception:
+        return None
+
+
+# ============================================================================
 # Invoice endpoints
 # ============================================================================
 
@@ -322,9 +741,30 @@ async def list_invoices(
 @router.post("/invoices")
 async def create_invoice(
     data: InvoiceCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    send_telegram: bool = Query(default=True, description="Auto-send to client's Telegram if linked")
 ):
-    """Create a new invoice."""
+    """
+    Create a new invoice.
+
+    If the customer has Telegram linked and send_telegram=True,
+    automatically sends invoice notification to their Telegram.
+
+    Args:
+        data: Invoice creation data
+        send_telegram: Whether to auto-send to Telegram (default True)
+    """
+    # Check if this is a registered client (from Telegram bot)
+    registered_customer = await get_registered_customer_for_invoice(
+        customer_id=data.customer_id,
+        tenant_id=str(current_user.tenant_id),
+        merchant_id=str(current_user.id),
+        db=db
+    )
+
+    telegram_result = None
+
     if is_mock_mode():
         # Validate customer exists
         if not mock_svc.get_customer(data.customer_id):
@@ -337,9 +777,24 @@ async def create_invoice(
                 item.model_dump() if hasattr(item, 'model_dump') else item
                 for item in invoice_data["items"]
             ]
-        return mock_svc.create_invoice(invoice_data)
+        invoice = mock_svc.create_invoice(invoice_data)
+    else:
+        invoice = await proxy_request("POST", "/api/invoices", json_data=data.model_dump(exclude_none=True))
 
-    return await proxy_request("POST", "/api/invoices", json_data=data.model_dump(exclude_none=True))
+    # Send to Telegram if customer has it linked
+    if send_telegram and registered_customer and registered_customer.get("telegram_chat_id"):
+        telegram_result = await send_invoice_to_telegram(
+            invoice=invoice,
+            customer=registered_customer,
+            db=db
+        )
+
+    # Include telegram send status in response
+    response = dict(invoice) if isinstance(invoice, dict) else invoice
+    if telegram_result:
+        response["telegram_notification"] = telegram_result
+
+    return response
 
 
 # ============================================================================

@@ -22,7 +22,7 @@ def _init_bot():
     from aiogram.client.default import DefaultBotProperties
     from aiogram.enums import ParseMode
     from src.config import settings
-    from src.bot.handlers import start, status, invoice, verify, sales, promo, help_cmd, ocr
+    from src.bot.handlers import start, status, invoice, verify, sales, promo, help_cmd, ocr, client
 
     if not settings.TELEGRAM_BOT_TOKEN:
         logger.warning("TELEGRAM_BOT_TOKEN not set - bot will not start")
@@ -43,6 +43,7 @@ def _init_bot():
     _dp.include_router(promo.router)
     _dp.include_router(help_cmd.router)
     _dp.include_router(ocr.router)
+    _dp.include_router(client.router)  # Client registration and payment verification
 
     return _bot, _dp
 

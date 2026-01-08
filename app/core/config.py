@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     OCR_API_URL: str = Field(default="", description="OCR verification service base URL")
     OCR_API_KEY: SecretStr = Field(default=SecretStr(""), description="OCR API authentication key")
 
+    # API Gateway (for Telegram notifications)
+    API_GATEWAY_URL: str = Field(default="", description="API Gateway base URL for internal service calls")
+
     # API Server settings
     API_HOST: str = Field(default="0.0.0.0", description="API server host")
     API_PORT: int = Field(default=8000, description="API server port", ge=1024, le=65535)

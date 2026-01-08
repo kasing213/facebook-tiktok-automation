@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import settings
 from src.db import init_postgres, close_postgres
 from src.bot import create_bot, run_bot
-from src.api import invoice, scriptclient, audit_sales, ads_alert, ocr
+from src.api import invoice, scriptclient, audit_sales, ads_alert, ocr, internal
 
 # Configure logging
 logging.basicConfig(
@@ -81,6 +81,7 @@ app.include_router(scriptclient.router, prefix="/api/scriptclient", tags=["scrip
 app.include_router(audit_sales.router, prefix="/api/audit-sales", tags=["audit-sales"])
 app.include_router(ads_alert.router, prefix="/api/ads-alert", tags=["ads-alert"])
 app.include_router(ocr.router, prefix="/api/ocr", tags=["ocr"])
+app.include_router(internal.router, prefix="/internal", tags=["internal"])
 
 
 @app.get("/", tags=["system"])

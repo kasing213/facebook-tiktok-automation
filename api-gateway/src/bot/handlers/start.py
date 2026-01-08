@@ -6,6 +6,7 @@ from aiogram import Router, types
 from aiogram.filters import CommandStart, CommandObject
 
 from src.bot.services.linking import consume_link_code, get_user_by_telegram_id
+from src.bot.handlers.client import handle_client_registration
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -22,7 +23,15 @@ async def cmd_start_with_code(message: types.Message, command: CommandObject):
 
     logger.info(f"Link code received: {code} from user {message.from_user.id}")
 
-    # Try to consume the link code
+    # Check if this is a client registration link
+    if code.startswith("client_"):
+        client_code = code[7:]  # Remove 'client_' prefix
+        handled = await handle_client_registration(message, client_code)
+        if handled:
+            return
+        # If not handled (invalid code), fall through to show error
+
+    # Try to consume the merchant link code
     result = await consume_link_code(
         code=code,
         telegram_user_id=str(message.from_user.id),
@@ -40,12 +49,14 @@ Username: {result.get('username', 'N/A')}
 Email: {result.get('email', 'N/A')}
 
 <b>Available Commands:</b>
+/register_client <name> - Register a client
+/my_clients - View your registered clients
+/verify_invoice <inv> - Verify payment screenshot
 /status - View all systems status
-/invoice - Invoice operations
-/verify - Screenshot verification
-/sales - Sales reports
-/promo - Promotion status
 /help - Show all commands
+
+<b>To register your clients for invoice notifications:</b>
+Use: /register_client Client Name
         """.strip())
     else:
         await message.answer(f"""
@@ -74,11 +85,10 @@ Username: {user.get('username', 'N/A')}
 Email: {user.get('email', 'N/A')}
 
 <b>Commands:</b>
+/register_client <name> - Register a client
+/my_clients - View your registered clients
+/verify_invoice <inv> - Verify payment screenshot
 /status - View all systems status
-/invoice - Invoice operations
-/verify - Screenshot verification
-/sales - Sales reports
-/promo - Promotion status
 /help - Show all commands
         """.strip())
     else:
