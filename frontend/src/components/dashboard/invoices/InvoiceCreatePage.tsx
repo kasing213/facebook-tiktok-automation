@@ -161,9 +161,11 @@ const InvoiceCreatePage: React.FC = () => {
   const navigate = useNavigate()
   const {
     customers,
+    registeredClients,
     error,
     saving,
     fetchCustomers,
+    fetchRegisteredClients,
     createInvoice,
     createCustomer,
     clearError
@@ -180,7 +182,8 @@ const InvoiceCreatePage: React.FC = () => {
 
   useEffect(() => {
     fetchCustomers()
-  }, [fetchCustomers])
+    fetchRegisteredClients()
+  }, [fetchCustomers, fetchRegisteredClients])
 
   const handleSubmit = async (data: InvoiceCreate | InvoiceUpdate) => {
     // In create page, data will always be InvoiceCreate
@@ -222,9 +225,11 @@ const InvoiceCreatePage: React.FC = () => {
 
       <InvoiceForm
         customers={customers}
+        registeredClients={registeredClients}
         onSubmit={handleSubmit}
         onCancel={handleCancel}
         onCreateCustomer={() => setShowCustomerModal(true)}
+        onFetchRegisteredClients={fetchRegisteredClients}
         loading={saving}
       />
 

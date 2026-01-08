@@ -10,12 +10,14 @@ import {
   InvoiceStats,
   InvoiceListParams,
   CustomerListParams,
-  InvoiceHealthStatus
+  InvoiceHealthStatus,
+  RegisteredClient
 } from '../types/invoice'
 
 export function useInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [registeredClients, setRegisteredClients] = useState<RegisteredClient[]>([])
   const [stats, setStats] = useState<InvoiceStats | null>(null)
   const [health, setHealth] = useState<InvoiceHealthStatus | null>(null)
   const [loading, setLoading] = useState(false)
@@ -223,6 +225,41 @@ export function useInvoices() {
     }
   }, [])
 
+  // Fetch registered clients (from Telegram bot)
+  const fetchRegisteredClients = useCallback(async (params?: { telegram_linked?: boolean }) => {
+    try {
+      const response = await invoiceService.listRegisteredClients(params)
+      setRegisteredClients(response.clients)
+      return response.clients
+    } catch (err: any) {
+      // Don't set error - registered clients are optional
+      console.warn('Failed to fetch registered clients:', err.message)
+      return []
+    }
+  }, [])
+
+  // Get single registered client
+  const getRegisteredClient = useCallback(async (clientId: string, includePendingInvoices = false) => {
+    try {
+      const data = await invoiceService.getRegisteredClient(clientId, includePendingInvoices)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch registered client')
+      return null
+    }
+  }, [])
+
+  // Generate link code for registered client
+  const generateClientLinkCode = useCallback(async (clientId: string) => {
+    try {
+      const data = await invoiceService.generateClientLinkCode(clientId)
+      return data
+    } catch (err: any) {
+      setError(err.message || 'Failed to generate link code')
+      throw err
+    }
+  }, [])
+
   // Clear error
   const clearError = useCallback(() => {
     setError(null)
@@ -232,6 +269,7 @@ export function useInvoices() {
     // State
     invoices,
     customers,
+    registeredClients,
     stats,
     health,
     loading,
@@ -254,6 +292,11 @@ export function useInvoices() {
     createCustomer,
     updateCustomer,
     deleteCustomer,
+
+    // Registered client actions (from Telegram bot)
+    fetchRegisteredClients,
+    getRegisteredClient,
+    generateClientLinkCode,
 
     // Utility
     checkHealth,

@@ -1,5 +1,6 @@
 export { InvoiceStatusBadge } from './InvoiceStatusBadge'
 export { LineItemsEditor } from './LineItemsEditor'
 export { CustomerSelect } from './CustomerSelect'
+export { RegisteredClientSelect } from './RegisteredClientSelect'
 export { InvoiceForm } from './InvoiceForm'
 export { InvoiceTable } from './InvoiceTable'

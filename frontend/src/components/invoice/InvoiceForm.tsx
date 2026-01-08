@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
-import { Invoice, InvoiceCreate, InvoiceUpdate, Customer, LineItem, InvoiceStatus } from '../../types/invoice'
+import { Invoice, InvoiceCreate, InvoiceUpdate, Customer, LineItem, InvoiceStatus, Currency, RegisteredClient } from '../../types/invoice'
 import { LineItemsEditor } from './LineItemsEditor'
 import { CustomerSelect } from './CustomerSelect'
 import { InvoiceStatusBadge } from './InvoiceStatusBadge'
+import { RegisteredClientSelect } from './RegisteredClientSelect'
 
 interface InvoiceFormProps {
   invoice?: Invoice
   customers: Customer[]
+  registeredClients?: RegisteredClient[]
   onSubmit: (data: InvoiceCreate | InvoiceUpdate) => Promise<void>
   onCancel: () => void
   onCreateCustomer?: () => void
+  onFetchRegisteredClients?: () => void
   loading?: boolean
   isEdit?: boolean
 }
@@ -170,15 +173,60 @@ const ErrorMessage = styled.div`
   margin-top: 0.5rem;
 `
 
+const CustomerTypeTabs = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+`
+
+const CustomerTypeTab = styled.button<{ $active?: boolean }>`
+  padding: 0.5rem 1rem;
+  border: 1px solid ${props => props.$active ? '#4a90e2' : '#e5e7eb'};
+  border-radius: 6px;
+  background: ${props => props.$active ? '#eef6ff' : 'white'};
+  color: ${props => props.$active ? '#4a90e2' : '#6b7280'};
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #4a90e2;
+    color: #4a90e2;
+  }
+`
+
+const TelegramBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+`
+
+const OptionalLabel = styled.span`
+  color: #9ca3af;
+  font-weight: 400;
+  font-size: 0.75rem;
+  margin-left: 0.25rem;
+`
+
 export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   invoice,
   customers,
+  registeredClients = [],
   onSubmit,
   onCancel,
   onCreateCustomer,
+  onFetchRegisteredClients,
   loading = false,
   isEdit = false
 }) => {
+  const [customerType, setCustomerType] = useState<'manual' | 'registered'>('manual')
   const [customerId, setCustomerId] = useState(invoice?.customer_id || '')
   const [items, setItems] = useState<LineItem[]>(invoice?.items || [])
   const [dueDate, setDueDate] = useState(invoice?.due_date?.split('T')[0] || '')
@@ -186,6 +234,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [discount, setDiscount] = useState(invoice?.discount || 0)
   const [status, setStatus] = useState<InvoiceStatus>(invoice?.status || 'draft')
   const [error, setError] = useState<string | null>(null)
+
+  // Payment verification fields (optional)
+  const [bank, setBank] = useState(invoice?.bank || '')
+  const [expectedAccount, setExpectedAccount] = useState(invoice?.expected_account || '')
+  const [currency, setCurrency] = useState<Currency>(invoice?.currency || 'KHR')
 
   useEffect(() => {
     if (invoice) {
@@ -195,8 +248,18 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
       setNotes(invoice.notes || '')
       setDiscount(invoice.discount || 0)
       setStatus(invoice.status)
+      setBank(invoice.bank || '')
+      setExpectedAccount(invoice.expected_account || '')
+      setCurrency(invoice.currency || 'KHR')
     }
   }, [invoice])
+
+  // Fetch registered clients when switching to that tab
+  useEffect(() => {
+    if (customerType === 'registered' && onFetchRegisteredClients) {
+      onFetchRegisteredClients()
+    }
+  }, [customerType, onFetchRegisteredClients])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -224,7 +287,10 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           due_date: dueDate || undefined,
           notes: notes || undefined,
           discount: discount || undefined,
-          status
+          status,
+          bank: bank || undefined,
+          expected_account: expectedAccount || undefined,
+          currency: currency || undefined
         }
         await onSubmit(updateData)
       } else {
@@ -233,7 +299,10 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           items,
           due_date: dueDate || undefined,
           notes: notes || undefined,
-          discount: discount || undefined
+          discount: discount || undefined,
+          bank: bank || undefined,
+          expected_account: expectedAccount || undefined,
+          currency: currency || undefined
         }
         await onSubmit(createData)
       }
@@ -246,17 +315,63 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     setCustomerId(customer?.id || '')
   }
 
+  const handleRegisteredClientSelect = (client: RegisteredClient | null) => {
+    setCustomerId(client?.id || '')
+  }
+
+  // Check if selected client has Telegram linked
+  const selectedRegisteredClient = registeredClients.find(c => c.id === customerId)
+  const hasTelegramLinked = selectedRegisteredClient?.telegram_linked || false
+
   return (
     <Form onSubmit={handleSubmit}>
       <FormSection>
         <SectionTitle>Customer Information</SectionTitle>
-        <CustomerSelect
-          customers={customers}
-          selectedId={customerId}
-          onSelect={handleCustomerSelect}
-          onCreateNew={onCreateCustomer}
-          disabled={isEdit}
-        />
+
+        {!isEdit && (
+          <CustomerTypeTabs>
+            <CustomerTypeTab
+              type="button"
+              $active={customerType === 'manual'}
+              onClick={() => { setCustomerType('manual'); setCustomerId('') }}
+            >
+              Manual Entry
+            </CustomerTypeTab>
+            <CustomerTypeTab
+              type="button"
+              $active={customerType === 'registered'}
+              onClick={() => { setCustomerType('registered'); setCustomerId('') }}
+            >
+              Registered Clients
+              {registeredClients.length > 0 && (
+                <TelegramBadge>{registeredClients.length}</TelegramBadge>
+              )}
+            </CustomerTypeTab>
+          </CustomerTypeTabs>
+        )}
+
+        {customerType === 'manual' ? (
+          <CustomerSelect
+            customers={customers}
+            selectedId={customerId}
+            onSelect={handleCustomerSelect}
+            onCreateNew={onCreateCustomer}
+            disabled={isEdit}
+          />
+        ) : (
+          <RegisteredClientSelect
+            clients={registeredClients}
+            selectedId={customerId}
+            onSelect={handleRegisteredClientSelect}
+            disabled={isEdit}
+          />
+        )}
+
+        {hasTelegramLinked && (
+          <div style={{ marginTop: '0.75rem', padding: '0.5rem', background: '#e8f5e9', borderRadius: '6px', fontSize: '0.875rem', color: '#2e7d32' }}>
+            [Telegram] Invoice will be auto-sent to client via Telegram
+          </div>
+        )}
       </FormSection>
 
       <FormSection>
@@ -314,6 +429,46 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Additional notes for this invoice..."
+          />
+        </FormGroup>
+      </FormSection>
+
+      {/* Payment Verification Section (Optional) */}
+      <FormSection>
+        <SectionTitle>
+          Payment Verification
+          <OptionalLabel>(Optional - for Telegram payment verification)</OptionalLabel>
+        </SectionTitle>
+
+        <FormRow>
+          <FormGroup>
+            <Label>Currency</Label>
+            <Select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as Currency)}
+            >
+              <option value="KHR">KHR (Cambodian Riel)</option>
+              <option value="USD">USD (US Dollar)</option>
+            </Select>
+          </FormGroup>
+          <FormGroup>
+            <Label>Bank<OptionalLabel>(optional)</OptionalLabel></Label>
+            <Input
+              type="text"
+              value={bank}
+              onChange={(e) => setBank(e.target.value)}
+              placeholder="e.g., ABA Bank, ACLEDA"
+            />
+          </FormGroup>
+        </FormRow>
+
+        <FormGroup>
+          <Label>Expected Account Number<OptionalLabel>(optional)</OptionalLabel></Label>
+          <Input
+            type="text"
+            value={expectedAccount}
+            onChange={(e) => setExpectedAccount(e.target.value)}
+            placeholder="e.g., 000 123 456"
           />
         </FormGroup>
       </FormSection>

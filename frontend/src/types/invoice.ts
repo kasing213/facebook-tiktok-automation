@@ -135,3 +135,46 @@ export interface InvoiceHealthStatus {
   url: string
   api_status?: string
 }
+
+// Registered Clients (from Telegram Bot)
+export interface RegisteredClient {
+  id: string
+  name: string
+  email?: string
+  phone?: string
+  address?: string
+  telegram_chat_id?: string
+  telegram_username?: string
+  telegram_linked: boolean
+  telegram_linked_at?: string
+  created_at?: string
+  updated_at?: string
+  pending_invoices?: PendingInvoice[]
+}
+
+export interface PendingInvoice {
+  id: string
+  invoice_number: string
+  amount: number
+  currency: Currency
+  bank?: string
+  expected_account?: string
+  status: InvoiceStatus
+  verification_status: VerificationStatus
+  created_at?: string
+}
+
+export interface RegisteredClientListResponse {
+  clients: RegisteredClient[]
+  total: number
+  limit: number
+  skip: number
+}
+
+export interface ClientLinkCodeResponse {
+  client_id: string
+  client_name: string
+  code: string
+  link: string
+  expires_at?: string
+}
