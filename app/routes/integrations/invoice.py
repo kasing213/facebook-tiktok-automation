@@ -14,6 +14,7 @@ from typing import Optional, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Response, Query, UploadFile, File, Form
 from pydantic import BaseModel
 import httpx
+import json
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -912,7 +913,7 @@ async def create_invoice(
                         verification_status, created_at, updated_at
                     ) VALUES (
                         :tenant_id, :merchant_id, :customer_id, :invoice_number,
-                        :amount, 'pending', :items::jsonb, :currency, :bank, :expected_account,
+                        :amount, 'pending', CAST(:items AS jsonb), :currency, :bank, :expected_account,
                         'pending', NOW(), NOW()
                     )
                     RETURNING id, tenant_id, customer_id, invoice_number, amount, status,
@@ -925,7 +926,7 @@ async def create_invoice(
                     "customer_id": data.customer_id,
                     "invoice_number": invoice_number,
                     "amount": total,
-                    "items": str(items_json).replace("'", '"'),
+                    "items": json.dumps(items_json),
                     "currency": data.currency or "KHR",
                     "bank": data.bank,
                     "expected_account": data.expected_account
