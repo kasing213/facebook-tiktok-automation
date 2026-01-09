@@ -847,7 +847,7 @@ async def list_invoices(
                 i.verification_status, i.created_at, i.updated_at,
                 c.name as customer_name
             FROM invoice.invoice i
-            LEFT JOIN invoice.customer c ON i.customer_id = c.id::text
+            LEFT JOIN invoice.customer c ON i.customer_id = c.id
             WHERE i.tenant_id = :tenant_id AND i.merchant_id = :merchant_id
         """
         params = {
@@ -1179,9 +1179,57 @@ async def export_invoices(
 @router.get("/invoices/{invoice_id}")
 async def get_invoice(
     invoice_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Get a specific invoice by ID."""
+    # Try PostgreSQL first (for registered client invoices)
+    try:
+        result = db.execute(
+            text("""
+                SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
+                       i.amount, i.status, i.items, i.meta,
+                       i.bank, i.expected_account, i.currency,
+                       i.verification_status, i.verified_at, i.verified_by, i.verification_note,
+                       i.created_at, i.updated_at,
+                       c.name as customer_name, c.email as customer_email,
+                       c.phone as customer_phone
+                FROM invoice.invoice i
+                LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
+            """),
+            {"invoice_id": invoice_id, "tenant_id": str(current_user.tenant_id)}
+        )
+        row = result.fetchone()
+        if row:
+            return {
+                "id": str(row.id),
+                "tenant_id": str(row.tenant_id),
+                "customer_id": str(row.customer_id) if row.customer_id else None,
+                "customer_name": row.customer_name,
+                "customer_email": row.customer_email,
+                "customer_phone": row.customer_phone,
+                "invoice_number": row.invoice_number,
+                "amount": float(row.amount) if row.amount else 0,
+                "status": row.status or "draft",
+                "items": row.items or [],
+                "meta": row.meta or {},
+                "bank": row.bank,
+                "expected_account": row.expected_account,
+                "currency": row.currency or "KHR",
+                "verification_status": row.verification_status or "pending",
+                "verified_at": row.verified_at.isoformat() if row.verified_at else None,
+                "verified_by": row.verified_by,
+                "verification_note": row.verification_note,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None
+            }
+    except Exception as e:
+        # Log but don't fail - fall through to mock/external
+        import logging
+        logging.getLogger(__name__).debug(f"PostgreSQL invoice lookup failed: {e}")
+
+    # Fall back to mock/external
     if is_mock_mode():
         invoice = mock_svc.get_invoice(invoice_id)
         if not invoice:

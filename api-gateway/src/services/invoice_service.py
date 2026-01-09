@@ -168,7 +168,7 @@ class InvoiceService:
                                i.created_at, i.updated_at,
                                c.name as customer_name
                         FROM invoice.invoice i
-                        LEFT JOIN invoice.customer c ON i.customer_id = c.id::text
+                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
                         WHERE i.id = :invoice_id
                     """),
                     {"invoice_id": invoice_id}
@@ -213,7 +213,7 @@ class InvoiceService:
                                i.created_at, i.updated_at,
                                c.name as customer_name
                         FROM invoice.invoice i
-                        LEFT JOIN invoice.customer c ON i.customer_id = c.id::text
+                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
                         WHERE i.invoice_number = :invoice_number
                     """),
                     {"invoice_number": invoice_number}
