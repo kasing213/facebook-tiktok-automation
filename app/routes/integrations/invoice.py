@@ -852,6 +852,11 @@ async def create_invoice(
         data: Invoice creation data
         send_telegram: Whether to auto-send to Telegram (default True)
     """
+    import logging
+    import uuid
+    from datetime import datetime
+    logger = logging.getLogger(__name__)
+
     # Check if this is a registered client (from Telegram bot)
     registered_customer = await get_registered_customer_for_invoice(
         customer_id=data.customer_id,
@@ -861,22 +866,117 @@ async def create_invoice(
     )
 
     telegram_result = None
+    invoice = None
 
-    if is_mock_mode():
-        # Validate customer exists
-        if not mock_svc.get_customer(data.customer_id):
-            raise HTTPException(status_code=400, detail="Customer not found")
+    # If this is a registered client, create invoice directly in PostgreSQL
+    if registered_customer:
+        logger.info(f"Creating invoice for registered client: {registered_customer['name']}")
+        try:
+            # Calculate totals
+            subtotal = sum(
+                (item.quantity * item.unit_price) for item in data.items
+            )
+            tax_total = sum(
+                (item.quantity * item.unit_price * (item.tax_rate or 0) / 100) for item in data.items
+            )
+            discount_amount = subtotal * (data.discount or 0) / 100
+            total = subtotal + tax_total - discount_amount
 
-        invoice_data = data.model_dump(exclude_none=True)
-        # Convert InvoiceItem models to dicts
-        if "items" in invoice_data:
-            invoice_data["items"] = [
-                item.model_dump() if hasattr(item, 'model_dump') else item
-                for item in invoice_data["items"]
+            # Generate invoice number
+            result = db.execute(text("""
+                SELECT COUNT(*) + 1 FROM invoice.invoice
+                WHERE tenant_id = :tenant_id
+            """), {"tenant_id": str(current_user.tenant_id)})
+            seq = result.scalar() or 1
+            invoice_number = f"INV-{datetime.now().strftime('%y%m')}-{seq:05d}"
+
+            # Convert items to JSON
+            items_json = [
+                {
+                    "id": str(uuid.uuid4()),
+                    "description": item.description,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "tax_rate": item.tax_rate or 0,
+                    "total": item.quantity * item.unit_price
+                }
+                for item in data.items
             ]
-        invoice = mock_svc.create_invoice(invoice_data)
+
+            # Insert invoice
+            result = db.execute(
+                text("""
+                    INSERT INTO invoice.invoice (
+                        tenant_id, merchant_id, customer_id, invoice_number,
+                        amount, status, items, currency, bank, expected_account,
+                        verification_status, created_at, updated_at
+                    ) VALUES (
+                        :tenant_id, :merchant_id, :customer_id, :invoice_number,
+                        :amount, 'pending', :items::jsonb, :currency, :bank, :expected_account,
+                        'pending', NOW(), NOW()
+                    )
+                    RETURNING id, tenant_id, customer_id, invoice_number, amount, status,
+                              items, currency, bank, expected_account, verification_status,
+                              created_at, updated_at
+                """),
+                {
+                    "tenant_id": str(current_user.tenant_id),
+                    "merchant_id": str(current_user.id),
+                    "customer_id": data.customer_id,
+                    "invoice_number": invoice_number,
+                    "amount": total,
+                    "items": str(items_json).replace("'", '"'),
+                    "currency": data.currency or "KHR",
+                    "bank": data.bank,
+                    "expected_account": data.expected_account
+                }
+            )
+            db.commit()
+            row = result.fetchone()
+
+            invoice = {
+                "id": str(row.id),
+                "tenant_id": str(row.tenant_id),
+                "customer_id": str(row.customer_id),
+                "customer_name": registered_customer["name"],
+                "invoice_number": row.invoice_number,
+                "amount": float(row.amount),
+                "total": float(row.amount),
+                "subtotal": subtotal,
+                "tax": tax_total,
+                "discount": data.discount or 0,
+                "status": row.status,
+                "items": items_json,
+                "currency": row.currency or "KHR",
+                "bank": row.bank,
+                "expected_account": row.expected_account,
+                "verification_status": row.verification_status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None
+            }
+            logger.info(f"Invoice created: {invoice_number}")
+
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error creating invoice for registered client: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to create invoice: {str(e)}")
+
     else:
-        invoice = await proxy_request("POST", "/api/invoices", json_data=data.model_dump(exclude_none=True))
+        # Not a registered client - use mock or external API
+        if is_mock_mode():
+            # Validate customer exists in mock
+            if not mock_svc.get_customer(data.customer_id):
+                raise HTTPException(status_code=400, detail="Customer not found")
+
+            invoice_data = data.model_dump(exclude_none=True)
+            if "items" in invoice_data:
+                invoice_data["items"] = [
+                    item.model_dump() if hasattr(item, 'model_dump') else item
+                    for item in invoice_data["items"]
+                ]
+            invoice = mock_svc.create_invoice(invoice_data)
+        else:
+            invoice = await proxy_request("POST", "/api/invoices", json_data=data.model_dump(exclude_none=True))
 
     # Send to Telegram if customer has it linked
     if send_telegram and registered_customer and registered_customer.get("telegram_chat_id"):
