@@ -148,10 +148,10 @@ class ClientLinkingService:
                             lc.customer_id,
                             lc.expires_at,
                             u.email as merchant_email,
-                            COALESCE(u.first_name || ' ' || u.last_name, u.email) as merchant_name,
+                            COALESCE(u.username, u.email) as merchant_name,
                             c.name as customer_name
                         FROM invoice.client_link_code lc
-                        JOIN public.user u ON lc.merchant_id = u.id
+                        JOIN public."user" u ON lc.merchant_id = u.id
                         JOIN invoice.customer c ON lc.customer_id = c.id
                         WHERE lc.code = :code
                           AND lc.used_at IS NULL
@@ -349,9 +349,9 @@ class ClientLinkingService:
                             c.id, c.tenant_id, c.merchant_id, c.name, c.email, c.phone,
                             c.telegram_chat_id, c.telegram_username,
                             u.email as merchant_email,
-                            COALESCE(u.first_name || ' ' || u.last_name, u.email) as merchant_name
+                            COALESCE(u.username, u.email) as merchant_name
                         FROM invoice.customer c
-                        JOIN public.user u ON c.merchant_id = u.id
+                        JOIN public."user" u ON c.merchant_id = u.id
                         WHERE c.telegram_chat_id = :telegram_chat_id
                     """),
                     {"telegram_chat_id": telegram_chat_id}
