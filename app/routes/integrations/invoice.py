@@ -338,6 +338,9 @@ async def list_registered_clients(
         skip: Offset for pagination
         telegram_linked: Optional filter - True for linked clients only, False for unlinked
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fetching registered clients for user {current_user.id}, tenant {current_user.tenant_id}")
     try:
         # Build query with tenant + merchant scoping
         query = """
@@ -406,10 +409,104 @@ async def list_registered_clients(
             "skip": skip
         }
     except Exception as e:
+        logger.error(f"Error fetching registered clients: {e}")
+        # Check if it's a column not found error (migration not applied)
+        error_str = str(e).lower()
+        if "column" in error_str and "does not exist" in error_str:
+            raise HTTPException(
+                status_code=500,
+                detail="Database migration required. The 'merchant_id' column is missing from invoice.customer table. Please apply migration l2g3h4i5j6k7_add_customer_telegram_and_client_linking."
+            )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch registered clients: {str(e)}"
         )
+
+
+@router.get("/registered-clients/check-schema")
+async def check_registered_clients_schema(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if the database schema supports registered clients.
+
+    This endpoint verifies that required migrations have been applied.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    issues = []
+
+    # Check if merchant_id column exists
+    try:
+        result = db.execute(text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'invoice'
+              AND table_name = 'customer'
+              AND column_name IN ('merchant_id', 'telegram_chat_id', 'telegram_username', 'telegram_linked_at')
+        """))
+        columns = [row[0] for row in result.fetchall()]
+
+        required_columns = ['merchant_id', 'telegram_chat_id', 'telegram_username', 'telegram_linked_at']
+        missing = [col for col in required_columns if col not in columns]
+
+        if missing:
+            issues.append(f"Missing columns in invoice.customer: {missing}")
+    except Exception as e:
+        issues.append(f"Error checking customer columns: {e}")
+
+    # Check if client_link_code table exists
+    try:
+        result = db.execute(text("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'invoice'
+                  AND table_name = 'client_link_code'
+            )
+        """))
+        exists = result.scalar()
+        if not exists:
+            issues.append("Table invoice.client_link_code does not exist")
+    except Exception as e:
+        issues.append(f"Error checking client_link_code table: {e}")
+
+    # Check current user info for debugging
+    user_info = {
+        "user_id": str(current_user.id),
+        "tenant_id": str(current_user.tenant_id),
+        "username": current_user.username,
+        "telegram_linked": current_user.telegram_user_id is not None
+    }
+
+    if issues:
+        return {
+            "status": "migration_required",
+            "issues": issues,
+            "fix": "Apply migration: alembic upgrade l2g3h4i5j6k7",
+            "user_info": user_info
+        }
+
+    # Count existing registered clients for this user
+    try:
+        result = db.execute(text("""
+            SELECT COUNT(*) FROM invoice.customer
+            WHERE tenant_id = :tenant_id AND merchant_id = :merchant_id
+        """), {
+            "tenant_id": str(current_user.tenant_id),
+            "merchant_id": str(current_user.id)
+        })
+        client_count = result.scalar()
+    except Exception as e:
+        client_count = f"Error: {e}"
+
+    return {
+        "status": "ok",
+        "schema_valid": True,
+        "user_info": user_info,
+        "registered_clients_count": client_count
+    }
 
 
 @router.get("/registered-clients/{client_id}")

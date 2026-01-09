@@ -229,11 +229,17 @@ export function useInvoices() {
   const fetchRegisteredClients = useCallback(async (params?: { telegram_linked?: boolean }) => {
     try {
       const response = await invoiceService.listRegisteredClients(params)
-      setRegisteredClients(response.clients)
-      return response.clients
+      setRegisteredClients(response.clients || [])
+      return response.clients || []
     } catch (err: any) {
-      // Don't set error - registered clients are optional
-      console.warn('Failed to fetch registered clients:', err.message)
+      // Log detailed error for debugging
+      console.error('Failed to fetch registered clients:', err)
+      // Show error to user if it's a migration/schema issue
+      const errorMessage = err.message || 'Failed to fetch registered clients'
+      if (errorMessage.includes('migration') || errorMessage.includes('column')) {
+        setError(errorMessage)
+      }
+      setRegisteredClients([])
       return []
     }
   }, [])
