@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # Telegram Bot (bot won't start without it but app will run)
     TELEGRAM_BOT_TOKEN: str = Field(default="", description="Telegram Bot Token")
+    TELEGRAM_BOT_USERNAME: str = Field(default="KS_automations_bot", description="Telegram Bot Username")
 
     # PostgreSQL (required for all operations)
     DATABASE_URL: str = Field(default="", description="PostgreSQL connection string")
