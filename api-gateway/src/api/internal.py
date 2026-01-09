@@ -10,6 +10,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.bot import create_bot
 
@@ -79,14 +80,26 @@ async def send_invoice_notification(data: InvoiceNotificationRequest):
             message_parts.append(f"<b>Account:</b> <code>{data.expected_account}</code>")
 
         message_parts.append("")
-        message_parts.append("<i>Reply with a payment screenshot to verify.</i>")
+        message_parts.append("<i>Tap the button below to send payment proof.</i>")
 
         message = "\n".join(message_parts)
 
-        # Send message
+        # Build inline keyboard with "Pay Now" button if invoice_id is provided
+        keyboard = None
+        if data.invoice_id:
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text="Send Payment Screenshot",
+                    callback_data=f"pay_invoice:{data.invoice_id}"
+                )]
+            ])
+
+        # Send message with button
         await bot.send_message(
             chat_id=data.chat_id,
-            text=message
+            text=message,
+            parse_mode="HTML",
+            reply_markup=keyboard
         )
 
         logger.info(f"Invoice notification sent to chat {data.chat_id}: {data.invoice_number}")

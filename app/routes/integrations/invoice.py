@@ -819,21 +819,114 @@ async def get_registered_customer_for_invoice(
 @router.get("/invoices")
 async def list_invoices(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=100),
     skip: int = Query(default=0, ge=0),
     customer_id: Optional[str] = None,
     status: Optional[str] = None
 ):
-    """List all invoices with optional filtering."""
-    if is_mock_mode():
-        return mock_svc.list_invoices(limit=limit, skip=skip, customer_id=customer_id, status=status)
+    """
+    List all invoices with optional filtering.
 
-    params = {"limit": limit, "skip": skip}
-    if customer_id:
-        params["customer_id"] = customer_id
-    if status:
-        params["status"] = status
-    return await proxy_request("GET", "/api/invoices", params=params)
+    Returns invoices from both:
+    1. PostgreSQL (for registered clients created via Telegram bot)
+    2. Mock service or external API (for other customers)
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    all_invoices = []
+
+    # 1. Get PostgreSQL invoices (registered clients)
+    try:
+        query = """
+            SELECT
+                i.id, i.tenant_id, i.merchant_id, i.customer_id,
+                i.invoice_number, i.amount, i.status, i.items,
+                i.currency, i.bank, i.expected_account,
+                i.verification_status, i.created_at, i.updated_at,
+                c.name as customer_name
+            FROM invoice.invoice i
+            LEFT JOIN invoice.customer c ON i.customer_id = c.id::text
+            WHERE i.tenant_id = :tenant_id AND i.merchant_id = :merchant_id
+        """
+        params = {
+            "tenant_id": str(current_user.tenant_id),
+            "merchant_id": str(current_user.id)
+        }
+
+        if customer_id:
+            query += " AND i.customer_id = :customer_id"
+            params["customer_id"] = customer_id
+        if status:
+            query += " AND i.status = :status"
+            params["status"] = status
+
+        query += " ORDER BY i.created_at DESC"
+
+        result = db.execute(text(query), params)
+        rows = result.fetchall()
+
+        for row in rows:
+            invoice = {
+                "id": str(row.id),
+                "tenant_id": str(row.tenant_id),
+                "customer_id": str(row.customer_id) if row.customer_id else None,
+                "customer_name": row.customer_name,
+                "invoice_number": row.invoice_number,
+                "amount": float(row.amount) if row.amount else 0,
+                "total": float(row.amount) if row.amount else 0,
+                "status": row.status,
+                "items": row.items if row.items else [],
+                "currency": row.currency or "KHR",
+                "bank": row.bank,
+                "expected_account": row.expected_account,
+                "verification_status": row.verification_status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                "source": "registered_client"  # Mark source for debugging
+            }
+            all_invoices.append(invoice)
+
+        logger.info(f"Found {len(all_invoices)} PostgreSQL invoices for user {current_user.id}")
+
+    except Exception as e:
+        logger.error(f"Error fetching PostgreSQL invoices: {e}")
+        # Don't fail completely - continue to get mock/external invoices
+
+    # 2. Get mock or external invoices (for non-registered customers)
+    try:
+        if is_mock_mode():
+            mock_invoices = mock_svc.list_invoices(
+                limit=limit, skip=skip, customer_id=customer_id, status=status
+            )
+            if mock_invoices:
+                for inv in mock_invoices:
+                    inv["source"] = "mock"
+                all_invoices.extend(mock_invoices)
+        else:
+            params = {"limit": limit, "skip": skip}
+            if customer_id:
+                params["customer_id"] = customer_id
+            if status:
+                params["status"] = status
+            external_invoices = await proxy_request("GET", "/api/invoices", params=params)
+            if external_invoices:
+                for inv in external_invoices:
+                    inv["source"] = "external"
+                all_invoices.extend(external_invoices)
+    except Exception as e:
+        logger.error(f"Error fetching mock/external invoices: {e}")
+
+    # 3. Apply pagination (PostgreSQL invoices first, then others)
+    # Sort by created_at descending
+    all_invoices.sort(
+        key=lambda x: x.get("created_at") or "1970-01-01",
+        reverse=True
+    )
+
+    # Apply skip and limit
+    return all_invoices[skip:skip + limit]
 
 
 @router.post("/invoices")
