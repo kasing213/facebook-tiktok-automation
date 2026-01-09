@@ -1265,9 +1265,30 @@ async def update_invoice(
 @router.delete("/invoices/{invoice_id}")
 async def delete_invoice(
     invoice_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Delete an invoice."""
+    # Try PostgreSQL first (for registered client invoices)
+    try:
+        result = db.execute(
+            text("""
+                DELETE FROM invoice.invoice
+                WHERE id = :invoice_id AND tenant_id = :tenant_id
+                RETURNING id
+            """),
+            {"invoice_id": invoice_id, "tenant_id": str(current_user.tenant_id)}
+        )
+        deleted = result.fetchone()
+        if deleted:
+            db.commit()
+            return {"status": "deleted", "id": invoice_id}
+    except Exception as e:
+        db.rollback()
+        import logging
+        logging.getLogger(__name__).debug(f"PostgreSQL invoice delete failed: {e}")
+
+    # Fall back to mock/external
     if is_mock_mode():
         if not mock_svc.delete_invoice(invoice_id):
             raise HTTPException(status_code=404, detail="Invoice not found")
