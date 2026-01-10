@@ -406,12 +406,16 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
         image_data = photo_bytes.read()
 
         # Build expected payment from invoice
+        # Note: OCR service expects recipientNames as an ARRAY (plural)
+        recipient_name = invoice.get("recipient_name")
+        recipient_names = [recipient_name] if recipient_name else []
+
         expected_payment = {
             "amount": invoice.get("amount"),
             "currency": invoice.get("currency", "KHR"),
             "toAccount": invoice.get("expected_account"),
             "bank": invoice.get("bank"),
-            "recipientName": invoice.get("recipient_name"),
+            "recipientNames": recipient_names,  # Array format for OCR service
             "dueDate": invoice.get("due_date"),
             "tolerancePercent": 5
         }
@@ -420,7 +424,7 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
         logger.info(f"OCR Verification - Invoice ID: {invoice.get('id')}")
         logger.info(f"OCR Verification - Invoice Number: {invoice.get('invoice_number')}")
         logger.info(f"OCR Verification - expected_account: '{invoice.get('expected_account')}'")
-        logger.info(f"OCR Verification - recipient_name: '{invoice.get('recipient_name')}'")
+        logger.info(f"OCR Verification - recipient_names: {recipient_names}")
         logger.info(f"OCR Verification - Expected Payment: {expected_payment}")
 
         # Check for missing verification fields and build warnings
