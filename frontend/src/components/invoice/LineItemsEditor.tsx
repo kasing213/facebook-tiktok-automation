@@ -1,11 +1,15 @@
 import React from 'react'
 import styled from 'styled-components'
-import { LineItem } from '../../types/invoice'
+import { LineItem, Currency } from '../../types/invoice'
 
 interface LineItemsEditorProps {
   items: LineItem[]
   onChange: (items: LineItem[]) => void
   readOnly?: boolean
+  currency?: Currency
+  onCurrencyChange?: (currency: Currency) => void
+  exchangeRate?: number
+  onExchangeRateChange?: (rate: number) => void
 }
 
 const Container = styled.div`
@@ -168,10 +172,79 @@ const EmptyState = styled.div`
   border: 2px dashed #e5e7eb;
 `
 
+const CurrencyControls = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border: 1px solid #bae6fd;
+  align-items: flex-end;
+`
+
+const CurrencyGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`
+
+const CurrencyLabel = styled.label`
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0369a1;
+  text-transform: uppercase;
+`
+
+const CurrencySelect = styled.select`
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #7dd3fc;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #1f2937;
+  background: white;
+  min-width: 160px;
+
+  &:focus {
+    outline: none;
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+  }
+`
+
+const ExchangeRateInput = styled.input`
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #7dd3fc;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #1f2937;
+  width: 140px;
+  text-align: right;
+  background: white;
+
+  &:focus {
+    outline: none;
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+  }
+`
+
+const ConvertedTotalRow = styled(TotalRow)`
+  color: #0369a1;
+  font-style: italic;
+  border-top: 1px dashed #bae6fd;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+`
+
 export const LineItemsEditor: React.FC<LineItemsEditorProps> = ({
   items,
   onChange,
-  readOnly = false
+  readOnly = false,
+  currency = 'USD',
+  onCurrencyChange,
+  exchangeRate = 4100,
+  onExchangeRateChange
 }) => {
   const addItem = () => {
     const newItem: LineItem = {
@@ -218,11 +291,31 @@ export const LineItemsEditor: React.FC<LineItemsEditorProps> = ({
     return calculateSubtotal() + calculateTax()
   }
 
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = (amount: number, currencyCode?: Currency): string => {
+    const displayCurrency = currencyCode || currency
+
+    if (displayCurrency === 'KHR') {
+      return new Intl.NumberFormat('km-KH', {
+        style: 'currency',
+        currency: 'KHR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(amount)
+    }
+
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount)
+  }
+
+  const convertAmount = (amount: number, toKHR: boolean): number => {
+    const rate = exchangeRate || 4100
+    return toKHR ? amount * rate : amount / rate
+  }
+
+  const getConvertedCurrency = (): Currency => {
+    return currency === 'USD' ? 'KHR' : 'USD'
   }
 
   return (
@@ -231,6 +324,33 @@ export const LineItemsEditor: React.FC<LineItemsEditorProps> = ({
         <Label>Line Items</Label>
         {!readOnly && <AddButton onClick={addItem}>+ Add Item</AddButton>}
       </Header>
+
+      {!readOnly && (
+        <CurrencyControls>
+          <CurrencyGroup>
+            <CurrencyLabel>Item Currency</CurrencyLabel>
+            <CurrencySelect
+              value={currency}
+              onChange={(e) => onCurrencyChange?.(e.target.value as Currency)}
+            >
+              <option value="USD">USD (US Dollar)</option>
+              <option value="KHR">KHR (Cambodian Riel)</option>
+            </CurrencySelect>
+          </CurrencyGroup>
+
+          <CurrencyGroup>
+            <CurrencyLabel>Exchange Rate (KHR/USD)</CurrencyLabel>
+            <ExchangeRateInput
+              type="number"
+              min="1"
+              step="1"
+              value={exchangeRate}
+              onChange={(e) => onExchangeRateChange?.(parseFloat(e.target.value) || 4100)}
+              placeholder="4100"
+            />
+          </CurrencyGroup>
+        </CurrencyControls>
+      )}
 
       {items.length === 0 ? (
         <EmptyState>
@@ -316,6 +436,15 @@ export const LineItemsEditor: React.FC<LineItemsEditorProps> = ({
               <span>Total:</span>
               <span>{formatCurrency(calculateTotal())}</span>
             </GrandTotalRow>
+            <ConvertedTotalRow>
+              <span>Converted ({getConvertedCurrency()}):</span>
+              <span>
+                {formatCurrency(
+                  convertAmount(calculateTotal(), currency === 'USD'),
+                  getConvertedCurrency()
+                )}
+              </span>
+            </ConvertedTotalRow>
           </TotalsSection>
         </>
       )}
