@@ -416,6 +416,13 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
             "tolerancePercent": 5
         }
 
+        # Debug logging - show what data we're sending to OCR
+        logger.info(f"OCR Verification - Invoice ID: {invoice.get('id')}")
+        logger.info(f"OCR Verification - Invoice Number: {invoice.get('invoice_number')}")
+        logger.info(f"OCR Verification - expected_account: '{invoice.get('expected_account')}'")
+        logger.info(f"OCR Verification - recipient_name: '{invoice.get('recipient_name')}'")
+        logger.info(f"OCR Verification - Expected Payment: {expected_payment}")
+
         # Check for missing verification fields and build warnings
         verification_warnings = []
         if not invoice.get("expected_account"):

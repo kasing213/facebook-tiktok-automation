@@ -1256,9 +1256,78 @@ async def get_invoice(
 async def update_invoice(
     invoice_id: str,
     data: InvoiceUpdate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Update an existing invoice."""
+    # 1. Try PostgreSQL first (for registered client invoices)
+    try:
+        # Prepare items JSON if provided
+        items_json = None
+        if data.items:
+            items_json = json.dumps([
+                item.model_dump() if hasattr(item, 'model_dump') else item
+                for item in data.items
+            ])
+
+        result = db.execute(
+            text("""
+                UPDATE invoice.invoice
+                SET items = COALESCE(CAST(:items AS jsonb), items),
+                    due_date = COALESCE(:due_date::date, due_date),
+                    status = COALESCE(:status, status),
+                    bank = COALESCE(:bank, bank),
+                    expected_account = COALESCE(:expected_account, expected_account),
+                    recipient_name = COALESCE(:recipient_name, recipient_name),
+                    currency = COALESCE(:currency, currency),
+                    updated_at = NOW()
+                WHERE id = :invoice_id
+                  AND tenant_id = :tenant_id
+                  AND merchant_id = :merchant_id
+                RETURNING id, tenant_id, customer_id, invoice_number, amount, status,
+                          items, currency, bank, expected_account, recipient_name, due_date,
+                          verification_status, created_at, updated_at
+            """),
+            {
+                "invoice_id": invoice_id,
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id),
+                "items": items_json,
+                "due_date": data.due_date,
+                "status": data.status,
+                "bank": data.bank,
+                "expected_account": data.expected_account,
+                "recipient_name": data.recipient_name,
+                "currency": data.currency
+            }
+        )
+        row = result.fetchone()
+        if row:
+            db.commit()
+            logger.info(f"Updated PostgreSQL invoice {invoice_id}")
+            return {
+                "id": str(row.id),
+                "tenant_id": str(row.tenant_id),
+                "customer_id": str(row.customer_id) if row.customer_id else None,
+                "invoice_number": row.invoice_number,
+                "amount": float(row.amount) if row.amount else 0,
+                "total": float(row.amount) if row.amount else 0,
+                "status": row.status,
+                "items": row.items if row.items else [],
+                "currency": row.currency or "KHR",
+                "bank": row.bank,
+                "expected_account": row.expected_account,
+                "recipient_name": row.recipient_name,
+                "due_date": row.due_date.isoformat() if row.due_date else None,
+                "verification_status": row.verification_status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None
+            }
+    except Exception as e:
+        logger.error(f"Error updating PostgreSQL invoice: {e}")
+        db.rollback()
+
+    # 2. Fall back to mock or external API
     if is_mock_mode():
         update_data = data.model_dump(exclude_none=True)
         # Convert InvoiceItem models to dicts
@@ -1524,10 +1593,101 @@ async def verify_standalone_screenshot(
 # PDF download endpoint
 # ============================================================================
 
+def generate_pdf_from_invoice(invoice: dict) -> bytes:
+    """Generate a PDF from invoice data."""
+    invoice_num = invoice.get("invoice_number", "N/A")
+    customer_name = invoice.get("customer", {}).get("name") if isinstance(invoice.get("customer"), dict) else invoice.get("customer_name", "Unknown")
+    total = invoice.get("total") or invoice.get("amount") or 0
+    currency = invoice.get("currency", "KHR")
+    bank = invoice.get("bank") or "N/A"
+    expected_account = invoice.get("expected_account") or "N/A"
+    recipient_name = invoice.get("recipient_name") or "N/A"
+    verification_status = (invoice.get("verification_status") or "pending").upper()
+    status = invoice.get("status", "draft")
+    due_date = invoice.get("due_date") or "N/A"
+
+    # Format amount with currency
+    if currency == "KHR":
+        amount_str = f"{float(total):,.0f} KHR"
+    else:
+        amount_str = f"${float(total):.2f} {currency}"
+
+    # Verification badge
+    if verification_status == "VERIFIED":
+        badge = "[VERIFIED]"
+    elif verification_status == "REJECTED":
+        badge = "[REJECTED]"
+    else:
+        badge = "[PENDING]"
+
+    # Build PDF content
+    content = f"""Invoice: {invoice_num}
+Customer: {customer_name}
+Total: {amount_str}
+Status: {status}
+Due Date: {due_date}
+Verification: {badge}
+
+Payment Information:
+Bank: {bank}
+Account: {expected_account}
+Recipient: {recipient_name}
+Amount: {amount_str}
+
+Generated by Invoice System"""
+
+    # Minimal valid PDF structure
+    pdf_content = f"""%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length {len(content) + 100} >>
+stream
+BT
+/F1 12 Tf
+50 742 Td
+"""
+    # Add each line of content
+    y_pos = 742
+    for line in content.split('\n'):
+        safe_line = line.replace('(', '\\(').replace(')', '\\)')
+        pdf_content += f"({safe_line}) Tj\n0 -16 Td\n"
+        y_pos -= 16
+
+    pdf_content += """ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000266 00000 n
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+0
+%%EOF"""
+
+    return pdf_content.encode('latin-1')
+
+
 @router.get("/invoices/{invoice_id}/pdf")
 async def download_invoice_pdf(
     invoice_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Download invoice as PDF.
@@ -1539,22 +1699,63 @@ async def download_invoice_pdf(
     if is_tier_enforced():
         # Manually check Pro tier (can't use Depends conditionally)
         from app.routes.subscriptions import has_pro_access, get_or_create_subscription
-        from app.core.db import get_db
-        db = next(get_db())
-        try:
-            subscription = get_or_create_subscription(db, current_user)
-            if not has_pro_access(subscription):
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        "error": "Pro tier required",
-                        "message": "PDF download is a Pro feature. Please upgrade your subscription.",
-                        "upgrade_url": "/dashboard/integrations"
-                    }
-                )
-        finally:
-            db.close()
+        subscription = get_or_create_subscription(db, current_user)
+        if not has_pro_access(subscription):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "Pro tier required",
+                    "message": "PDF download is a Pro feature. Please upgrade your subscription.",
+                    "upgrade_url": "/dashboard/integrations"
+                }
+            )
 
+    # 1. Try PostgreSQL first (for registered client invoices)
+    try:
+        result = db.execute(
+            text("""
+                SELECT i.id, i.invoice_number, i.amount, i.status, i.currency,
+                       i.bank, i.expected_account, i.recipient_name, i.due_date,
+                       i.verification_status, c.name as customer_name
+                FROM invoice.invoice i
+                LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                WHERE i.id = :invoice_id
+                  AND i.tenant_id = :tenant_id
+                  AND i.merchant_id = :merchant_id
+            """),
+            {
+                "invoice_id": invoice_id,
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id)
+            }
+        )
+        row = result.fetchone()
+        if row:
+            invoice = {
+                "invoice_number": row.invoice_number,
+                "amount": float(row.amount) if row.amount else 0,
+                "total": float(row.amount) if row.amount else 0,
+                "status": row.status,
+                "currency": row.currency or "KHR",
+                "bank": row.bank,
+                "expected_account": row.expected_account,
+                "recipient_name": row.recipient_name,
+                "due_date": row.due_date.isoformat() if row.due_date else None,
+                "verification_status": row.verification_status,
+                "customer_name": row.customer_name or "Unknown"
+            }
+            pdf_content = generate_pdf_from_invoice(invoice)
+            return Response(
+                content=pdf_content,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename=invoice-{row.invoice_number}.pdf"
+                }
+            )
+    except Exception as e:
+        logger.error(f"Error generating PostgreSQL invoice PDF: {e}")
+
+    # 2. Fall back to mock mode
     if is_mock_mode():
         pdf_content = mock_svc.generate_pdf(invoice_id)
         if not pdf_content:
