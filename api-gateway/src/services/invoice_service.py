@@ -163,7 +163,7 @@ class InvoiceService:
                     text("""
                         SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
                                i.amount, i.status, i.items, i.meta,
-                               i.bank, i.expected_account, i.currency,
+                               i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
                                i.verification_status, i.verified_at, i.verified_by, i.verification_note,
                                i.created_at, i.updated_at,
                                c.name as customer_name
@@ -188,6 +188,8 @@ class InvoiceService:
                     "meta": row.meta or {},
                     "bank": row.bank,
                     "expected_account": row.expected_account,
+                    "recipient_name": row.recipient_name,
+                    "due_date": row.due_date.isoformat() if row.due_date else None,
                     "currency": row.currency or "KHR",
                     "verification_status": row.verification_status or "pending",
                     "verified_at": row.verified_at.isoformat() if row.verified_at else None,
@@ -208,7 +210,7 @@ class InvoiceService:
                     text("""
                         SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
                                i.amount, i.status, i.items, i.meta,
-                               i.bank, i.expected_account, i.currency,
+                               i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
                                i.verification_status, i.verified_at, i.verified_by, i.verification_note,
                                i.created_at, i.updated_at,
                                c.name as customer_name
@@ -233,6 +235,8 @@ class InvoiceService:
                     "meta": row.meta or {},
                     "bank": row.bank,
                     "expected_account": row.expected_account,
+                    "recipient_name": row.recipient_name,
+                    "due_date": row.due_date.isoformat() if row.due_date else None,
                     "currency": row.currency or "KHR",
                     "verification_status": row.verification_status or "pending",
                     "verified_at": row.verified_at.isoformat() if row.verified_at else None,
