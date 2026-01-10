@@ -70,6 +70,7 @@ class InvoiceCreate(BaseModel):
     bank: Optional[str] = None
     expected_account: Optional[str] = None
     currency: Optional[str] = "KHR"
+    recipient_name: Optional[str] = None  # Account holder name on receiving account
 
 
 class InvoiceUpdate(BaseModel):
@@ -83,6 +84,7 @@ class InvoiceUpdate(BaseModel):
     bank: Optional[str] = None
     expected_account: Optional[str] = None
     currency: Optional[str] = None
+    recipient_name: Optional[str] = None  # Account holder name on receiving account
 
 
 class InvoiceVerify(BaseModel):
@@ -843,8 +845,8 @@ async def list_invoices(
             SELECT
                 i.id, i.tenant_id, i.merchant_id, i.customer_id,
                 i.invoice_number, i.amount, i.status, i.items,
-                i.currency, i.bank, i.expected_account,
-                i.verification_status, i.created_at, i.updated_at,
+                i.currency, i.bank, i.expected_account, i.recipient_name,
+                i.due_date, i.verification_status, i.created_at, i.updated_at,
                 c.name as customer_name
             FROM invoice.invoice i
             LEFT JOIN invoice.customer c ON i.customer_id = c.id
@@ -872,7 +874,10 @@ async def list_invoices(
                 "id": str(row.id),
                 "tenant_id": str(row.tenant_id),
                 "customer_id": str(row.customer_id) if row.customer_id else None,
-                "customer_name": row.customer_name,
+                "customer": {
+                    "id": str(row.customer_id) if row.customer_id else None,
+                    "name": row.customer_name or "Unknown"
+                },
                 "invoice_number": row.invoice_number,
                 "amount": float(row.amount) if row.amount else 0,
                 "total": float(row.amount) if row.amount else 0,
@@ -881,6 +886,8 @@ async def list_invoices(
                 "currency": row.currency or "KHR",
                 "bank": row.bank,
                 "expected_account": row.expected_account,
+                "recipient_name": row.recipient_name,
+                "due_date": row.due_date.isoformat() if row.due_date else None,
                 "verification_status": row.verification_status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -1003,15 +1010,15 @@ async def create_invoice(
                     INSERT INTO invoice.invoice (
                         tenant_id, merchant_id, customer_id, invoice_number,
                         amount, status, items, currency, bank, expected_account,
-                        verification_status, created_at, updated_at
+                        recipient_name, due_date, verification_status, created_at, updated_at
                     ) VALUES (
                         :tenant_id, :merchant_id, :customer_id, :invoice_number,
                         :amount, 'pending', CAST(:items AS jsonb), :currency, :bank, :expected_account,
-                        'pending', NOW(), NOW()
+                        :recipient_name, :due_date, 'pending', NOW(), NOW()
                     )
                     RETURNING id, tenant_id, customer_id, invoice_number, amount, status,
-                              items, currency, bank, expected_account, verification_status,
-                              created_at, updated_at
+                              items, currency, bank, expected_account, recipient_name, due_date,
+                              verification_status, created_at, updated_at
                 """),
                 {
                     "tenant_id": str(current_user.tenant_id),
@@ -1022,7 +1029,9 @@ async def create_invoice(
                     "items": json.dumps(items_json),
                     "currency": data.currency or "KHR",
                     "bank": data.bank,
-                    "expected_account": data.expected_account
+                    "expected_account": data.expected_account,
+                    "recipient_name": data.recipient_name,
+                    "due_date": data.due_date
                 }
             )
             db.commit()
@@ -1044,6 +1053,8 @@ async def create_invoice(
                 "currency": row.currency or "KHR",
                 "bank": row.bank,
                 "expected_account": row.expected_account,
+                "recipient_name": row.recipient_name,
+                "due_date": row.due_date.isoformat() if row.due_date else None,
                 "verification_status": row.verification_status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None
@@ -1189,7 +1200,7 @@ async def get_invoice(
             text("""
                 SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
                        i.amount, i.status, i.items, i.meta,
-                       i.bank, i.expected_account, i.currency,
+                       i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
                        i.verification_status, i.verified_at, i.verified_by, i.verification_note,
                        i.created_at, i.updated_at,
                        c.name as customer_name, c.email as customer_email,
@@ -1216,6 +1227,8 @@ async def get_invoice(
                 "meta": row.meta or {},
                 "bank": row.bank,
                 "expected_account": row.expected_account,
+                "recipient_name": row.recipient_name,
+                "due_date": row.due_date.isoformat() if row.due_date else None,
                 "currency": row.currency or "KHR",
                 "verification_status": row.verification_status or "pending",
                 "verified_at": row.verified_at.isoformat() if row.verified_at else None,
@@ -1381,6 +1394,9 @@ async def upload_invoice_screenshot(
         "currency": invoice.get("currency", "KHR"),
         "toAccount": invoice.get("expected_account"),
         "bank": invoice.get("bank"),
+        "recipientName": invoice.get("recipient_name"),
+        "dueDate": invoice.get("due_date"),
+        "tolerancePercent": 5
     }
 
     # Read image data
@@ -1575,6 +1591,113 @@ async def download_invoice_pdf(
                 status_code=502,
                 detail=f"Failed to connect to Invoice API: {str(e)}"
             )
+
+
+# ============================================================================
+# Send Invoice to Customer (Telegram)
+# ============================================================================
+
+@router.post("/invoices/{invoice_id}/send")
+async def send_invoice_to_customer(
+    invoice_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Send or resend an invoice notification to the customer's Telegram.
+
+    This endpoint allows you to manually send an invoice notification
+    to a customer who has Telegram linked. Useful for:
+    - Resending notifications if the customer missed it
+    - Sending after updating invoice details
+    - Following up on pending payments
+
+    Returns:
+        Success status and telegram notification result
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Get the invoice from PostgreSQL
+    try:
+        result = db.execute(
+            text("""
+                SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
+                       i.amount, i.status, i.currency, i.bank, i.expected_account,
+                       i.recipient_name, i.due_date, i.verification_status, i.created_at,
+                       c.name as customer_name, c.email as customer_email,
+                       c.telegram_chat_id, c.telegram_username
+                FROM invoice.invoice i
+                LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
+            """),
+            {"invoice_id": invoice_id, "tenant_id": str(current_user.tenant_id)}
+        )
+        row = result.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        if not row.telegram_chat_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Customer does not have Telegram linked. Cannot send notification."
+            )
+
+        # Build invoice data for notification
+        invoice_data = {
+            "id": str(row.id),
+            "invoice_number": row.invoice_number,
+            "total": float(row.amount) if row.amount else 0,
+            "amount": float(row.amount) if row.amount else 0,
+            "currency": row.currency or "KHR",
+            "bank": row.bank,
+            "expected_account": row.expected_account,
+            "recipient_name": row.recipient_name,
+            "due_date": row.due_date.isoformat() if row.due_date else None,
+            "status": row.status,
+            "verification_status": row.verification_status
+        }
+
+        customer_data = {
+            "id": str(row.customer_id),
+            "name": row.customer_name,
+            "email": row.customer_email,
+            "telegram_chat_id": row.telegram_chat_id,
+            "telegram_username": row.telegram_username
+        }
+
+        # Send to Telegram
+        telegram_result = await send_invoice_to_telegram(
+            invoice=invoice_data,
+            customer=customer_data,
+            db=db
+        )
+
+        if telegram_result.get("sent"):
+            logger.info(f"Invoice {row.invoice_number} sent to Telegram chat {row.telegram_chat_id}")
+            return {
+                "success": True,
+                "message": f"Invoice sent to {row.customer_name}'s Telegram",
+                "invoice_number": row.invoice_number,
+                "telegram_username": row.telegram_username,
+                "telegram_result": telegram_result
+            }
+        else:
+            logger.warning(f"Failed to send invoice to Telegram: {telegram_result.get('reason')}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to send Telegram notification: {telegram_result.get('reason', 'Unknown error')}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending invoice to customer: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send invoice: {str(e)}"
+        )
 
 
 # ============================================================================
