@@ -427,12 +427,25 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
         logger.info(f"OCR Verification - recipient_names: {recipient_names}")
         logger.info(f"OCR Verification - Expected Payment: {expected_payment}")
 
-        # Check for missing verification fields and build warnings
-        verification_warnings = []
+        # REQUIRE recipient_name and expected_account for verification
+        # Reject if these fields are missing - no skipping allowed
+        missing_fields = []
         if not invoice.get("expected_account"):
-            verification_warnings.append("Expected Account not set - account verification skipped")
+            missing_fields.append("Expected Account")
         if not invoice.get("recipient_name"):
-            verification_warnings.append("Recipient Name not set - recipient verification skipped")
+            missing_fields.append("Recipient Name")
+
+        if missing_fields:
+            await state.clear()
+            fields_list = chr(10).join(f"- {f}" for f in missing_fields)
+            await message.answer(
+                f"<b>Verification Rejected</b>\n\n"
+                f"Invoice: <code>{invoice.get('invoice_number')}</code>\n\n"
+                f"Missing required fields:\n"
+                f"{fields_list}\n\n"
+                f"Please update the invoice with the missing payment verification details before verifying."
+            )
+            return
 
         # Send to OCR service
         result = await ocr_service.verify_screenshot(
