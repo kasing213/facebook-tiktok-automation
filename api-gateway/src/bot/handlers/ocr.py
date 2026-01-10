@@ -53,17 +53,30 @@ async def cmd_ocr(message: types.Message, state: FSMContext):
         )
         return
 
+    is_mock = health.get("mode") == "mock"
+
     await state.set_state(OCRStates.waiting_for_screenshot)
-    await message.answer(
-        "<b>OCR Payment Verification</b>\n\n"
-        "Please send me a screenshot of the payment receipt.\n\n"
-        "The OCR system will extract:\n"
-        "- Transaction amount\n"
-        "- Currency\n"
-        "- Date/time\n"
-        "- Reference numbers\n\n"
-        "Send /cancel to cancel."
-    )
+
+    if is_mock:
+        await message.answer(
+            "<b>OCR Payment Verification (Mock Mode)</b>\n\n"
+            "Please send me a screenshot of the payment receipt.\n\n"
+            "<i>Note: OCR is in mock mode for testing.\n"
+            "For actual invoice verification, use:</i>\n"
+            "<code>/verify_invoice INV-XXXXX</code>\n\n"
+            "Send /cancel to cancel."
+        )
+    else:
+        await message.answer(
+            "<b>OCR Payment Verification</b>\n\n"
+            "Please send me a screenshot of the payment receipt.\n\n"
+            "The OCR system will extract:\n"
+            "- Transaction amount\n"
+            "- Currency\n"
+            "- Date/time\n"
+            "- Reference numbers\n\n"
+            "Send /cancel to cancel."
+        )
 
 
 @router.message(Command("ocr_status"))
@@ -92,10 +105,19 @@ async def cmd_ocr_status(message: types.Message):
             f"Status: Error\n"
             f"Message: {status.get('message', 'Unknown')}"
         )
+    elif status.get("mode") == "mock":
+        await message.answer(
+            f"<b>OCR Service Status</b>\n\n"
+            f"Status: Active (Mock Mode)\n"
+            f"Mode: Testing/Development\n\n"
+            f"<i>Mock mode simulates OCR verification.\n"
+            f"Use /verify_invoice to test payment verification.</i>"
+        )
     else:
         await message.answer(
             f"<b>OCR Service Status</b>\n\n"
             f"Status: {status.get('status', 'Unknown')}\n"
+            f"Mode: External API\n"
             f"Service: Connected"
         )
 
@@ -138,6 +160,9 @@ async def handle_screenshot(message: types.Message, state: FSMContext):
             )
             return
 
+        # Check if in mock mode
+        is_mock = result.get("mock_mode", False)
+
         # Format the result
         extracted = result.get("extracted_data", {})
         confidence = result.get("confidence", 0)
@@ -149,14 +174,25 @@ async def handle_screenshot(message: types.Message, state: FSMContext):
 
         confidence_bar = get_confidence_bar(confidence)
 
-        await message.answer(
-            f"<b>OCR Verification Result</b>\n\n"
-            f"Amount: <code>{currency} {amount}</code>\n"
-            f"Date: {date}\n"
-            f"Reference: <code>{reference}</code>\n\n"
-            f"Confidence: {confidence_bar} {confidence:.0%}\n\n"
-            f"Record ID: <code>{result.get('record_id', 'N/A')}</code>"
-        )
+        if is_mock:
+            await message.answer(
+                f"<b>OCR Result (Mock Mode)</b>\n\n"
+                f"Screenshot received ({len(image_data):,} bytes)\n\n"
+                f"<i>Note: OCR is in mock mode for testing.\n"
+                f"For actual verification, use:</i>\n"
+                f"<code>/verify_invoice INV-XXXXX</code>\n\n"
+                f"<i>This will match your screenshot against the invoice amount.</i>\n\n"
+                f"Record ID: <code>{result.get('record_id', 'N/A')}</code>"
+            )
+        else:
+            await message.answer(
+                f"<b>OCR Verification Result</b>\n\n"
+                f"Amount: <code>{currency} {amount}</code>\n"
+                f"Date: {date}\n"
+                f"Reference: <code>{reference}</code>\n\n"
+                f"Confidence: {confidence_bar} {confidence:.0%}\n\n"
+                f"Record ID: <code>{result.get('record_id', 'N/A')}</code>"
+            )
 
     except Exception as e:
         logger.error(f"OCR processing error: {e}")
@@ -231,13 +267,19 @@ async def cmd_verify_invoice(message: types.Message, command: CommandObject, sta
         else:
             amount_str = f"${amount:.2f}"
 
+        # Format due date
+        due_date = invoice.get('due_date')
+        due_date_str = due_date[:10] if due_date else "Not specified"
+
         await message.answer(
             f"<b>Invoice Payment Verification</b>\n\n"
             f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
             f"Customer: {invoice.get('customer_name', 'N/A')}\n"
             f"Amount: <b>{amount_str}</b>\n"
             f"Bank: {invoice.get('bank') or 'Not specified'}\n"
-            f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n\n"
+            f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n"
+            f"Recipient: {invoice.get('recipient_name') or 'Not specified'}\n"
+            f"Due Date: {due_date_str}\n\n"
             f"Please send a screenshot of the payment receipt.\n"
             f"Send /cancel to cancel."
         )
@@ -316,12 +358,18 @@ async def handle_invoice_selection(message: types.Message, state: FSMContext):
     else:
         amount_str = f"${amount:.2f}"
 
+    # Format due date
+    due_date = invoice.get('due_date')
+    due_date_str = due_date[:10] if due_date else "Not specified"
+
     await message.answer(
         f"<b>Invoice Found</b>\n\n"
         f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
         f"Amount: <b>{amount_str}</b>\n"
         f"Bank: {invoice.get('bank') or 'Not specified'}\n"
-        f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n\n"
+        f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n"
+        f"Recipient: {invoice.get('recipient_name') or 'Not specified'}\n"
+        f"Due Date: {due_date_str}\n\n"
         f"Now send me the payment screenshot."
     )
 
@@ -363,7 +411,17 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
             "currency": invoice.get("currency", "KHR"),
             "toAccount": invoice.get("expected_account"),
             "bank": invoice.get("bank"),
+            "recipientName": invoice.get("recipient_name"),
+            "dueDate": invoice.get("due_date"),
+            "tolerancePercent": 5
         }
+
+        # Check for missing verification fields and build warnings
+        verification_warnings = []
+        if not invoice.get("expected_account"):
+            verification_warnings.append("Expected Account not set - account verification skipped")
+        if not invoice.get("recipient_name"):
+            verification_warnings.append("Recipient Name not set - recipient verification skipped")
 
         # Send to OCR service
         result = await ocr_service.verify_screenshot(
@@ -416,32 +474,44 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
                 verification_note=note
             )
 
+        # Check if mock mode
+        is_mock = result.get("mock_mode", False)
+        mock_note = "\n<i>(Mock Mode - Testing)</i>" if is_mock else ""
+
+        # Build warnings text
+        warnings_text = ""
+        if verification_warnings:
+            warnings_text = "\n<b>Warnings:</b>\n" + "\n".join(f"- {w}" for w in verification_warnings) + "\n"
+
         # Build response message
         if verification_status == "verified":
             await message.answer(
-                f"<b>{status_emoji} Payment Verified</b>\n\n"
+                f"<b>{status_emoji} Payment Verified</b>{mock_note}\n\n"
                 f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
                 f"Expected: {invoice.get('currency', 'KHR')} {invoice.get('amount'):,.0f}\n"
                 f"Detected: {ext_currency} {ext_amount}\n\n"
-                f"Confidence: {confidence_bar} {confidence:.0%}\n\n"
+                f"Confidence: {confidence_bar} {confidence:.0%}\n"
+                f"{warnings_text}\n"
                 f"Invoice marked as <b>PAID</b>"
             )
         elif verification_status == "rejected":
             reason = verification.get("rejectionReason", "Amount or account mismatch")
             await message.answer(
-                f"<b>{status_emoji} Payment Rejected</b>\n\n"
+                f"<b>{status_emoji} Payment Rejected</b>{mock_note}\n\n"
                 f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
                 f"Expected: {invoice.get('currency', 'KHR')} {invoice.get('amount'):,.0f}\n"
                 f"Detected: {ext_currency} {ext_amount}\n\n"
                 f"Reason: {reason}\n"
                 f"Confidence: {confidence_bar} {confidence:.0%}"
+                f"{warnings_text}"
             )
         else:
             await message.answer(
-                f"<b>{status_emoji} Manual Review Required</b>\n\n"
+                f"<b>{status_emoji} Manual Review Required</b>{mock_note}\n\n"
                 f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
                 f"Detected: {ext_currency} {ext_amount}\n\n"
-                f"Confidence: {confidence_bar} {confidence:.0%}\n\n"
+                f"Confidence: {confidence_bar} {confidence:.0%}\n"
+                f"{warnings_text}\n"
                 f"The payment could not be automatically verified.\n"
                 f"Please review manually in the dashboard."
             )
