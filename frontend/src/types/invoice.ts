@@ -60,9 +60,13 @@ export interface Invoice {
   status: InvoiceStatus
   due_date?: string
   notes?: string
+  // Line items currency settings
+  line_items_currency?: Currency
+  exchange_rate?: number
   // Payment verification fields
   bank?: string
   expected_account?: string
+  recipient_name?: string  // Account holder name on receiving account
   currency: Currency
   verification_status: VerificationStatus
   verified_at?: string
@@ -78,9 +82,13 @@ export interface InvoiceCreate {
   due_date?: string
   notes?: string
   discount?: number
+  // Line items currency settings
+  line_items_currency?: Currency
+  exchange_rate?: number
   // Payment verification fields
   bank?: string
   expected_account?: string
+  recipient_name?: string  // Account holder name on receiving account
   currency?: Currency
 }
 
@@ -90,9 +98,13 @@ export interface InvoiceUpdate {
   notes?: string
   discount?: number
   status?: InvoiceStatus
+  // Line items currency settings
+  line_items_currency?: Currency
+  exchange_rate?: number
   // Payment verification fields
   bank?: string
   expected_account?: string
+  recipient_name?: string  // Account holder name on receiving account
   currency?: Currency
 }
 

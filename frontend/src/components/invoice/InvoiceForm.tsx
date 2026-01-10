@@ -235,9 +235,14 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [status, setStatus] = useState<InvoiceStatus>(invoice?.status || 'draft')
   const [error, setError] = useState<string | null>(null)
 
+  // Line items currency settings
+  const [lineItemsCurrency, setLineItemsCurrency] = useState<Currency>(invoice?.line_items_currency || 'USD')
+  const [exchangeRate, setExchangeRate] = useState(invoice?.exchange_rate || 4100)
+
   // Payment verification fields (optional)
   const [bank, setBank] = useState(invoice?.bank || '')
   const [expectedAccount, setExpectedAccount] = useState(invoice?.expected_account || '')
+  const [recipientName, setRecipientName] = useState(invoice?.recipient_name || '')
   const [currency, setCurrency] = useState<Currency>(invoice?.currency || 'KHR')
 
   useEffect(() => {
@@ -248,8 +253,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
       setNotes(invoice.notes || '')
       setDiscount(invoice.discount || 0)
       setStatus(invoice.status)
+      setLineItemsCurrency(invoice.line_items_currency || 'USD')
+      setExchangeRate(invoice.exchange_rate || 4100)
       setBank(invoice.bank || '')
       setExpectedAccount(invoice.expected_account || '')
+      setRecipientName(invoice.recipient_name || '')
       setCurrency(invoice.currency || 'KHR')
     }
   }, [invoice])
@@ -288,8 +296,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           notes: notes || undefined,
           discount: discount || undefined,
           status,
+          line_items_currency: lineItemsCurrency,
+          exchange_rate: exchangeRate,
           bank: bank || undefined,
           expected_account: expectedAccount || undefined,
+          recipient_name: recipientName || undefined,
           currency: currency || undefined
         }
         await onSubmit(updateData)
@@ -300,8 +311,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           due_date: dueDate || undefined,
           notes: notes || undefined,
           discount: discount || undefined,
+          line_items_currency: lineItemsCurrency,
+          exchange_rate: exchangeRate,
           bank: bank || undefined,
           expected_account: expectedAccount || undefined,
+          recipient_name: recipientName || undefined,
           currency: currency || undefined
         }
         await onSubmit(createData)
@@ -378,6 +392,10 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
         <LineItemsEditor
           items={items}
           onChange={setItems}
+          currency={lineItemsCurrency}
+          onCurrencyChange={setLineItemsCurrency}
+          exchangeRate={exchangeRate}
+          onExchangeRateChange={setExchangeRate}
         />
       </FormSection>
 
@@ -462,15 +480,26 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </FormGroup>
         </FormRow>
 
-        <FormGroup>
-          <Label>Expected Account Number<OptionalLabel>(optional)</OptionalLabel></Label>
-          <Input
-            type="text"
-            value={expectedAccount}
-            onChange={(e) => setExpectedAccount(e.target.value)}
-            placeholder="e.g., 000 123 456"
-          />
-        </FormGroup>
+        <FormRow>
+          <FormGroup>
+            <Label>Expected Account Number<OptionalLabel>(optional)</OptionalLabel></Label>
+            <Input
+              type="text"
+              value={expectedAccount}
+              onChange={(e) => setExpectedAccount(e.target.value)}
+              placeholder="e.g., 000 123 456"
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label>Recipient Name<OptionalLabel>(optional)</OptionalLabel></Label>
+            <Input
+              type="text"
+              value={recipientName}
+              onChange={(e) => setRecipientName(e.target.value)}
+              placeholder="Account holder name (e.g., John Doe)"
+            />
+          </FormGroup>
+        </FormRow>
       </FormSection>
 
       {error && <ErrorMessage>{error}</ErrorMessage>}
