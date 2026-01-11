@@ -26,6 +26,7 @@ def upgrade() -> None:
         schema='invoice'
     )
     op.add_column(
+        
         'customer',
         sa.Column('telegram_chat_id', sa.String(length=50), nullable=True),
         schema='invoice'

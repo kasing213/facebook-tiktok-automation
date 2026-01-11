@@ -6,11 +6,12 @@ These endpoints are used by the main backend (facebook-automation) to
 trigger Telegram notifications and other internal operations.
 """
 
+import base64
 import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 
 from src.bot import create_bot
 
@@ -39,6 +40,16 @@ class MerchantNotificationRequest(BaseModel):
     amount: str
     status: str  # verified, rejected, pending
     reason: Optional[str] = None
+
+
+class InvoicePDFRequest(BaseModel):
+    """Request model for sending invoice PDF to Telegram."""
+    chat_id: str
+    invoice_id: str
+    invoice_number: str
+    amount: str
+    pdf_data: str  # Base64-encoded PDF
+    customer_name: Optional[str] = None
 
 
 @router.post("/telegram/send-invoice")
@@ -178,6 +189,73 @@ async def notify_merchant_payment(data: MerchantNotificationRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to send Telegram message: {str(e)}"
+        )
+
+
+@router.post("/telegram/send-invoice-pdf")
+async def send_invoice_pdf(data: InvoicePDFRequest):
+    """
+    Send invoice PDF as document with verify button to Telegram chat.
+
+    Called by the main backend when sending invoice to customer.
+    Sends the PDF as a document attachment with an inline "Verify Payment" button.
+    """
+    bot, _ = create_bot()
+
+    if not bot:
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram bot not configured"
+        )
+
+    try:
+        # Decode base64 PDF data
+        pdf_bytes = base64.b64decode(data.pdf_data)
+
+        # Create PDF file for sending
+        pdf_file = BufferedInputFile(
+            file=pdf_bytes,
+            filename=f"{data.invoice_number}.pdf"
+        )
+
+        # Create inline keyboard with verify button
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="Verify Payment",
+                callback_data=f"verify_invoice:{data.invoice_id}"
+            )]
+        ])
+
+        # Build caption
+        caption = (
+            f"<b>Invoice {data.invoice_number}</b>\n\n"
+            f"Amount: <b>{data.amount}</b>\n\n"
+            f"After payment, click the button below to verify."
+        )
+
+        # Send document with button
+        await bot.send_document(
+            chat_id=data.chat_id,
+            document=pdf_file,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=keyboard
+        )
+
+        logger.info(f"Invoice PDF sent to chat {data.chat_id}: {data.invoice_number}")
+
+        return {
+            "success": True,
+            "chat_id": data.chat_id,
+            "invoice_number": data.invoice_number,
+            "type": "pdf"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to send invoice PDF: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send Telegram PDF: {str(e)}"
         )
 
 

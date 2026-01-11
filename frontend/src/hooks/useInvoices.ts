@@ -266,6 +266,17 @@ export function useInvoices() {
     }
   }, [])
 
+  // Send invoice to customer via Telegram
+  const sendToCustomer = useCallback(async (invoiceId: string) => {
+    try {
+      const result = await invoiceService.sendToCustomer(invoiceId)
+      return result
+    } catch (err: any) {
+      setError(err.message || 'Failed to send invoice to customer')
+      throw err
+    }
+  }, [])
+
   // Clear error
   const clearError = useCallback(() => {
     setError(null)
@@ -303,6 +314,9 @@ export function useInvoices() {
     fetchRegisteredClients,
     getRegisteredClient,
     generateClientLinkCode,
+
+    // Send to customer
+    sendToCustomer,
 
     // Utility
     checkHealth,

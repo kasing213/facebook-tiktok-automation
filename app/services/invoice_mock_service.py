@@ -337,119 +337,233 @@ def get_stats() -> Dict:
 
 
 # ============================================================================
-# PDF Generation (Mock)
+# PDF Generation (Real - using fpdf2)
 # ============================================================================
 
 def generate_pdf(invoice_id: str) -> Optional[bytes]:
     """
-    Generate a mock PDF for testing.
+    Generate a professional invoice PDF matching the frontend design.
 
-    Returns a minimal valid PDF that can be opened by PDF readers.
-    In production, this would connect to a real PDF generation service.
+    Uses fpdf2 library for real PDF generation with proper styling.
     """
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        # Fallback if fpdf2 not installed
+        return _generate_pdf_fallback(invoice_id)
+
     invoice = get_invoice(invoice_id)
     if not invoice:
         return None
 
-    # Create a simple but valid PDF
+    # Colors (matching frontend design)
+    BLUE = (74, 144, 226)
+    DARK = (31, 41, 55)
+    GRAY = (107, 114, 128)
+    LIGHT_BG = (249, 250, 251)
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Header section with blue background
+    pdf.set_fill_color(*BLUE)
+    pdf.rect(0, 0, 210, 45, 'F')
+
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 24)
+    pdf.set_y(12)
+    pdf.cell(0, 10, "INVOICE", ln=True, align="C")
+
+    pdf.set_font("Helvetica", "", 14)
+    pdf.cell(0, 8, invoice["invoice_number"], ln=True, align="C")
+
+    # Status badge
+    status = invoice.get("status", "pending").upper()
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 8, status, ln=True, align="C")
+
+    # Reset colors
+    pdf.set_text_color(*DARK)
+    pdf.set_y(55)
+
+    # Customer + Due Date row
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(*GRAY)
+    pdf.cell(95, 6, "BILL TO", ln=False)
+    pdf.cell(95, 6, "DUE DATE", ln=True)
+
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Helvetica", "", 11)
+    customer = invoice.get("customer", {}) or {}
+    customer_name = customer.get("name", "N/A") or "N/A"
+    pdf.cell(95, 6, customer_name, ln=False)
+    pdf.cell(95, 6, str(invoice.get("due_date", "N/A") or "N/A"), ln=True)
+
+    if customer.get("email"):
+        pdf.set_text_color(*GRAY)
+        pdf.cell(95, 5, customer["email"], ln=True)
+    if customer.get("phone"):
+        pdf.cell(95, 5, customer["phone"], ln=True)
+
+    pdf.ln(10)
+
+    # Line items table
+    pdf.set_fill_color(*LIGHT_BG)
+    pdf.set_text_color(*GRAY)
+    pdf.set_font("Helvetica", "B", 9)
+
+    # Table header
+    pdf.cell(80, 8, "DESCRIPTION", border="B", fill=True)
+    pdf.cell(20, 8, "QTY", border="B", align="C", fill=True)
+    pdf.cell(35, 8, "UNIT PRICE", border="B", align="R", fill=True)
+    pdf.cell(40, 8, "TOTAL", border="B", align="R", fill=True, ln=True)
+
+    # Table rows
+    pdf.set_text_color(*DARK)
+    pdf.set_font("Helvetica", "", 10)
+    currency = invoice.get("currency", "KHR")
+
+    items = invoice.get("items", [])
+    for item in items:
+        description = str(item.get("description", ""))[:35]
+        quantity = item.get("quantity", 1)
+        price = float(item.get("unit_price", 0))
+        item_total = float(item.get("total", price * quantity))
+
+        pdf.cell(80, 7, description)
+        pdf.cell(20, 7, str(int(quantity)), align="C")
+        if currency == "KHR":
+            pdf.cell(35, 7, f"{price:,.0f}", align="R")
+            pdf.cell(40, 7, f"{item_total:,.0f}", align="R", ln=True)
+        else:
+            pdf.cell(35, 7, f"${price:.2f}", align="R")
+            pdf.cell(40, 7, f"${item_total:.2f}", align="R", ln=True)
+
+    pdf.ln(5)
+
+    # Totals section (right-aligned)
+    pdf.set_x(110)
+    pdf.set_fill_color(*LIGHT_BG)
+
+    # Subtotal
+    subtotal = float(invoice.get("subtotal", invoice.get("total", 0)))
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(45, 7, "Subtotal:", align="R")
+    if currency == "KHR":
+        pdf.cell(40, 7, f"{subtotal:,.0f} KHR", align="R", ln=True)
+    else:
+        pdf.cell(40, 7, f"${subtotal:.2f}", align="R", ln=True)
+
+    # Tax
+    tax = float(invoice.get("tax_amount", 0))
+    if tax:
+        pdf.set_x(110)
+        pdf.cell(45, 7, "Tax:", align="R")
+        if currency == "KHR":
+            pdf.cell(40, 7, f"{tax:,.0f} KHR", align="R", ln=True)
+        else:
+            pdf.cell(40, 7, f"${tax:.2f}", align="R", ln=True)
+
+    # Discount
+    discount = float(invoice.get("discount_amount", 0))
+    if discount:
+        pdf.set_x(110)
+        pdf.cell(45, 7, "Discount:", align="R")
+        if currency == "KHR":
+            pdf.cell(40, 7, f"-{discount:,.0f} KHR", align="R", ln=True)
+        else:
+            pdf.cell(40, 7, f"-${discount:.2f}", align="R", ln=True)
+
+    # Grand Total
+    pdf.set_x(110)
+    pdf.set_font("Helvetica", "B", 12)
+    total = float(invoice.get("total", 0))
+    pdf.cell(45, 10, "TOTAL:", border="T", align="R")
+    if currency == "KHR":
+        pdf.cell(40, 10, f"{total:,.0f} KHR", border="T", align="R", ln=True)
+    else:
+        pdf.cell(40, 10, f"${total:.2f}", border="T", align="R", ln=True)
+
+    pdf.ln(10)
+
+    # Payment Information section
+    bank = invoice.get("bank")
+    expected_account = invoice.get("expected_account")
+    recipient_name = invoice.get("recipient_name")
+
+    if bank or expected_account or recipient_name:
+        pdf.set_fill_color(*LIGHT_BG)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*DARK)
+        pdf.cell(0, 8, "Payment Information", fill=True, ln=True)
+
+        pdf.set_font("Helvetica", "", 10)
+        if bank:
+            pdf.cell(30, 6, "Bank:")
+            pdf.cell(0, 6, str(bank), ln=True)
+        if expected_account:
+            pdf.cell(30, 6, "Account:")
+            pdf.cell(0, 6, str(expected_account), ln=True)
+        if recipient_name:
+            pdf.cell(30, 6, "Recipient:")
+            pdf.cell(0, 6, str(recipient_name), ln=True)
+
+    # Notes section
+    notes = invoice.get("notes")
+    if notes:
+        pdf.ln(10)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, "Notes", ln=True)
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(*GRAY)
+        pdf.multi_cell(0, 5, str(notes))
+
+    return bytes(pdf.output())
+
+
+def _generate_pdf_fallback(invoice_id: str) -> Optional[bytes]:
+    """Fallback PDF generation if fpdf2 is not available."""
+    invoice = get_invoice(invoice_id)
+    if not invoice:
+        return None
+
     invoice_num = invoice["invoice_number"]
-    customer_name = invoice.get("customer", {}).get("name", "Unknown")
+    customer_name = (invoice.get("customer", {}) or {}).get("name", "Unknown")
     total = invoice["total"]
     currency = invoice.get("currency", "KHR")
-    bank = invoice.get("bank") or "N/A"
-    expected_account = invoice.get("expected_account") or "N/A"
-    verification_status = invoice.get("verification_status", "pending").upper()
 
-    # Format amount with currency
     if currency == "KHR":
         amount_str = f"{total:,.0f} KHR"
     else:
-        amount_str = f"${total:.2f} {currency}"
+        amount_str = f"${total:.2f}"
 
-    # Verification badge
-    if verification_status == "VERIFIED":
-        badge = "[VERIFIED]"
-    elif verification_status == "REJECTED":
-        badge = "[REJECTED]"
-    else:
-        badge = "[PENDING]"
+    content = f"Invoice: {invoice_num} | Customer: {customer_name} | Total: {amount_str}"
 
-    # Build PDF content with payment info
-    content = f"""Invoice: {invoice_num}
-Customer: {customer_name}
-Total: {amount_str}
-Status: {invoice["status"]}
-Verification: {badge}
-
-Payment Information:
-Bank: {bank}
-Account: {expected_account}
-Amount: {amount_str}
-
-This is a mock PDF generated for testing purposes."""
-
-    # Minimal valid PDF structure
     pdf_content = f"""%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length {len(content) + 200} >>
-stream
-BT
-/F1 14 Tf
-450 750 Td
-({badge}) Tj
-/F1 12 Tf
-50 700 Td
-({invoice_num}) Tj
-0 -20 Td
-(Customer: {customer_name}) Tj
-0 -20 Td
-(Total: {amount_str}) Tj
-0 -20 Td
-(Status: {invoice["status"]}) Tj
-0 -40 Td
-(--- Payment Information ---) Tj
-0 -20 Td
-(Bank: {bank}) Tj
-0 -20 Td
-(Account: {expected_account}) Tj
-0 -20 Td
-(Amount: {amount_str}) Tj
-0 -40 Td
-(Mock PDF for testing) Tj
-ET
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 100 >> stream
+BT /F1 12 Tf 50 700 Td ({content}) Tj ET
+endstream endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref 0 6
 0000000000 65535 f
 0000000009 00000 n
 0000000058 00000 n
 0000000115 00000 n
-0000000266 00000 n
-0000000{450 + len(content):03d} 00000 n
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-{550 + len(content)}
+0000000230 00000 n
+0000000380 00000 n
+trailer << /Size 6 /Root 1 0 R >>
+startxref 450
 %%EOF"""
 
     return pdf_content.encode('latin-1')
 
 
 # ============================================================================
-# Export (Mock)
+# Export (Real - using openpyxl for XLSX)
 # ============================================================================
 
 def export_invoices(
@@ -460,7 +574,7 @@ def export_invoices(
     """
     Export invoices to CSV or Excel format.
 
-    For testing, returns properly formatted CSV or a placeholder for XLSX.
+    Uses openpyxl for real XLSX generation with proper styling.
     """
     invoices = list(_invoices.values())
 
@@ -488,9 +602,75 @@ def export_invoices(
             )
         return "\n".join(lines).encode("utf-8")
     else:
-        # For xlsx, return a placeholder
-        # In production, use openpyxl or xlsxwriter
-        return b"PK\x03\x04XLSX_MOCK_CONTENT"
+        # XLSX export using openpyxl
+        return _generate_xlsx_export(invoices)
+
+
+def _generate_xlsx_export(invoices: List[Dict]) -> bytes:
+    """Generate real XLSX file using openpyxl."""
+    try:
+        import io
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        # Fallback if openpyxl not installed
+        return b"PK\x03\x04XLSX_REQUIRES_OPENPYXL"
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Invoices"
+
+    # Header styling (matching frontend blue theme)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="4A90E2")
+    header_align = Alignment(horizontal="center", vertical="center")
+
+    # Headers
+    headers = [
+        "Invoice Number", "Customer", "Status", "Currency",
+        "Subtotal", "Tax", "Discount", "Total", "Due Date", "Created"
+    ]
+
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+
+    # Data rows
+    for row_num, inv in enumerate(invoices, 2):
+        customer = _customers.get(inv["customer_id"], {})
+        customer_name = customer.get("name", "Unknown")
+
+        ws.cell(row=row_num, column=1, value=inv["invoice_number"])
+        ws.cell(row=row_num, column=2, value=customer_name)
+        ws.cell(row=row_num, column=3, value=inv["status"])
+        ws.cell(row=row_num, column=4, value=inv.get("currency", "KHR"))
+        ws.cell(row=row_num, column=5, value=inv["subtotal"])
+        ws.cell(row=row_num, column=6, value=inv["tax_amount"])
+        ws.cell(row=row_num, column=7, value=inv["discount_amount"])
+        ws.cell(row=row_num, column=8, value=inv["total"])
+        ws.cell(row=row_num, column=9, value=inv.get("due_date", ""))
+        ws.cell(row=row_num, column=10, value=inv["created_at"])
+
+    # Auto-size columns
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            except Exception:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+
+    # Save to bytes
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output.getvalue()
 
 
 # ============================================================================

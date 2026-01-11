@@ -39,45 +39,79 @@ api.interceptors.response.use(
   }
 )
 
+// Helper function to extract error message
+function getErrorMessage(error: unknown, defaultMessage: string): string {
+  if (error instanceof Error) {
+    const axiosError = error as { response?: { data?: { detail?: string } } }
+    return axiosError.response?.data?.detail || error.message || defaultMessage
+  }
+  return defaultMessage
+}
+
 export const subscriptionApi = {
   /**
    * Get current user's subscription status
    */
   async getStatus(): Promise<SubscriptionStatus> {
-    const response = await api.get<SubscriptionStatus>('/api/subscriptions/status')
-    return response.data
+    try {
+      const response = await api.get<SubscriptionStatus>('/api/subscriptions/status')
+      return response.data
+    } catch (error) {
+      console.error('Failed to get subscription status:', error)
+      throw new Error(getErrorMessage(error, 'Failed to fetch subscription status'))
+    }
   },
 
   /**
    * Create a Stripe checkout session for subscription purchase
    */
   async createCheckout(request: CreateCheckoutRequest): Promise<CheckoutSession> {
-    const response = await api.post<CheckoutSession>('/api/subscriptions/create-checkout', request)
-    return response.data
+    try {
+      const response = await api.post<CheckoutSession>('/api/subscriptions/create-checkout', request)
+      return response.data
+    } catch (error) {
+      console.error('Failed to create checkout session:', error)
+      throw new Error(getErrorMessage(error, 'Failed to create checkout session'))
+    }
   },
 
   /**
    * Create a Stripe billing portal session for subscription management
    */
   async createPortal(): Promise<PortalSession> {
-    const response = await api.post<PortalSession>('/api/subscriptions/create-portal')
-    return response.data
+    try {
+      const response = await api.post<PortalSession>('/api/subscriptions/create-portal')
+      return response.data
+    } catch (error) {
+      console.error('Failed to create portal session:', error)
+      throw new Error(getErrorMessage(error, 'Failed to create billing portal session'))
+    }
   },
 
   /**
    * Redirect to Stripe checkout
    */
   async redirectToCheckout(priceType: 'monthly' | 'yearly'): Promise<void> {
-    const session = await this.createCheckout({ price_type: priceType })
-    window.location.href = session.checkout_url
+    try {
+      const session = await this.createCheckout({ price_type: priceType })
+      window.location.href = session.checkout_url
+    } catch (error) {
+      console.error('Failed to redirect to checkout:', error)
+      throw new Error(getErrorMessage(error, 'Failed to redirect to checkout'))
+    }
   },
 
   /**
    * Redirect to Stripe billing portal
    */
   async redirectToPortal(): Promise<void> {
-    const session = await this.createPortal()
-    window.location.href = session.portal_url
+    try {
+      const session = await this.createPortal()
+      window.location.href = session.portal_url
+    } catch (error) {
+      console.error('Failed to redirect to billing portal:', error)
+      throw new Error(getErrorMessage(error, 'Failed to redirect to billing portal'))
+    }
   }
 }
 

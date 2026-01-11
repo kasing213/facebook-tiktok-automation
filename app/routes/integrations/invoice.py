@@ -709,7 +709,7 @@ async def send_invoice_to_telegram(
     db: Session
 ) -> dict:
     """
-    Send invoice notification to client's Telegram.
+    Send invoice PDF with verify button to client's Telegram.
 
     Args:
         invoice: The created invoice data
@@ -719,6 +719,7 @@ async def send_invoice_to_telegram(
     Returns:
         Result dict with success status
     """
+    import base64
     settings = get_settings()
 
     # Check if api-gateway URL is configured
@@ -730,16 +731,64 @@ async def send_invoice_to_telegram(
     if not telegram_chat_id:
         return {"sent": False, "reason": "Customer has no Telegram linked"}
 
-    # Build notification message
+    # Generate PDF
+    from app.services import invoice_mock_service
+    invoice_id = invoice.get("id")
+    pdf_bytes = invoice_mock_service.generate_pdf(str(invoice_id))
+
+    if not pdf_bytes:
+        # Fall back to text message if PDF generation fails
+        return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
+
+    # Format amount for display
+    currency = invoice.get("currency", "KHR")
+    total = invoice.get("total") or invoice.get("amount") or 0
+    if currency == "KHR":
+        amount_str = f"{total:,.0f} KHR"
+    else:
+        amount_str = f"${total:.2f}"
+
+    # Encode PDF to base64
+    pdf_b64 = base64.b64encode(pdf_bytes).decode()
+
+    # Send PDF with verify button via api-gateway
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{api_gateway_url}/internal/telegram/send-invoice-pdf",
+                json={
+                    "chat_id": telegram_chat_id,
+                    "invoice_id": str(invoice_id),
+                    "invoice_number": invoice.get("invoice_number", "N/A"),
+                    "amount": amount_str,
+                    "pdf_data": pdf_b64,
+                    "customer_name": customer.get("name")
+                }
+            )
+            if response.status_code == 200:
+                return {"sent": True, "type": "pdf", "telegram_chat_id": telegram_chat_id}
+            else:
+                # Fall back to text if PDF sending fails
+                return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
+    except Exception as e:
+        return {"sent": False, "reason": str(e)}
+
+
+async def _send_invoice_text_fallback(
+    invoice: dict,
+    customer: dict,
+    api_gateway_url: str
+) -> dict:
+    """Fallback to text message if PDF sending fails."""
+    telegram_chat_id = customer.get("telegram_chat_id")
+
     currency = invoice.get("currency", "KHR")
     amount = invoice.get("total") or invoice.get("amount") or 0
-
     if currency == "KHR":
         amount_str = f"{amount:,.0f} KHR"
     else:
         amount_str = f"${amount:.2f}"
 
-    # Send via api-gateway internal endpoint
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
@@ -757,7 +806,7 @@ async def send_invoice_to_telegram(
                 }
             )
             if response.status_code == 200:
-                return {"sent": True, "telegram_chat_id": telegram_chat_id}
+                return {"sent": True, "type": "text", "telegram_chat_id": telegram_chat_id}
             else:
                 return {"sent": False, "reason": f"API Gateway returned {response.status_code}"}
     except Exception as e:

@@ -18,6 +18,10 @@ python-dotenv==1.0.1
 pandas==2.2.2
 tenacity==8.2.3
 
+# PDF and Excel export
+fpdf2==2.7.6
+openpyxl==3.1.2
+
 # Authentication dependencies
 bcrypt==4.1.2
 python-jose[cryptography]==3.3.0

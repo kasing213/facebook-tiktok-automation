@@ -229,6 +229,22 @@ export const invoiceService = {
       console.error('Failed to generate link code:', error)
       throw new Error(getErrorMessage(error, 'Failed to generate registration link'))
     }
+  },
+
+  // Send invoice to customer via Telegram
+  async sendToCustomer(invoiceId: string): Promise<{
+    success: boolean
+    message: string
+    invoice_number: string
+    telegram_username?: string
+  }> {
+    try {
+      const response = await api.post(`${BASE_PATH}/invoices/${invoiceId}/send`)
+      return response.data
+    } catch (error) {
+      console.error('Failed to send invoice to customer:', error)
+      throw new Error(getErrorMessage(error, 'Failed to send invoice to customer'))
+    }
   }
 }
 

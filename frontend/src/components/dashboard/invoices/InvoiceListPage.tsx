@@ -163,6 +163,17 @@ const ErrorMessage = styled.div`
   margin-bottom: 1rem;
 `
 
+const SuccessMessage = styled.div`
+  background: #d4edda;
+  color: #155724;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`
+
 const ConfirmModal = styled.div`
   position: fixed;
   top: 0;
@@ -213,6 +224,7 @@ const InvoiceListPage: React.FC = () => {
     deleteInvoice,
     downloadPDF,
     exportInvoices,
+    sendToCustomer,
     clearError
   } = useInvoices()
   const { canAccessExport } = useSubscription()
@@ -220,6 +232,8 @@ const InvoiceListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
+  const [sendingInvoiceId, setSendingInvoiceId] = useState<string | null>(null)
+  const [sendSuccess, setSendSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     fetchInvoices()
@@ -257,6 +271,21 @@ const InvoiceListPage: React.FC = () => {
       await exportInvoices(format)
     } catch (err) {
       // Error handled by hook
+    }
+  }
+
+  const handleSendToCustomer = async (invoice: Invoice) => {
+    setSendingInvoiceId(invoice.id)
+    setSendSuccess(null)
+    try {
+      const result = await sendToCustomer(invoice.id)
+      setSendSuccess(`Invoice ${result.invoice_number} sent to ${result.telegram_username || 'customer'}`)
+      // Clear success message after 3 seconds
+      setTimeout(() => setSendSuccess(null), 3000)
+    } catch (err) {
+      // Error handled by hook
+    } finally {
+      setSendingInvoiceId(null)
     }
   }
 
@@ -356,6 +385,10 @@ const InvoiceListPage: React.FC = () => {
         </FilterSelect>
       </FilterToolbar>
 
+      {sendSuccess && (
+        <SuccessMessage>{sendSuccess}</SuccessMessage>
+      )}
+
       <TableSection>
         <InvoiceTable
           invoices={filteredInvoices}
@@ -363,6 +396,8 @@ const InvoiceListPage: React.FC = () => {
           onEdit={handleEdit}
           onDelete={(invoice) => setDeleteTarget(invoice)}
           onDownloadPDF={handleDownloadPDF}
+          onSendToCustomer={handleSendToCustomer}
+          sendingInvoiceId={sendingInvoiceId}
           loading={loading}
         />
       </TableSection>

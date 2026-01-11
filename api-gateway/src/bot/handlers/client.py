@@ -303,12 +303,18 @@ async def show_pending_invoices_for_payment(
         else:
             amount_str = f"${amount:.2f}"
 
+        # Format due date
+        due_date = invoice.get('due_date')
+        due_date_str = due_date[:10] if due_date else "Not specified"
+
         await message.answer(
             f"<b>Invoice Payment</b>\n\n"
             f"Invoice: <code>{invoice['invoice_number']}</code>\n"
             f"Amount: <b>{amount_str}</b>\n"
             f"Bank: {invoice.get('bank') or 'Not specified'}\n"
-            f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n\n"
+            f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n"
+            f"Recipient: {invoice.get('recipient_name') or 'Not specified'}\n"
+            f"Due Date: {due_date_str}\n\n"
             f"Please send a screenshot of your payment.\n\n"
             f"Send /cancel to cancel."
         )
@@ -372,14 +378,73 @@ async def handle_invoice_selection(callback: types.CallbackQuery, state: FSMCont
     else:
         amount_str = f"${amount:.2f}"
 
+    # Format due date
+    due_date = invoice.get('due_date')
+    due_date_str = due_date[:10] if due_date else "Not specified"
+
     await callback.message.edit_text(
         f"<b>Invoice Payment</b>\n\n"
         f"Invoice: <code>{invoice['invoice_number']}</code>\n"
         f"Amount: <b>{amount_str}</b>\n"
         f"Bank: {invoice.get('bank') or 'Not specified'}\n"
-        f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n\n"
+        f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n"
+        f"Recipient: {invoice.get('recipient_name') or 'Not specified'}\n"
+        f"Due Date: {due_date_str}\n\n"
         f"Please send a screenshot of your payment.\n\n"
         f"Send /cancel to cancel."
+    )
+
+
+@router.callback_query(F.data.startswith("verify_invoice:"))
+async def handle_verify_invoice_button(callback: types.CallbackQuery, state: FSMContext):
+    """Handle verify invoice button click from PDF message - prompt for payment screenshot."""
+    await callback.answer()
+
+    invoice_id = callback.data.split(":")[1]
+    telegram_id = str(callback.from_user.id)
+
+    # Check if registered client
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+    if not customer:
+        await callback.message.answer(
+            "You need to link your account first.\n"
+            "Please contact the merchant for a registration link."
+        )
+        return
+
+    # Get invoice details
+    invoice = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice:
+        await callback.message.answer("Invoice not found. Please try again.")
+        return
+
+    # Store invoice in state for payment verification
+    await state.update_data(selected_invoice=invoice)
+    await state.set_state(ClientStates.waiting_for_payment_screenshot)
+
+    # Format amount
+    currency = invoice.get("currency", "KHR")
+    total = invoice.get("amount", 0)
+    if currency == "KHR":
+        amount_str = f"{total:,.0f} KHR"
+    else:
+        amount_str = f"${total:.2f}"
+
+    # Format due date
+    due_date = invoice.get('due_date')
+    due_date_str = due_date[:10] if due_date else "Not specified"
+
+    # Prompt for screenshot (new message, don't edit the PDF)
+    await callback.message.answer(
+        f"<b>Payment Verification</b>\n\n"
+        f"Invoice: <code>{invoice['invoice_number']}</code>\n"
+        f"Amount: <b>{amount_str}</b>\n"
+        f"Bank: {invoice.get('bank') or 'Not specified'}\n"
+        f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n"
+        f"Recipient: {invoice.get('recipient_name') or 'Not specified'}\n"
+        f"Due Date: {due_date_str}\n\n"
+        f"Please send a screenshot of your payment receipt.\n\n"
+        f"<i>Use /cancel to cancel verification.</i>"
     )
 
 
@@ -424,6 +489,8 @@ async def process_client_payment_screenshot(
             "currency": invoice.get("currency", "KHR"),
             "toAccount": invoice.get("expected_account"),
             "bank": invoice.get("bank"),
+            "recipientName": invoice.get("recipient_name"),
+            "dueDate": invoice.get("due_date"),
             "tolerancePercent": 5
         }
 
@@ -475,9 +542,13 @@ async def process_client_payment_screenshot(
 
         confidence_bar = get_confidence_bar(confidence)
 
+        # Check if mock mode
+        is_mock = result.get("mock_mode", False)
+        mock_note = "\n<i>(Mock Mode - Testing)</i>" if is_mock else ""
+
         if verification_status == "verified":
             await message.answer(
-                f"<b>[OK] Payment Verified!</b>\n\n"
+                f"<b>[OK] Payment Verified!</b>{mock_note}\n\n"
                 f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
                 f"Amount: {amount_str}\n"
                 f"Status: <b>PAID</b>\n\n"
@@ -490,7 +561,7 @@ async def process_client_payment_screenshot(
         elif verification_status == "rejected":
             reason = verification.get("rejectionReason", "Amount or account mismatch")
             await message.answer(
-                f"<b>[X] Payment Rejected</b>\n\n"
+                f"<b>[X] Payment Rejected</b>{mock_note}\n\n"
                 f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
                 f"Expected: {amount_str}\n\n"
                 f"Reason: {reason}\n"
@@ -502,7 +573,7 @@ async def process_client_payment_screenshot(
 
         else:  # pending
             await message.answer(
-                f"<b>[?] Manual Review Required</b>\n\n"
+                f"<b>[?] Manual Review Required</b>{mock_note}\n\n"
                 f"Invoice: <code>{invoice.get('invoice_number')}</code>\n"
                 f"Amount: {amount_str}\n\n"
                 f"Confidence: {confidence_bar} {confidence:.0%}\n\n"

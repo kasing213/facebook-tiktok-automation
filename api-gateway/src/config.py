@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # OCR Verification Service
     OCR_API_URL: str = Field(default="", description="OCR verification service URL")
     OCR_API_KEY: str = Field(default="", description="OCR API authentication key")
+    OCR_MOCK_MODE: bool = Field(default=True, description="Use mock OCR when API not configured")
 
 
 # Global settings instance
