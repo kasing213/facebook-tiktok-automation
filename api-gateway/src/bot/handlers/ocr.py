@@ -469,6 +469,7 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
         extracted = result.get("extracted_data", {})
         verification = result.get("verification", {})
         confidence = result.get("confidence", 0)
+        verification_warnings = verification.get("warnings") or []
 
         # Determine verification status
         verification_status = verification.get("status", "pending")
