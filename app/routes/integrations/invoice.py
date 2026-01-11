@@ -1262,18 +1262,25 @@ async def update_invoice(
     """Update an existing invoice."""
     # 1. Try PostgreSQL first (for registered client invoices)
     try:
-        # Prepare items JSON if provided
+        # Prepare items JSON and calculate new amount if items provided
         items_json = None
+        new_amount = None
         if data.items:
             items_json = json.dumps([
                 item.model_dump() if hasattr(item, 'model_dump') else item
                 for item in data.items
             ])
+            # Recalculate amount from line items
+            new_amount = sum(
+                (item.quantity * item.unit_price * (1 + (item.tax_rate or 0) / 100))
+                for item in data.items
+            )
 
         result = db.execute(
             text("""
                 UPDATE invoice.invoice
                 SET items = COALESCE(CAST(:items AS jsonb), items),
+                    amount = COALESCE(:amount, amount),
                     due_date = COALESCE(:due_date::date, due_date),
                     status = COALESCE(:status, status),
                     bank = COALESCE(:bank, bank),
@@ -1293,6 +1300,7 @@ async def update_invoice(
                 "tenant_id": str(current_user.tenant_id),
                 "merchant_id": str(current_user.id),
                 "items": items_json,
+                "amount": new_amount,
                 "due_date": data.due_date,
                 "status": data.status,
                 "bank": data.bank,
@@ -1323,6 +1331,12 @@ async def update_invoice(
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None
             }
+        else:
+            # No row returned - invoice doesn't exist or doesn't belong to this tenant/merchant
+            logger.warning(f"Invoice {invoice_id} not found for tenant {current_user.tenant_id}")
+            raise HTTPException(status_code=404, detail="Invoice not found")
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
         logger.error(f"Error updating PostgreSQL invoice: {e}")
         db.rollback()
