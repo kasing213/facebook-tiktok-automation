@@ -447,11 +447,10 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
             )
             return
 
-        # Send to OCR service
+        # Send to OCR service (don't pass invoice_id - it triggers MongoDB lookup)
         result = await ocr_service.verify_screenshot(
             image_data=image_data,
             filename=f"telegram_{photo.file_id}.jpg",
-            invoice_id=invoice.get("id"),
             expected_payment=expected_payment,
             customer_id=invoice.get("customer_id")
         )
