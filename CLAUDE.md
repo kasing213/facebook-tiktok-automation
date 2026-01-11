@@ -314,3 +314,221 @@ currency             → currency             → Default "KHR"
 bank                 → bank                 → Direct copy
 due_date             → dueDate              → Rename (camelCase)
 ```
+
+### 2026-01-11 - PDF/XLSX Export & Telegram PDF with Verify Button
+
+#### Overview
+Implemented real PDF generation (matching frontend invoice design), real XLSX export, and Telegram PDF document sending with inline "Verify Payment" button for enhanced customer UX.
+
+#### 1. Added PDF/XLSX Dependencies
+**File:** `requirements.txt`
+
+```
+# PDF and Excel export
+fpdf2==2.7.6       # PDF generation (pure Python)
+openpyxl==3.1.2    # XLSX export
+```
+
+#### 2. Real PDF Generation (Matching Frontend Design)
+**File:** `app/services/invoice_mock_service.py`
+
+**Before:** Mock PDF using raw string formatting - minimal, unstyled output.
+
+**After:** Professional PDF using fpdf2 matching InvoiceDetailPage.tsx design:
+- Blue header (#4A90E2) with invoice number and status
+- Customer info and due date section
+- Line items table with headers
+- Subtotal, tax, and grand total
+- Payment information section (bank, account, recipient)
+
+```python
+def generate_pdf(invoice_id: str) -> Optional[bytes]:
+    from fpdf import FPDF
+
+    # Colors (matching frontend)
+    BLUE = (74, 144, 226)
+    DARK = (31, 41, 55)
+    GRAY = (107, 114, 128)
+
+    pdf = FPDF()
+    pdf.add_page()
+    # Header, customer info, line items table, totals, payment info
+    return bytes(pdf.output())
+```
+
+#### 3. Real XLSX Export
+**File:** `app/services/invoice_mock_service.py`
+
+**Before:** Returned placeholder bytes `b"PK\x03\x04XLSX_MOCK_CONTENT"` - not valid XLSX.
+
+**After:** Real Excel file using openpyxl:
+- Styled header row (blue background, white bold text)
+- All invoice data columns
+- Auto-sized columns
+- Proper Excel formatting
+
+```python
+def _generate_xlsx_export(invoices: List[Dict]) -> bytes:
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="4A90E2")
+    # Headers, data rows, auto-size columns
+
+    output = io.BytesIO()
+    wb.save(output)
+    return output.getvalue()
+```
+
+#### 4. Telegram PDF Document Sending with Verify Button
+**File:** `api-gateway/src/api/internal.py`
+
+**New endpoint:** `POST /internal/telegram/send-invoice-pdf`
+
+Sends invoice as PDF document attachment (not text) with inline "Verify Payment" button:
+
+```python
+class InvoicePDFRequest(BaseModel):
+    chat_id: str
+    invoice_id: str
+    invoice_number: str
+    amount: str
+    pdf_data: str  # Base64-encoded PDF
+    customer_name: Optional[str] = None
+
+@router.post("/telegram/send-invoice-pdf")
+async def send_invoice_pdf(data: InvoicePDFRequest):
+    pdf_bytes = base64.b64decode(data.pdf_data)
+    pdf_file = BufferedInputFile(file=pdf_bytes, filename=f"{data.invoice_number}.pdf")
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="Verify Payment",
+            callback_data=f"verify_invoice:{data.invoice_id}"
+        )]
+    ])
+
+    await bot.send_document(
+        chat_id=data.chat_id,
+        document=pdf_file,
+        caption=caption,
+        reply_markup=keyboard
+    )
+```
+
+#### 5. Verify Invoice Button Handler
+**File:** `api-gateway/src/bot/handlers/client.py`
+
+**New handler:** `verify_invoice:{invoice_id}` callback
+
+When customer clicks "Verify Payment" button on the PDF:
+1. Validates customer is linked
+2. Fetches invoice details
+3. Sets FSM state to `waiting_for_payment_screenshot`
+4. Prompts customer to send payment screenshot
+
+```python
+@router.callback_query(F.data.startswith("verify_invoice:"))
+async def handle_verify_invoice_button(callback: types.CallbackQuery, state: FSMContext):
+    invoice_id = callback.data.split(":")[1]
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+
+    if not customer:
+        await callback.message.answer("You need to link your account first...")
+        return
+
+    invoice = await invoice_service.get_invoice_by_id(invoice_id)
+    await state.update_data(selected_invoice=invoice)
+    await state.set_state(ClientStates.waiting_for_payment_screenshot)
+    await callback.message.answer("Please send a screenshot of your payment receipt...")
+```
+
+#### 6. Updated Send Invoice to Customer Flow
+**File:** `app/routes/integrations/invoice.py`
+
+`send_invoice_to_telegram()` now:
+1. Generates real PDF using fpdf2
+2. Base64 encodes the PDF
+3. Sends to api-gateway's new `/telegram/send-invoice-pdf` endpoint
+4. Falls back to text message if PDF generation fails
+
+```python
+async def send_invoice_to_telegram(invoice: dict, customer: dict, db: Session) -> dict:
+    from app.services import invoice_mock_service
+
+    pdf_bytes = invoice_mock_service.generate_pdf(str(invoice_id))
+    if not pdf_bytes:
+        return await _send_invoice_text_fallback(...)
+
+    pdf_b64 = base64.b64encode(pdf_bytes).decode()
+
+    response = await client.post(
+        f"{api_gateway_url}/internal/telegram/send-invoice-pdf",
+        json={
+            "chat_id": telegram_chat_id,
+            "invoice_id": str(invoice_id),
+            "invoice_number": invoice_number,
+            "amount": amount_str,
+            "pdf_data": pdf_b64,
+            "customer_name": customer_name
+        }
+    )
+```
+
+#### Complete Flow Diagram
+```
+┌─────────────────────────────────────────────────────────────────┐
+│               MERCHANT DASHBOARD                                 │
+│  [Create Invoice] → [Send to Customer]                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               TELEGRAM (Customer receives)                       │
+│  ┌─────────────────────────────────────┐                        │
+│  │ INV-2601-00001.pdf                  │  ← PDF Document        │
+│  │ Invoice INV-2601-00001              │                        │
+│  │ Amount: 100,000 KHR                 │                        │
+│  │                                     │                        │
+│  │ After payment, click below to verify│                        │
+│  └─────────────────────────────────────┘                        │
+│  ┌─────────────────────────────────────┐                        │
+│  │      Verify Payment                 │  ← Inline Button       │
+│  └─────────────────────────────────────┘                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    Customer clicks button
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               BOT PROMPTS FOR SCREENSHOT                         │
+│  "Please send a screenshot of your payment receipt..."          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    Customer sends screenshot
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               OCR VERIFICATION                                   │
+│  Checks: amount, date, recipient, account number                │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               MERCHANT NOTIFICATION                              │
+│  [OK] Payment Verified! or [WARN] Verification issue            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Files Modified
+| File | Changes |
+|------|---------|
+| `requirements.txt` | Added fpdf2, openpyxl |
+| `app/services/invoice_mock_service.py` | Real PDF + XLSX generation |
+| `api-gateway/src/api/internal.py` | New `/telegram/send-invoice-pdf` endpoint |
+| `api-gateway/src/bot/handlers/client.py` | New `verify_invoice` callback handler |
+| `app/routes/integrations/invoice.py` | Updated to send PDF with verify button |

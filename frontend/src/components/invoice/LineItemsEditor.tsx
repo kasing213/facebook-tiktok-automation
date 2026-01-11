@@ -291,7 +291,10 @@ export const LineItemsEditor: React.FC<LineItemsEditorProps> = ({
     return calculateSubtotal() + calculateTax()
   }
 
-  const formatCurrency = (amount: number, currencyCode?: Currency): string => {
+  const formatCurrency = (amount: number | null | undefined, currencyCode?: Currency): string => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return currencyCode === 'KHR' || (!currencyCode && currency === 'KHR') ? 'KHR 0' : '$0.00'
+    }
     const displayCurrency = currencyCode || currency
 
     if (displayCurrency === 'KHR') {

@@ -9,7 +9,9 @@ interface InvoiceTableProps {
   onEdit: (invoice: Invoice) => void
   onDelete: (invoice: Invoice) => void
   onDownloadPDF: (invoice: Invoice) => void
+  onSendToCustomer?: (invoice: Invoice) => void
   loading?: boolean
+  sendingInvoiceId?: string | null
 }
 
 const TableWrapper = styled.div`
@@ -173,9 +175,14 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
   onEdit,
   onDelete,
   onDownloadPDF,
-  loading = false
+  onSendToCustomer,
+  loading = false,
+  sendingInvoiceId = null
 }) => {
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = (amount: number | null | undefined): string => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return '$0.00'
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
@@ -243,6 +250,16 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
               </TableCell>
               <TableCell>
                 <ActionsCell>
+                  {onSendToCustomer && (
+                    <ActionButton
+                      $variant="primary"
+                      onClick={() => onSendToCustomer(invoice)}
+                      disabled={sendingInvoiceId === invoice.id}
+                      title="Send invoice to customer via Telegram"
+                    >
+                      {sendingInvoiceId === invoice.id ? 'Sending...' : 'Send'}
+                    </ActionButton>
+                  )}
                   <ActionButton onClick={() => onDownloadPDF(invoice)}>
                     PDF
                   </ActionButton>

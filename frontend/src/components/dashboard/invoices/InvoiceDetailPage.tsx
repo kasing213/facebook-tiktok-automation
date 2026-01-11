@@ -273,11 +273,29 @@ const InvoiceDetailPage: React.FC = () => {
     await downloadPDF(invoice.id, invoice.invoice_number)
   }
 
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = (amount: number | null | undefined): string => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return '$0.00'
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount)
+  }
+
+  // Calculate totals from items as fallback when API doesn't provide them
+  const calculateSubtotalFromItems = (items: Invoice['items']): number => {
+    return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0)
+  }
+
+  const calculateTotalFromItems = (inv: Invoice): number => {
+    const subtotal = calculateSubtotalFromItems(inv.items)
+    const tax = inv.items.reduce((sum, item) => {
+      const itemTotal = item.quantity * item.unit_price
+      return sum + (itemTotal * (item.tax_rate || 0) / 100)
+    }, 0)
+    const discount = inv.discount ? subtotal * (inv.discount / 100) : 0
+    return subtotal + tax - discount
   }
 
   const formatDate = (dateString: string): string => {
@@ -410,7 +428,7 @@ const InvoiceDetailPage: React.FC = () => {
         <TotalsBox>
           <TotalRow>
             <span>Subtotal</span>
-            <span>{formatCurrency(invoice.subtotal)}</span>
+            <span>{formatCurrency(invoice.subtotal ?? calculateSubtotalFromItems(invoice.items))}</span>
           </TotalRow>
           {invoice.discount && invoice.discount > 0 && (
             <TotalRow>
@@ -426,7 +444,7 @@ const InvoiceDetailPage: React.FC = () => {
           )}
           <GrandTotalRow>
             <span>Total</span>
-            <span>{formatCurrency(invoice.total)}</span>
+            <span>{formatCurrency(invoice.total ?? calculateTotalFromItems(invoice))}</span>
           </GrandTotalRow>
         </TotalsBox>
       </Section>
