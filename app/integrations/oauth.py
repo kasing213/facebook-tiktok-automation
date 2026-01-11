@@ -178,9 +178,9 @@ class FacebookOAuth(OAuthProvider):
     def auth_url(self, tenant_id: str, user_id: str | None = None) -> str:
         extra = {"user_id": user_id} if user_id else None
         state = self.create_state(tenant_id, Platform.facebook, extra=extra)
-        # Basic scopes for development (no app review required)
-        # For production, add: pages_manage_posts,pages_read_engagement,pages_show_list
-        scopes = self.s.FB_SCOPES or "public_profile,email"
+        # Scopes configured in FB_SCOPES setting (default includes pages and ads scopes)
+        # Note: pages_manage_posts, pages_read_engagement require Facebook App Review for production
+        scopes = self.s.FB_SCOPES
         q = {
             "client_id": self.s.FB_APP_ID,
             "redirect_uri": f"{self.base_url}/auth/facebook/callback",

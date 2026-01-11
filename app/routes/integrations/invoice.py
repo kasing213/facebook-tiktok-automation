@@ -23,6 +23,7 @@ from app.routes.auth import get_current_user
 from app.core.models import User
 from app.core.db import get_db
 from app.routes.subscriptions import require_pro_tier
+from app.core.authorization import require_subscription_feature, get_current_member_or_owner
 from app.services import invoice_mock_service as mock_svc
 from app.services.ocr_service import get_ocr_service
 
@@ -988,7 +989,7 @@ async def list_invoices(
 @router.post("/invoices")
 async def create_invoice(
     data: InvoiceCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_member_or_owner),
     db: Session = Depends(get_db),
     send_telegram: bool = Query(default=True, description="Auto-send to client's Telegram if linked")
 ):
@@ -1153,8 +1154,10 @@ async def create_invoice(
 # ============================================================================
 
 @router.get("/invoices/export")
+@require_subscription_feature('bulk_operations')
 async def export_invoices(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_member_or_owner),
+    db: Session = Depends(get_db),
     format: str = Query(default="csv", pattern="^(csv|xlsx)$"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
@@ -1305,7 +1308,7 @@ async def get_invoice(
 async def update_invoice(
     invoice_id: str,
     data: InvoiceUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_member_or_owner),
     db: Session = Depends(get_db)
 ):
     """Update an existing invoice."""
@@ -1969,8 +1972,10 @@ async def send_invoice_to_customer(
 # ============================================================================
 
 @router.get("/stats")
+@require_subscription_feature('advanced_reports')
 async def get_stats(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_member_or_owner),
+    db: Session = Depends(get_db)
 ):
     """Get invoice statistics and dashboard data."""
     if is_mock_mode():

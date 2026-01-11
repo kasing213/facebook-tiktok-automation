@@ -19,6 +19,9 @@ from app.routes.telegram import router as telegram_router
 from app.routes.integrations.invoice import router as invoice_integration_router
 from app.routes.subscriptions import router as subscription_router
 from app.routes.billing import router as billing_router
+from app.routes.users import router as users_router
+from app.routes.subscription import router as subscription_mgmt_router
+from app.routes.subscription_payment import router as subscription_payment_router
 
 
 # Request/Response models
@@ -157,6 +160,9 @@ app.include_router(telegram_router)
 app.include_router(invoice_integration_router)
 app.include_router(subscription_router)
 app.include_router(billing_router)
+app.include_router(users_router)
+app.include_router(subscription_mgmt_router)
+app.include_router(subscription_payment_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")

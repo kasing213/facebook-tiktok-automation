@@ -30,6 +30,7 @@ from app.core.cookies import (
     get_refresh_token_cookie_name,
 )
 from app.repositories import UserRepository, RefreshTokenRepository, TokenBlacklistRepository
+from app.core.authorization import get_current_owner
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -168,6 +169,9 @@ async def register_user(
     # Hash password
     password_hash = hash_password(user_data.password)
 
+    # Determine role - first user in tenant becomes owner
+    role = UserRole.admin if user_repo.is_first_user_in_tenant(user_data.tenant_id) else UserRole.user
+
     # Create user
     user = user_repo.create_user(
         tenant_id=user_data.tenant_id,
@@ -175,7 +179,7 @@ async def register_user(
         email=user_data.email,
         password_hash=password_hash,
         email_verified=False,
-        role=UserRole.user
+        role=role
     )
 
     db.commit()
@@ -497,7 +501,7 @@ async def refresh_access_token(
 @router.post("/revoke-all-sessions")
 async def revoke_all_sessions(
     response: Response,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_owner),
     db: Session = Depends(get_db)
 ):
     """

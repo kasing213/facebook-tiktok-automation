@@ -78,3 +78,14 @@ class UserRepository(BaseRepository[User]):
     def update_password(self, user_id: UUID, password_hash: str) -> Optional[User]:
         """Update user's password hash"""
         return self.update(user_id, password_hash=password_hash)
+
+    def count_tenant_users(self, tenant_id: UUID, active_only: bool = True) -> int:
+        """Count users in a tenant"""
+        query = self.db.query(User).filter(User.tenant_id == tenant_id)
+        if active_only:
+            query = query.filter(User.is_active == True)
+        return query.count()
+
+    def is_first_user_in_tenant(self, tenant_id: UUID) -> bool:
+        """Check if this would be the first user in the tenant"""
+        return self.count_tenant_users(tenant_id, active_only=True) == 0

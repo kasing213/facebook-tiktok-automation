@@ -42,7 +42,10 @@ class Settings(BaseSettings):
     # Facebook integration
     FB_APP_ID: str = Field(..., description="Facebook App ID")
     FB_APP_SECRET: SecretStr = Field(..., description="Facebook App Secret")
-    FB_SCOPES: str = Field(default="ads_read", description="Facebook API scopes")
+    FB_SCOPES: str = Field(
+        default="public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts,ads_read",
+        description="Facebook OAuth scopes (comma-separated)"
+    )
     FB_FORCE_REAUTH: bool = Field(default=False, description="Force Facebook re-authentication in OAuth flow")
 
     # TikTok integration

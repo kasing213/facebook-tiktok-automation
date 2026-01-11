@@ -14,6 +14,9 @@ from app.integrations.oauth import OAuthResult, FacebookAPIClient
 
 logger = logging.getLogger(__name__)
 
+# Scopes recorded for Facebook page tokens (informational - pages inherit from user OAuth)
+FB_PAGE_TOKEN_SCOPES = "pages_manage_posts,pages_read_engagement"
+
 
 class AuthService:
     """Service layer for authentication and token management"""
@@ -181,7 +184,7 @@ class AuthService:
                 access_token_enc=encrypted_page_token,
                 account_ref=f"page_{page_id}",
                 account_name=page_name,
-                scope="pages_manage_posts,pages_read_engagement",
+                scope=FB_PAGE_TOKEN_SCOPES,
                 expires_at=None,  # Page tokens don't expire unless revoked
                 meta=page
             )

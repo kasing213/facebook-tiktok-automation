@@ -19,6 +19,7 @@ from app.deps import (
 )
 from app.core.models import Platform, User
 from app.routes.auth import get_current_user
+from app.core.authorization import get_current_owner, require_owner
 from app.core.exceptions import (
     OAuthInitiationFailed, OAuthStateMismatch, OAuthCodeExchangeFailed,
     TokenNotFound, TokenRefreshFailed, TokenValidationFailed, NoTokenConnected,
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/auth", tags=["oauth"])
 def facebook_authorize(
     facebook_oauth: FacebookOAuthProvider,
     logger: LoggerDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_owner),
     tenant_id: str = Query(None, description="Tenant ID for OAuth flow")
 ):
     """Initiate Facebook OAuth authorization flow"""
@@ -57,7 +58,7 @@ def facebook_authorize(
 def facebook_authorize_url(
     facebook_oauth: FacebookOAuthProvider,
     logger: LoggerDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_owner),
     tenant_id: str = Query(None, description="Tenant ID for OAuth flow"),
 ):
     """Get Facebook OAuth authorization URL for the current user"""
@@ -155,7 +156,7 @@ async def facebook_callback(
 def tiktok_authorize(
     tiktok_oauth: TikTokOAuthProvider,
     logger: LoggerDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_owner),
     tenant_id: str = Query(None, description="Tenant ID for OAuth flow")
 ):
     """Initiate TikTok OAuth authorization flow"""
@@ -178,7 +179,7 @@ def tiktok_authorize(
 def tiktok_authorize_url(
     tiktok_oauth: TikTokOAuthProvider,
     logger: LoggerDep,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_owner),
     tenant_id: str = Query(None, description="Tenant ID for OAuth flow"),
 ):
     """Get TikTok OAuth authorization URL for the current user"""

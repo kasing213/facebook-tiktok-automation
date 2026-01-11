@@ -532,3 +532,322 @@ async def send_invoice_to_telegram(invoice: dict, customer: dict, db: Session) -
 | `api-gateway/src/api/internal.py` | New `/telegram/send-invoice-pdf` endpoint |
 | `api-gateway/src/bot/handlers/client.py` | New `verify_invoice` callback handler |
 | `app/routes/integrations/invoice.py` | Updated to send PDF with verify button |
+
+### 2026-01-11 - Role-Based Access Control & Subscription Management
+
+#### Overview
+Implemented comprehensive role-based access control (RBAC) and subscription-based feature gating to enforce tenant ownership permissions and Pro tier restrictions.
+
+#### 1. Role-Based Authorization Infrastructure
+**New File:** `app/core/authorization.py`
+
+**Core Features:**
+- `@require_owner` decorator for tenant owner-only endpoints
+- `@require_role()` decorator for flexible role requirements
+- `@require_subscription_feature()` decorator for Pro feature gates
+- `get_current_owner()` dependency for owner-only routes
+- `get_current_member_or_owner()` dependency (excludes viewers)
+
+**Security Classes:**
+```python
+class TenantOwnerRequired(HTTPException):
+    """Raised when operation requires tenant owner"""
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This operation is restricted to tenant owners only"
+        )
+```
+
+#### 2. First User Becomes Owner Logic
+**Files:** `app/routes/auth.py`, `app/repositories/user.py`
+
+**Implementation:**
+- Added `is_first_user_in_tenant()` method to UserRepository
+- Registration endpoint checks user count and assigns `UserRole.admin` to first user
+- Subsequent users automatically get `UserRole.user` (member role)
+
+```python
+# Determine role - first user in tenant becomes owner
+role = UserRole.admin if user_repo.is_first_user_in_tenant(user_data.tenant_id) else UserRole.user
+```
+
+#### 3. Owner-Only Endpoint Protection
+**File:** `app/routes/oauth.py`
+
+**Protected Endpoints:**
+- `GET /auth/facebook/authorize` - Owner only
+- `GET /auth/facebook/authorize-url` - Owner only
+- `GET /auth/tiktok/authorize` - Owner only
+- `GET /auth/tiktok/authorize-url` - Owner only
+
+**File:** `app/routes/auth.py`
+- `POST /auth/revoke-all-sessions` - Owner only
+
+**Implementation:**
+```python
+@router.get("/facebook/authorize")
+def facebook_authorize(
+    current_user: User = Depends(get_current_owner),  # Changed from get_current_user
+    ...
+):
+```
+
+#### 4. User Management Endpoints (Owner-Only)
+**New File:** `app/routes/users.py`
+
+**Endpoints:**
+- `GET /users/` - List all tenant users with statistics
+- `POST /users/invite` - Invite new users (creates user record)
+- `PUT /users/{user_id}` - Update user role/status
+- `DELETE /users/{user_id}` - Remove user (soft delete with is_active=False)
+- `GET /users/{user_id}` - Get detailed user information
+
+**Self-Protection Logic:**
+```python
+# Prevent owner from demoting themselves
+if user.id == owner.id and update_request.role and update_request.role != UserRole.admin:
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="You cannot change your own role"
+    )
+```
+
+#### 5. Subscription Management (Owner-Only)
+**New File:** `app/routes/subscription.py`
+
+**Endpoints:**
+- `GET /subscription/` - View current plan and available features
+- `POST /subscription/change` - Change subscription plan (placeholder for payment integration)
+- `POST /subscription/cancel` - Cancel subscription at period end
+- `POST /subscription/reactivate` - Reactivate cancelled subscription
+
+**Feature Matrix:**
+```python
+features = {
+    "invoice_create": True,           # Free & Pro
+    "invoice_send": True,            # Free & Pro
+    "payment_verify": True,          # Free & Pro
+    "advanced_reports": tier == SubscriptionTier.pro,  # Pro only
+    "bulk_operations": tier == SubscriptionTier.pro,   # Pro only
+    "custom_branding": tier == SubscriptionTier.pro,   # Pro only
+    "unlimited_invoices": tier == SubscriptionTier.pro # Pro only
+}
+```
+
+#### 6. Subscription Feature Gates on Invoice Operations
+**File:** `app/routes/integrations/invoice.py`
+
+**Protected Endpoints:**
+```python
+@router.get("/invoices/export")
+@require_subscription_feature('bulk_operations')  # Pro only
+async def export_invoices(...):
+
+@router.get("/stats")
+@require_subscription_feature('advanced_reports')  # Pro only
+async def get_stats(...):
+
+@router.post("/invoices")
+async def create_invoice(
+    current_user: User = Depends(get_current_member_or_owner),  # Excludes viewers
+    ...
+):
+```
+
+#### 7. Error Response Standards
+**403 Forbidden (Insufficient Role):**
+```json
+{
+  "detail": "This operation is restricted to tenant owners only"
+}
+```
+
+**402 Payment Required (Pro Feature):**
+```json
+{
+  "detail": "Feature 'bulk_operations' requires Pro subscription. Upgrade your plan to continue."
+}
+```
+
+#### 8. Role Hierarchy
+```
+UserRole.admin (Owner)
+├── All tenant management operations
+├── OAuth connections (Facebook/TikTok)
+├── User invite/manage/remove
+├── Subscription management
+├── Session revocation for all users
+└── All member operations
+
+UserRole.user (Member)
+├── Invoice create/edit/send
+├── Payment verification
+├── View assigned data
+├── Use subscription features (if Pro)
+└── ❌ Cannot manage users/OAuth/subscription
+
+UserRole.viewer
+├── View-only access to assigned invoices
+└── ❌ Cannot create/edit anything
+```
+
+#### Database Schema Updates
+**No schema changes required** - existing `User.role` field supports the new authorization system.
+
+#### Files Modified/Created
+| Type | File | Purpose |
+|------|------|---------|
+| **New** | `app/core/authorization.py` | Authorization decorators & utilities |
+| **New** | `app/routes/users.py` | User management endpoints |
+| **New** | `app/routes/subscription.py` | Subscription management endpoints |
+| **Modified** | `app/routes/auth.py` | First-user-becomes-owner logic |
+| **Modified** | `app/routes/oauth.py` | Owner-only OAuth protection |
+| **Modified** | `app/repositories/user.py` | User count queries |
+| **Modified** | `app/routes/integrations/invoice.py` | Feature gates & role requirements |
+| **Modified** | `app/main.py` | Include new routers |
+
+#### Testing Checklist
+- [x] Role-based decorators enforce permissions correctly
+- [x] First user gets admin role, subsequent users get user role
+- [x] OAuth endpoints return 403 for non-owners
+- [x] Pro features return 402 for Free tier users
+- [x] User management prevents self-demotion/deletion
+- [ ] Frontend handles 403/402 responses with upgrade prompts
+- [ ] Email invitations send actual emails (currently placeholder)
+- [x] Subscription changes integrate with local payment + OCR verification
+
+### 2026-01-11 - Local Subscription Payment Verification
+
+#### Overview
+Implemented local bank transfer subscription verification system that reuses the existing proven OCR verification pipeline - same logic, same confidence thresholds, same database patterns.
+
+#### 1. Subscription Payment Flow
+**New File:** `app/routes/subscription_payment.py`
+
+**Customer Flow:**
+1. Click "Upgrade to Pro" → Generate payment QR code
+2. Transfer money to local bank using QR code
+3. Upload transaction screenshot
+4. OCR verifies payment (reuses existing system)
+5. High confidence (≥80%) → Auto-approve in 30 seconds
+6. Low confidence → Admin approval required
+7. Pro subscription activated immediately
+
+#### 2. OCR Integration (100% Reuse of Existing System)
+**Reuses Proven Logic:** Same OCR service, same confidence checks, same error handling
+
+**Data Transformation (Identical to Invoice OCR):**
+```python
+# Exact same pattern as your invoice verification
+expected_payment = {
+    "amount": float(invoice.amount),
+    "currency": invoice.currency or "KHR",
+    "recipientNames": [invoice.recipient_name],  # Array format (CLAUDE.md fix)
+    "toAccount": invoice.expected_account,        # camelCase (CLAUDE.md fix)
+    "bank": invoice.bank
+}
+
+# Uses Mode A (no invoice_id) to avoid MongoDB lookup (CLAUDE.md fix)
+ocr_result = await ocr_service.verify_screenshot(
+    image_data=image_data,
+    filename=f"subscription_{subscription_invoice_id}_{screenshot.filename}",
+    expected_payment=expected_payment,  # No invoice_id parameter
+    customer_id=str(owner.tenant_id)
+)
+```
+
+#### 3. Database Schema Consistency
+**Subscription invoices stored in same `invoice.invoice` table:**
+- `customer_id = 'subscription_customer'` (special identifier)
+- `invoice_number = payment_reference` (e.g., "SUB-PRO-tenant123-20260111")
+- Same verification fields: `status`, `verification_status`, `verified_at`, `verification_confidence`
+- Same status flow: `pending` → `verified`/`rejected`/`pending_approval`
+
+#### 4. Local Bank Configuration
+```python
+# Replace with your actual bank details
+BANK_DETAILS = {
+    "bank_name": "ACLEDA Bank",          # Your bank
+    "account_number": "123-456-789",     # Your account
+    "account_holder": "Your Business",   # Your name
+    "currency": "KHR"
+}
+
+# Set your pricing
+SUBSCRIPTION_PRICING = {
+    SubscriptionTier.pro: {
+        "monthly": {"usd": 29.99, "khr": 120000},   # Your prices
+        "yearly": {"usd": 299.99, "khr": 1200000}
+    }
+}
+```
+
+#### 5. QR Code Payment Instructions
+**Generated QR Code includes:**
+- Bank account details
+- Exact payment amount in KHR
+- Reference number for tracking
+- Payment instructions in local language
+
+**Customer receives:**
+- QR code for mobile banking app
+- Manual bank details as backup
+- Step-by-step payment instructions
+- 7-day payment deadline
+
+#### 6. Admin Approval Workflow
+**Endpoints:**
+- `GET /subscription-payment/admin/pending-approvals` - List pending verifications
+- `POST /subscription-payment/admin/approve/{invoice_id}` - Approve/reject manually
+
+**Auto-Approval Logic:**
+- Confidence ≥ 80% → Instant Pro upgrade
+- Confidence < 80% but verified → Admin review required
+- Failed verification → Automatic rejection
+
+#### 7. Subscription Activation
+**Immediate Pro Upgrade:**
+```python
+async def upgrade_tenant_subscription(tenant_id: UUID, tier: SubscriptionTier, db: Session):
+    # Updates subscription table
+    # Sets tier = 'pro', status = 'active'
+    # Sets billing period to 1 month from now
+    # Pro features unlock immediately
+```
+
+#### 8. Error Handling (Matches Invoice OCR)
+**Same validation as invoice verification:**
+- Required fields check: `recipient_name`, `expected_account`
+- Image validation: format, size limits
+- OCR service availability check
+- Exact same error messages and status codes
+
+#### 9. Endpoints Summary
+| Endpoint | Purpose | Role Required |
+|----------|---------|---------------|
+| `POST /subscription-payment/upgrade-request` | Generate QR code | Owner |
+| `POST /subscription-payment/verify-payment` | Upload screenshot | Owner |
+| `GET /subscription-payment/admin/pending-approvals` | List pending | Admin |
+| `POST /subscription-payment/admin/approve/{id}` | Manual approval | Admin |
+
+#### 10. Integration Points
+**Connects to existing systems:**
+- Uses same OCR service and confidence thresholds
+- Stores in existing `invoice.invoice` table
+- Follows same verification status workflow
+- Reuses same database field patterns
+- Leverages existing error handling logic
+
+**What's Different:**
+- Special `customer_id = 'subscription_customer'`
+- Payment reference as invoice number
+- Auto-upgrade subscription on verification
+- QR code generation for local banks
+
+#### Files Modified/Created
+| Type | File | Purpose |
+|------|------|---------|
+| **New** | `app/routes/subscription_payment.py` | Local payment verification system |
+| **Modified** | `app/routes/subscription.py` | Integration with payment flow |
+| **Modified** | `app/main.py` | Include subscription payment router |
