@@ -448,6 +448,106 @@ async def handle_verify_invoice_button(callback: types.CallbackQuery, state: FSM
     )
 
 
+@router.callback_query(F.data.startswith("view_other_invoices:"))
+async def handle_view_other_invoices_button(callback: types.CallbackQuery, state: FSMContext):
+    """Handle view other invoices button click - show other pending invoices."""
+    await callback.answer()
+
+    current_invoice_id = callback.data.split(":")[1]
+    telegram_id = str(callback.from_user.id)
+
+    # Check if registered client
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+    if not customer:
+        await callback.message.answer(
+            "You need to link your account first.\n"
+            "Please contact the merchant for a registration link."
+        )
+        return
+
+    # Get all pending invoices
+    all_invoices = await client_linking_service.get_pending_invoices_for_customer(
+        customer_id=customer["id"]
+    )
+
+    # Filter out current invoice
+    other_invoices = [inv for inv in all_invoices if str(inv.get("id")) != current_invoice_id]
+
+    # Sort by issue date (oldest first)
+    # Use created_at or invoice_date field with fallback
+    other_invoices.sort(key=lambda x: x.get("created_at") or x.get("invoice_date") or "")
+
+    if not other_invoices:
+        await callback.message.answer(
+            "✅ <b>No Other Pending Invoices</b>\n\n"
+            "You don't have any other pending invoices at the moment.\n"
+            "You're all caught up!",
+            parse_mode="HTML"
+        )
+        return
+
+    if len(other_invoices) == 1:
+        # Auto-select single invoice
+        invoice = other_invoices[0]
+        await state.update_data(selected_invoice=invoice)
+        await state.set_state(ClientStates.waiting_for_payment_screenshot)
+
+        currency = invoice.get("currency", "KHR")
+        amount = invoice.get("amount", 0)
+        if currency == "KHR":
+            amount_str = f"{amount:,.0f} KHR"
+        else:
+            amount_str = f"${amount:.2f}"
+
+        due_date = invoice.get('due_date')
+        due_date_str = due_date[:10] if due_date else "Not specified"
+
+        await callback.message.answer(
+            f"<b>Payment Verification</b>\n\n"
+            f"Invoice: <code>{invoice['invoice_number']}</code>\n"
+            f"Amount: <b>{amount_str}</b>\n"
+            f"Bank: {invoice.get('bank') or 'Not specified'}\n"
+            f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n"
+            f"Recipient: {invoice.get('recipient_name') or 'Not specified'}\n"
+            f"Due Date: {due_date_str}\n\n"
+            f"Please send a screenshot of your payment receipt.\n\n"
+            f"<i>Use /cancel to cancel verification.</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    # Multiple invoices - show selection
+    buttons = []
+    for inv in other_invoices[:10]:  # Limit to 10
+        currency = inv.get("currency", "KHR")
+        amount = inv.get("amount", 0)
+        if currency == "KHR":
+            amount_str = f"{amount:,.0f} KHR"
+        else:
+            amount_str = f"${amount:.2f}"
+
+        due_date = inv.get('due_date')
+        due_date_str = f" - Due: {due_date[:10]}" if due_date else ""
+
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{inv['invoice_number']} - {amount_str}{due_date_str}",
+                callback_data=f"pay_invoice:{inv['id']}"
+            )
+        ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await state.set_state(ClientStates.waiting_for_invoice_selection)
+    await callback.message.answer(
+        f"<b>Select Invoice to Verify</b>\n\n"
+        f"You have {len(other_invoices)} other pending invoice(s).\n"
+        f"Select which one you want to verify:",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+
+
 @router.message(Command("cancel"), ClientStates.waiting_for_payment_screenshot)
 @router.message(Command("cancel"), ClientStates.waiting_for_invoice_selection)
 async def cmd_cancel_client_payment(message: types.Message, state: FSMContext):
@@ -484,12 +584,16 @@ async def process_client_payment_screenshot(
         image_data = photo_bytes.read()
 
         # Build expected payment from invoice
+        # Transform recipient_name to array format (per CLAUDE.md OCR fix)
+        recipient_name = invoice.get("recipient_name")
+        recipient_names = [recipient_name] if recipient_name else []
+
         expected_payment = {
             "amount": invoice.get("amount"),
             "currency": invoice.get("currency", "KHR"),
             "toAccount": invoice.get("expected_account"),
             "bank": invoice.get("bank"),
-            "recipientName": invoice.get("recipient_name"),
+            "recipientNames": recipient_names,
             "dueDate": invoice.get("due_date"),
             "tolerancePercent": 5
         }

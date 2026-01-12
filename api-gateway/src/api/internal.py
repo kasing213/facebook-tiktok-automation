@@ -218,12 +218,18 @@ async def send_invoice_pdf(data: InvoicePDFRequest):
             filename=f"{data.invoice_number}.pdf"
         )
 
-        # Create inline keyboard with verify button
+        # Create inline keyboard with two buttons: verify current and view others
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(
-                text="Verify Payment",
-                callback_data=f"verify_invoice:{data.invoice_id}"
-            )]
+            [
+                InlineKeyboardButton(
+                    text="Verify This Payment",
+                    callback_data=f"verify_invoice:{data.invoice_id}"
+                ),
+                InlineKeyboardButton(
+                    text="View Other Invoices",
+                    callback_data=f"view_other_invoices:{data.invoice_id}"
+                )
+            ]
         ])
 
         # Build caption
