@@ -375,7 +375,7 @@ const HomePage: React.FC = () => {
     <PageWrapper>
       <StickyHeader>
         <NavContainer>
-          <NavLogo>LOGO</NavLogo>
+          <NavLogo>KS</NavLogo>
           <NavCenter>
             <NavLink onClick={() => navigate('/login')}>Dashboard</NavLink>
             <NavLink onClick={() => navigate('/register')}>Services</NavLink>

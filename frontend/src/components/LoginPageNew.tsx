@@ -316,10 +316,10 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
       <DecorativeShape1 />
 
       <LoginCard>
-        <Logo>LOGO</Logo>
+        <Logo>KS</Logo>
 
         <Title>Welcome back!</Title>
-        <Subtitle>Log in to existing LOGO account</Subtitle>
+        <Subtitle>Log in to existing KS account</Subtitle>
 
         {error && <ErrorMessage>{error}</ErrorMessage>}
 

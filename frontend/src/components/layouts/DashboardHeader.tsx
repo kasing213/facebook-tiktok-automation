@@ -251,7 +251,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
           <HamburgerLine />
           <HamburgerLine />
         </HamburgerButton>
-        <Logo onClick={() => navigate('/')}>LOGO</Logo>
+        <Logo onClick={() => navigate('/')}>KS</Logo>
         <PageTitle>{getPageTitle()}</PageTitle>
       </LeftSection>
 
