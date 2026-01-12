@@ -724,9 +724,15 @@ async def send_invoice_to_telegram(
     settings = get_settings()
 
     # Check if api-gateway URL is configured
+    import logging
+    logger = logging.getLogger(__name__)
+
     api_gateway_url = getattr(settings, 'API_GATEWAY_URL', None)
     if not api_gateway_url:
+        logger.error("API_GATEWAY_URL not configured - cannot send Telegram notifications")
         return {"sent": False, "reason": "API_GATEWAY_URL not configured"}
+
+    logger.info(f"Sending invoice {invoice.get('invoice_number')} to Telegram via {api_gateway_url}")
 
     telegram_chat_id = customer.get("telegram_chat_id")
     if not telegram_chat_id:
@@ -734,11 +740,13 @@ async def send_invoice_to_telegram(
 
     # Generate PDF
     from app.services import invoice_mock_service
+
     invoice_id = invoice.get("id")
     pdf_bytes = invoice_mock_service.generate_pdf(str(invoice_id))
 
     if not pdf_bytes:
         # Fall back to text message if PDF generation fails
+        logger.warning(f"PDF generation failed for invoice {invoice_id}, falling back to text message")
         return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
 
     # Format amount for display
@@ -767,12 +775,15 @@ async def send_invoice_to_telegram(
                 }
             )
             if response.status_code == 200:
+                logger.info(f"✅ PDF invoice {invoice.get('invoice_number')} sent successfully to Telegram chat {telegram_chat_id}")
                 return {"sent": True, "type": "pdf", "telegram_chat_id": telegram_chat_id}
             else:
                 # Fall back to text if PDF sending fails
+                logger.warning(f"PDF send to api-gateway failed with status {response.status_code}, falling back to text message")
                 return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
     except Exception as e:
-        return {"sent": False, "reason": str(e)}
+        logger.error(f"Error sending PDF to Telegram: {e}, falling back to text message")
+        return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
 
 
 async def _send_invoice_text_fallback(
