@@ -30,12 +30,10 @@ from app.core.cookies import (
     get_refresh_token_cookie_name,
 )
 from app.repositories import UserRepository, RefreshTokenRepository, TokenBlacklistRepository
+from app.core.dependencies import get_current_user  # Shared dependency
 from app.core.authorization import get_current_owner
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
-
-# OAuth2 scheme for JWT token authentication
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 # Request/Response Models
@@ -81,52 +79,7 @@ class PasswordChange(BaseModel):
     new_password: str = Field(..., min_length=8)
 
 
-# Dependency to get current user from JWT token
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-) -> User:
-    """
-    Get the current authenticated user from JWT token.
-
-    Args:
-        token: JWT access token from Authorization header
-        db: Database session
-
-    Returns:
-        User object if valid
-
-    Raises:
-        HTTPException: If token is invalid or user not found
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    payload = decode_access_token(token)
-    if payload is None:
-        raise credentials_exception
-
-    user_id: str = payload.get("sub")
-    if user_id is None:
-        raise credentials_exception
-
-    # Check if token is blacklisted (logout, security revocation)
-    jti = payload.get("jti")
-    if jti:
-        blacklist_repo = TokenBlacklistRepository(db)
-        if blacklist_repo.is_blacklisted(jti):
-            raise credentials_exception
-
-    user_repo = UserRepository(db)
-    user = user_repo.get_by_id(UUID(user_id))
-
-    if user is None or not user.is_active:
-        raise credentials_exception
-
-    return user
+# Note: get_current_user is imported from app.core.dependencies
 
 
 # Routes

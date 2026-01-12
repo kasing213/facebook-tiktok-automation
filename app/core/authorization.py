@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.models import User, UserRole
-from app.routes.auth import get_current_user
+from app.core.dependencies import get_current_user
 
 
 class InsufficientPermissions(HTTPException):
