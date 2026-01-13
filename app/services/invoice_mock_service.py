@@ -357,174 +357,195 @@ def generate_pdf(invoice_id: str) -> Optional[bytes]:
         logger.error(f"❌ fpdf2 not installed (ImportError: {e}), using fallback PDF for invoice {invoice_id}")
         return _generate_pdf_fallback(invoice_id)
 
-    invoice = get_invoice(invoice_id)
-    if not invoice:
-        return None
+    # Wrap entire PDF generation in try-catch to log actual errors
+    try:
+        invoice = get_invoice(invoice_id)
+        if not invoice:
+            logger.error(f"Invoice not found for PDF generation: {invoice_id}")
+            return None
 
-    # Colors (matching frontend design)
-    BLUE = (74, 144, 226)
-    DARK = (31, 41, 55)
-    GRAY = (107, 114, 128)
-    LIGHT_BG = (249, 250, 251)
+        # Validate invoice data to prevent fpdf2 errors
+        if not invoice.get("invoice_number"):
+            logger.error(f"Invoice {invoice_id} missing invoice_number")
+            return None
 
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
+        amount = invoice.get("total", 0)
+        if not isinstance(amount, (int, float)) or (isinstance(amount, float) and amount != amount):
+            logger.error(f"Invoice {invoice_id} has invalid amount: {amount}")
+            return None
 
-    # Header section with blue background
-    pdf.set_fill_color(*BLUE)
-    pdf.rect(0, 0, 210, 45, 'F')
+        # Colors (matching frontend design)
+        BLUE = (74, 144, 226)
+        DARK = (31, 41, 55)
+        GRAY = (107, 114, 128)
+        LIGHT_BG = (249, 250, 251)
 
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Helvetica", "B", 24)
-    pdf.set_y(12)
-    pdf.cell(0, 10, "INVOICE", ln=True, align="C")
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
 
-    pdf.set_font("Helvetica", "", 14)
-    pdf.cell(0, 8, invoice["invoice_number"], ln=True, align="C")
+        # Header section with blue background
+        pdf.set_fill_color(*BLUE)
+        pdf.rect(0, 0, 210, 45, 'F')
 
-    # Status badge
-    status = invoice.get("status", "pending").upper()
-    pdf.set_font("Helvetica", "B", 10)
-    pdf.cell(0, 8, status, ln=True, align="C")
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 24)
+        pdf.set_y(12)
+        pdf.cell(0, 10, "INVOICE", ln=True, align="C")
 
-    # Reset colors
-    pdf.set_text_color(*DARK)
-    pdf.set_y(55)
+        pdf.set_font("Helvetica", "", 14)
+        pdf.cell(0, 8, invoice["invoice_number"], ln=True, align="C")
 
-    # Customer + Due Date row
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.set_text_color(*GRAY)
-    pdf.cell(95, 6, "BILL TO", ln=False)
-    pdf.cell(95, 6, "DUE DATE", ln=True)
+        # Status badge
+        status = invoice.get("status", "pending").upper()
+        pdf.set_font("Helvetica", "B", 10)
+        pdf.cell(0, 8, status, ln=True, align="C")
 
-    pdf.set_text_color(*DARK)
-    pdf.set_font("Helvetica", "", 11)
-    customer = invoice.get("customer", {}) or {}
-    customer_name = customer.get("name", "N/A") or "N/A"
-    pdf.cell(95, 6, customer_name, ln=False)
-    pdf.cell(95, 6, str(invoice.get("due_date", "N/A") or "N/A"), ln=True)
-
-    if customer.get("email"):
-        pdf.set_text_color(*GRAY)
-        pdf.cell(95, 5, customer["email"], ln=True)
-    if customer.get("phone"):
-        pdf.cell(95, 5, customer["phone"], ln=True)
-
-    pdf.ln(10)
-
-    # Line items table
-    pdf.set_fill_color(*LIGHT_BG)
-    pdf.set_text_color(*GRAY)
-    pdf.set_font("Helvetica", "B", 9)
-
-    # Table header
-    pdf.cell(80, 8, "DESCRIPTION", border="B", fill=True)
-    pdf.cell(20, 8, "QTY", border="B", align="C", fill=True)
-    pdf.cell(35, 8, "UNIT PRICE", border="B", align="R", fill=True)
-    pdf.cell(40, 8, "TOTAL", border="B", align="R", fill=True, ln=True)
-
-    # Table rows
-    pdf.set_text_color(*DARK)
-    pdf.set_font("Helvetica", "", 10)
-    currency = invoice.get("currency", "KHR")
-
-    items = invoice.get("items", [])
-    for item in items:
-        description = str(item.get("description", ""))[:35]
-        quantity = item.get("quantity", 1)
-        price = float(item.get("unit_price", 0))
-        item_total = float(item.get("total", price * quantity))
-
-        pdf.cell(80, 7, description)
-        pdf.cell(20, 7, str(int(quantity)), align="C")
-        if currency == "KHR":
-            pdf.cell(35, 7, f"{price:,.0f}", align="R")
-            pdf.cell(40, 7, f"{item_total:,.0f}", align="R", ln=True)
-        else:
-            pdf.cell(35, 7, f"${price:.2f}", align="R")
-            pdf.cell(40, 7, f"${item_total:.2f}", align="R", ln=True)
-
-    pdf.ln(5)
-
-    # Totals section (right-aligned)
-    pdf.set_x(110)
-    pdf.set_fill_color(*LIGHT_BG)
-
-    # Subtotal
-    subtotal = float(invoice.get("subtotal", invoice.get("total", 0)))
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(45, 7, "Subtotal:", align="R")
-    if currency == "KHR":
-        pdf.cell(40, 7, f"{subtotal:,.0f} KHR", align="R", ln=True)
-    else:
-        pdf.cell(40, 7, f"${subtotal:.2f}", align="R", ln=True)
-
-    # Tax
-    tax = float(invoice.get("tax_amount", 0))
-    if tax:
-        pdf.set_x(110)
-        pdf.cell(45, 7, "Tax:", align="R")
-        if currency == "KHR":
-            pdf.cell(40, 7, f"{tax:,.0f} KHR", align="R", ln=True)
-        else:
-            pdf.cell(40, 7, f"${tax:.2f}", align="R", ln=True)
-
-    # Discount
-    discount = float(invoice.get("discount_amount", 0))
-    if discount:
-        pdf.set_x(110)
-        pdf.cell(45, 7, "Discount:", align="R")
-        if currency == "KHR":
-            pdf.cell(40, 7, f"-{discount:,.0f} KHR", align="R", ln=True)
-        else:
-            pdf.cell(40, 7, f"-${discount:.2f}", align="R", ln=True)
-
-    # Grand Total
-    pdf.set_x(110)
-    pdf.set_font("Helvetica", "B", 12)
-    total = float(invoice.get("total", 0))
-    pdf.cell(45, 10, "TOTAL:", border="T", align="R")
-    if currency == "KHR":
-        pdf.cell(40, 10, f"{total:,.0f} KHR", border="T", align="R", ln=True)
-    else:
-        pdf.cell(40, 10, f"${total:.2f}", border="T", align="R", ln=True)
-
-    pdf.ln(10)
-
-    # Payment Information section
-    bank = invoice.get("bank")
-    expected_account = invoice.get("expected_account")
-    recipient_name = invoice.get("recipient_name")
-
-    if bank or expected_account or recipient_name:
-        pdf.set_fill_color(*LIGHT_BG)
-        pdf.set_font("Helvetica", "B", 11)
+        # Reset colors
         pdf.set_text_color(*DARK)
-        pdf.cell(0, 8, "Payment Information", fill=True, ln=True)
+        pdf.set_y(55)
 
-        pdf.set_font("Helvetica", "", 10)
-        if bank:
-            pdf.cell(30, 6, "Bank:")
-            pdf.cell(0, 6, str(bank), ln=True)
-        if expected_account:
-            pdf.cell(30, 6, "Account:")
-            pdf.cell(0, 6, str(expected_account), ln=True)
-        if recipient_name:
-            pdf.cell(30, 6, "Recipient:")
-            pdf.cell(0, 6, str(recipient_name), ln=True)
-
-    # Notes section
-    notes = invoice.get("notes")
-    if notes:
-        pdf.ln(10)
+        # Customer + Due Date row
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, "Notes", ln=True)
-        pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(*GRAY)
-        pdf.multi_cell(0, 5, str(notes))
+        pdf.cell(95, 6, "BILL TO", ln=False)
+        pdf.cell(95, 6, "DUE DATE", ln=True)
 
-    return bytes(pdf.output())
+        pdf.set_text_color(*DARK)
+        pdf.set_font("Helvetica", "", 11)
+        customer = invoice.get("customer", {}) or {}
+        customer_name = customer.get("name", "N/A") or "N/A"
+        pdf.cell(95, 6, customer_name, ln=False)
+        pdf.cell(95, 6, str(invoice.get("due_date", "N/A") or "N/A"), ln=True)
+
+        if customer.get("email"):
+            pdf.set_text_color(*GRAY)
+            pdf.cell(95, 5, customer["email"], ln=True)
+        if customer.get("phone"):
+            pdf.cell(95, 5, customer["phone"], ln=True)
+
+        pdf.ln(10)
+
+        # Line items table
+        pdf.set_fill_color(*LIGHT_BG)
+        pdf.set_text_color(*GRAY)
+        pdf.set_font("Helvetica", "B", 9)
+
+        # Table header
+        pdf.cell(80, 8, "DESCRIPTION", border="B", fill=True)
+        pdf.cell(20, 8, "QTY", border="B", align="C", fill=True)
+        pdf.cell(35, 8, "UNIT PRICE", border="B", align="R", fill=True)
+        pdf.cell(40, 8, "TOTAL", border="B", align="R", fill=True, ln=True)
+
+        # Table rows
+        pdf.set_text_color(*DARK)
+        pdf.set_font("Helvetica", "", 10)
+        currency = invoice.get("currency", "KHR")
+
+        items = invoice.get("items", [])
+        for item in items:
+            description = str(item.get("description", ""))[:35]
+            quantity = item.get("quantity", 1)
+            price = float(item.get("unit_price", 0))
+            item_total = float(item.get("total", price * quantity))
+
+            pdf.cell(80, 7, description)
+            pdf.cell(20, 7, str(int(quantity)), align="C")
+            if currency == "KHR":
+                pdf.cell(35, 7, f"{price:,.0f}", align="R")
+                pdf.cell(40, 7, f"{item_total:,.0f}", align="R", ln=True)
+            else:
+                pdf.cell(35, 7, f"${price:.2f}", align="R")
+                pdf.cell(40, 7, f"${item_total:.2f}", align="R", ln=True)
+
+        pdf.ln(5)
+
+        # Totals section (right-aligned)
+        pdf.set_x(110)
+        pdf.set_fill_color(*LIGHT_BG)
+
+        # Subtotal
+        subtotal = float(invoice.get("subtotal", invoice.get("total", 0)))
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(45, 7, "Subtotal:", align="R")
+        if currency == "KHR":
+            pdf.cell(40, 7, f"{subtotal:,.0f} KHR", align="R", ln=True)
+        else:
+            pdf.cell(40, 7, f"${subtotal:.2f}", align="R", ln=True)
+
+        # Tax
+        tax = float(invoice.get("tax_amount", 0))
+        if tax:
+            pdf.set_x(110)
+            pdf.cell(45, 7, "Tax:", align="R")
+            if currency == "KHR":
+                pdf.cell(40, 7, f"{tax:,.0f} KHR", align="R", ln=True)
+            else:
+                pdf.cell(40, 7, f"${tax:.2f}", align="R", ln=True)
+
+        # Discount
+        discount = float(invoice.get("discount_amount", 0))
+        if discount:
+            pdf.set_x(110)
+            pdf.cell(45, 7, "Discount:", align="R")
+            if currency == "KHR":
+                pdf.cell(40, 7, f"-{discount:,.0f} KHR", align="R", ln=True)
+            else:
+                pdf.cell(40, 7, f"-${discount:.2f}", align="R", ln=True)
+
+        # Grand Total
+        pdf.set_x(110)
+        pdf.set_font("Helvetica", "B", 12)
+        total = float(invoice.get("total", 0))
+        pdf.cell(45, 10, "TOTAL:", border="T", align="R")
+        if currency == "KHR":
+            pdf.cell(40, 10, f"{total:,.0f} KHR", border="T", align="R", ln=True)
+        else:
+            pdf.cell(40, 10, f"${total:.2f}", border="T", align="R", ln=True)
+
+        pdf.ln(10)
+
+        # Payment Information section
+        bank = invoice.get("bank")
+        expected_account = invoice.get("expected_account")
+        recipient_name = invoice.get("recipient_name")
+
+        if bank or expected_account or recipient_name:
+            pdf.set_fill_color(*LIGHT_BG)
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.set_text_color(*DARK)
+            pdf.cell(0, 8, "Payment Information", fill=True, ln=True)
+
+            pdf.set_font("Helvetica", "", 10)
+            if bank:
+                pdf.cell(30, 6, "Bank:")
+                pdf.cell(0, 6, str(bank), ln=True)
+            if expected_account:
+                pdf.cell(30, 6, "Account:")
+                pdf.cell(0, 6, str(expected_account), ln=True)
+            if recipient_name:
+                pdf.cell(30, 6, "Recipient:")
+                pdf.cell(0, 6, str(recipient_name), ln=True)
+
+        # Notes section
+        notes = invoice.get("notes")
+        if notes:
+            pdf.ln(10)
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.cell(0, 8, "Notes", ln=True)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_text_color(*GRAY)
+            pdf.multi_cell(0, 5, str(notes))
+
+        return bytes(pdf.output())
+
+    except Exception as e:
+        # Log actual error with full traceback for debugging
+        logger.error(
+            f"❌ PDF generation failed for invoice {invoice_id}: {type(e).__name__}: {str(e)}",
+            exc_info=True  # Include full stack trace
+        )
+        return None
 
 
 def _generate_pdf_fallback(invoice_id: str) -> Optional[bytes]:
