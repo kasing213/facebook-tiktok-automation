@@ -26,6 +26,10 @@ from app.routes.subscriptions import require_pro_tier
 from app.core.authorization import require_subscription_feature, get_current_member_or_owner
 from app.services import invoice_mock_service as mock_svc
 from app.services.ocr_service import get_ocr_service
+from app.repositories.product import ProductRepository
+from app.repositories.stock_movement import StockMovementRepository
+from app.core.models import MovementType
+from uuid import UUID
 
 router = APIRouter(prefix="/api/integrations/invoice", tags=["invoice-integration"])
 
@@ -54,6 +58,7 @@ class CustomerUpdate(BaseModel):
 class InvoiceItem(BaseModel):
     """Invoice line item."""
     id: Optional[str] = None
+    product_id: Optional[str] = None  # Link to inventory product
     description: str
     quantity: float = 1
     unit_price: float
@@ -1464,12 +1469,14 @@ async def delete_invoice(
 async def verify_invoice(
     invoice_id: str,
     data: InvoiceVerify,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Update verification status of an invoice.
 
     Used by OCR verification service to mark invoices as verified/rejected.
+    Automatically deducts stock when payment is verified.
 
     Args:
         invoice_id: The invoice ID to verify
@@ -1487,13 +1494,25 @@ async def verify_invoice(
         invoice = mock_svc.verify_invoice(invoice_id, data.model_dump(exclude_none=True))
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
+
+        # If payment verified, deduct stock for inventory items
+        if data.verification_status == "verified":
+            await _deduct_inventory_stock(invoice, current_user.tenant_id, current_user.id, db)
+
         return invoice
 
-    return await proxy_request(
+    # For external API mode
+    result = await proxy_request(
         "PATCH",
         f"/api/invoices/{invoice_id}/verify",
         json_data=data.model_dump(exclude_none=True)
     )
+
+    # If payment verified, deduct stock for inventory items
+    if data.verification_status == "verified" and result:
+        await _deduct_inventory_stock(result, current_user.tenant_id, current_user.id, db)
+
+    return result
 
 
 # ============================================================================
@@ -2033,3 +2052,125 @@ async def clear_all_data(
         )
 
     return mock_svc.clear_all_data()
+
+
+# ============================================================================
+# Inventory Integration
+# ============================================================================
+
+@router.get("/products")
+async def get_products_for_invoice(
+    search: Optional[str] = Query(None, description="Search products by name or SKU"),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(get_current_member_or_owner),
+    db: Session = Depends(get_db)
+):
+    """
+    Get products for invoice line item selection.
+
+    Returns products with current stock levels for adding to invoices.
+    """
+    product_repo = ProductRepository(db)
+
+    if search:
+        products = product_repo.search_products(current_user.tenant_id, search, limit)
+    else:
+        products = product_repo.get_by_tenant(current_user.tenant_id, active_only=True)
+        products = products[:limit]  # Limit results
+
+    # Format for invoice line item picker
+    return [
+        {
+            "id": str(product.id),
+            "name": product.name,
+            "sku": product.sku,
+            "description": product.description,
+            "unit_price": product.unit_price,
+            "currency": product.currency,
+            "current_stock": product.current_stock,
+            "track_stock": product.track_stock,
+            "available": product.current_stock > 0 if product.track_stock else True
+        }
+        for product in products
+    ]
+
+
+async def _deduct_inventory_stock(
+    invoice: dict,
+    tenant_id: UUID,
+    user_id: UUID,
+    db: Session
+) -> None:
+    """
+    Deduct inventory stock when invoice payment is verified.
+
+    Args:
+        invoice: Invoice data with items
+        tenant_id: Tenant ID for security
+        user_id: User who verified payment
+        db: Database session
+    """
+    try:
+        movement_repo = StockMovementRepository(db)
+        product_repo = ProductRepository(db)
+
+        # Get invoice items
+        items = invoice.get("items", [])
+        if isinstance(items, str):
+            import json
+            items = json.loads(items)
+
+        invoice_id = invoice.get("id") or invoice.get("invoice_id")
+        invoice_number = invoice.get("invoice_number", "unknown")
+
+        movements_created = []
+
+        for item in items:
+            product_id_str = item.get("product_id")
+            if not product_id_str:
+                continue  # Skip non-inventory items
+
+            try:
+                product_id = UUID(product_id_str)
+                quantity = int(item.get("quantity", 0))
+
+                if quantity <= 0:
+                    continue
+
+                # Verify product exists and belongs to tenant
+                product = product_repo.get_by_id_and_tenant(product_id, tenant_id)
+                if not product or not product.track_stock:
+                    continue
+
+                # Create stock movement (out)
+                movement = movement_repo.create_movement(
+                    tenant_id=tenant_id,
+                    product_id=product_id,
+                    movement_type=MovementType.out_stock,
+                    quantity=quantity,
+                    reference_type="invoice",
+                    reference_id=str(invoice_id),
+                    notes=f"Payment verified for invoice {invoice_number}",
+                    created_by=user_id
+                )
+                movements_created.append(movement.id)
+
+            except (ValueError, TypeError) as e:
+                # Log but don't fail entire verification for bad product data
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error deducting stock for item {item}: {e}")
+                continue
+
+        if movements_created:
+            db.commit()
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Deducted stock for invoice {invoice_number}: {len(movements_created)} movements created")
+
+    except Exception as e:
+        # Log error but don't fail payment verification
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error deducting inventory stock for invoice {invoice.get('id')}: {e}")
+        db.rollback()

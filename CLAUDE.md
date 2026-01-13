@@ -189,6 +189,113 @@ VITE_API_URL=https://your-railway-backend.railway.app
 - `scriptclient` - Screenshot verification tables
 - `audit_sales` - Sales audit tables
 - `ads_alert` - Ads alert/promo tables
+- `inventory` - **NEW** Lightweight product tracking and stock movements
+
+---
+
+## Implemented Features (2026-01-13)
+
+### ✅ Lightweight Inventory System (COMPLETED)
+**Migration:** `o5j6k7l8m9n0_add_inventory_system.py` - Successfully applied
+
+**Positioning:** Simple product tracker for invoice line items - NOT competing with full ERP like MAQSU
+
+**✅ Implemented Features:**
+- ✅ Product catalog with SKU, price, current stock
+- ✅ Stock movements tracking (in/out/adjustment)
+- ✅ Low stock alerts via Telegram bot ← **Unique competitive advantage**
+- ✅ Auto-populate invoice line items from products
+- ✅ Auto-deduct stock when payment verified via OCR
+- ✅ Complete tenant isolation and role-based access
+
+**✅ Database Schema (Live):**
+```sql
+-- inventory.products (✅ Created)
+id, tenant_id, name, sku, unit_price, cost_price, currency
+current_stock, low_stock_threshold, track_stock, is_active
+created_at, updated_at, meta (JSON)
+
+-- inventory.stock_movements (✅ Created)
+id, tenant_id, product_id, movement_type (in/out/adjustment)
+quantity, reference_type, reference_id, notes, created_by, created_at
+```
+
+**✅ API Endpoints (Live):**
+- ✅ `GET /inventory/products` - List products with stock levels
+- ✅ `POST /inventory/products` - Create product (Member/Owner only)
+- ✅ `PUT /inventory/products/{id}` - Update product (Member/Owner only)
+- ✅ `DELETE /inventory/products/{id}` - Soft delete (Owner only)
+- ✅ `POST /inventory/adjust-stock` - Manual stock adjustment
+- ✅ `GET /inventory/movements` - Stock movement history
+- ✅ `GET /inventory/low-stock` - Products below threshold
+- ✅ `GET /inventory/movements/summary` - Movement analytics
+
+**✅ Invoice Integration (Live):**
+- ✅ `GET /api/integrations/invoice/products` - Product picker endpoint
+- ✅ Auto-deduct stock when `verify_invoice()` API called with `verified` status
+- ✅ Stock movements linked to invoice ID for audit trail
+- ✅ Error handling - partial failures don't break payment verification
+
+**✅ Telegram Bot Commands (Live):**
+- ✅ `/inventory` - Check all stock levels with summary stats
+- ✅ `/lowstock` - View products below threshold with restock recommendations
+- ✅ Low stock alert notifications to all tenant users
+- ✅ Role validation (Member/Owner access only, excludes viewers)
+- ✅ Added to `/help` command
+
+**✅ Security Implementation:**
+- ✅ Complete tenant isolation - all queries filtered by `tenant_id`
+- ✅ Role-based access using existing authorization decorators
+- ✅ Repository pattern ensures no cross-tenant data leakage
+- ✅ Input validation and SQL injection protection
+- ✅ Owner-only delete operations
+
+### Authentication System Status
+
+**✅ Core Features (COMPLETED):**
+- ✅ JWT authentication (production-ready)
+- ✅ Role-based access (admin/user/viewer with decorators)
+- ✅ OAuth Facebook/TikTok (working)
+- ✅ Telegram linking (working)
+- ✅ Session management with refresh tokens
+- ✅ Rate limiting middleware (basic)
+- ✅ IP blocking and access rules
+
+**❌ Missing Security Features (NOT IMPLEMENTED):**
+- ❌ **Email verification on signup** (security gap)
+- ❌ **Account lockout after failed attempts** (brute force vulnerability)
+- ❌ **Password strength validation** (weak password risk)
+- ❌ **Forgot password flow** (user experience gap)
+- ❌ **Password reset tokens** (recovery mechanism missing)
+- ❌ **Login attempt logging** (security audit trail missing)
+
+**🔍 Security Assessment:**
+- **HIGH RISK:** No account lockout - brute force attacks possible
+- **MEDIUM RISK:** No email verification - fake account registration
+- **LOW RISK:** No password strength - users can set weak passwords
+- **UX IMPACT:** No password reset - users locked out permanently
+
+**🛡️ Next Security Priority:**
+1. **Account lockout** (prevent brute force) - HIGH
+2. **Email verification** (prevent fake accounts) - MEDIUM
+3. **Password reset flow** (user recovery) - MEDIUM
+4. **Password strength validation** - LOW
+
+### Competitive Analysis Summary
+**Cambodia Market Position:**
+- BanhJi: General accounting + bank integration (no OCR verification)
+- Invoice Mouy: Invoice-only (no OCR verification, no social media)
+- MAQSU: Full ERP (too complex, enterprise-focused)
+
+**Your Unique Value:**
+1. **OCR Payment Verification** ← Nobody in Cambodia has this
+2. **Telegram Bot Integration** ← Unique in Cambodia
+3. **Social Media Automation** ← Nobody combines this with invoicing
+
+**Pricing Strategy:**
+- Free: Core invoice + payment verification
+- Pro ($10-15/mo): Inventory + advanced reports + bulk operations
+- Stay under $15/mo to compete in Cambodia market
 
 ---
 

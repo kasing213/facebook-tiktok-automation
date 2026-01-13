@@ -53,6 +53,11 @@ class SubscriptionStatus(str, enum.Enum):
     past_due = "past_due"
     incomplete = "incomplete"
 
+class MovementType(str, enum.Enum):
+    in_stock = "in"
+    out_stock = "out"
+    adjustment = "adjustment"
+
 # Multi-tenant core models
 class Tenant(Base):
     """Core tenant model for multi-tenant isolation"""
@@ -426,5 +431,71 @@ class Subscription(Base):
         Index("idx_subscription_stripe_customer", "stripe_customer_id"),
         Index("idx_subscription_stripe_sub", "stripe_subscription_id"),
         Index("idx_subscription_tier", "tier"),
+    )
+
+
+class Product(Base):
+    """Products for inventory tracking"""
+    __tablename__ = "products"
+    __table_args__ = {"schema": "inventory"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    sku = Column(String(100), nullable=True)
+    description = Column(Text, nullable=True)
+    unit_price = Column(Integer, nullable=False, default=0)  # Store in smallest currency unit (e.g., cents, riels)
+    cost_price = Column(Integer, nullable=True)  # Store in smallest currency unit
+    currency = Column(String(3), nullable=False, default="KHR")
+    current_stock = Column(Integer, nullable=False, default=0)
+    low_stock_threshold = Column(Integer, nullable=True, default=10)
+    track_stock = Column(Boolean, nullable=False, default=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    meta = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow, nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="products")
+    stock_movements = relationship("StockMovement", back_populates="product", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sku", name="uq_products_tenant_sku"),
+        Index("idx_products_tenant", "tenant_id"),
+        Index("idx_products_sku", "sku"),
+        Index("idx_products_active", "is_active"),
+        Index("idx_products_stock", "current_stock"),
+        {"schema": "inventory"}
+    )
+
+
+class StockMovement(Base):
+    """Stock movement tracking for products"""
+    __tablename__ = "stock_movements"
+    __table_args__ = {"schema": "inventory"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("inventory.products.id", ondelete="CASCADE"), nullable=False)
+    movement_type = Column(Enum(MovementType), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    reference_type = Column(String(50), nullable=True)  # 'invoice', 'manual', 'initial'
+    reference_id = Column(String(255), nullable=True)  # invoice_id or other reference
+    notes = Column(Text, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="stock_movements")
+    product = relationship("Product", back_populates="stock_movements")
+    created_by_user = relationship("User", backref="stock_movements")
+
+    __table_args__ = (
+        Index("idx_stock_movements_tenant", "tenant_id"),
+        Index("idx_stock_movements_product", "product_id"),
+        Index("idx_stock_movements_type", "movement_type"),
+        Index("idx_stock_movements_reference", "reference_type", "reference_id"),
+        Index("idx_stock_movements_created", "created_at"),
+        {"schema": "inventory"}
     )
 

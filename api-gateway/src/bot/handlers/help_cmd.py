@@ -40,5 +40,9 @@ async def cmd_help(message: types.Message):
 /promo_status - Current promotion status
 /promo_chats - Registered chats
 
+<b>Inventory Management</b>
+/inventory - View current stock levels
+/lowstock - Check items running low
+
 <i>Need help? Contact your administrator.</i>
     """.strip())

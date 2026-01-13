@@ -22,6 +22,7 @@ from app.routes.billing import router as billing_router
 from app.routes.users import router as users_router
 from app.routes.subscription import router as subscription_mgmt_router
 from app.routes.subscription_payment import router as subscription_payment_router
+from app.routes.inventory import router as inventory_router
 
 
 # Request/Response models
@@ -163,6 +164,7 @@ app.include_router(billing_router)
 app.include_router(users_router)
 app.include_router(subscription_mgmt_router)
 app.include_router(subscription_payment_router)
+app.include_router(inventory_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")
