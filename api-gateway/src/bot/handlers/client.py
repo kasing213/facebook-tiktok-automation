@@ -220,33 +220,50 @@ async def handle_client_registration(
 async def handle_client_photo(message: types.Message, state: FSMContext):
     """Handle photo from any user - check if it's a client sending payment screenshot."""
     telegram_id = str(message.from_user.id)
+    logger.info(f"📸 Photo received from {telegram_id}")
 
-    # Check if this is a merchant (linked user)
-    user = await get_user_by_telegram_id(telegram_id)
-    if user:
-        # This is a merchant - let other handlers deal with it
-        # Check if they're in an OCR state
+    try:
+        # Check if this is a merchant (linked user)
+        user = await get_user_by_telegram_id(telegram_id)
+        if user:
+            logger.info(f"User {telegram_id} is a merchant, checking OCR state...")
+            # This is a merchant - let other handlers deal with it
+            # Check if they're in an OCR state
+            current_state = await state.get_state()
+            if current_state:
+                logger.info(f"Merchant {telegram_id} in state {current_state}, delegating to state handler")
+                return  # Let the appropriate state handler deal with it
+            logger.info(f"Merchant {telegram_id} not in OCR state, ignoring photo")
+            return  # Ignore photos from merchants outside of OCR flows
+
+        # Check if this is a registered client
+        customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+        if not customer:
+            logger.info(f"User {telegram_id} is not a registered customer, ignoring photo")
+            # Not a merchant, not a client - ignore
+            return
+
+        logger.info(f"✅ User {telegram_id} is registered customer {customer.get('id')}")
+
+        # This is a registered client - check if they're in payment mode
         current_state = await state.get_state()
-        if current_state:
-            return  # Let the appropriate state handler deal with it
-        return  # Ignore photos from merchants outside of OCR flows
+        state_data = await state.get_data()
 
-    # Check if this is a registered client
-    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
-    if not customer:
-        # Not a merchant, not a client - ignore
-        return
+        logger.info(f"Customer {telegram_id} current state: {current_state}")
 
-    # This is a registered client - check if they're in payment mode
-    current_state = await state.get_state()
-    state_data = await state.get_data()
-
-    if current_state == ClientStates.waiting_for_payment_screenshot:
-        # They're in payment mode - process the screenshot
-        await process_client_payment_screenshot(message, state, customer, state_data)
-    else:
-        # They sent a photo but not in payment mode - show pending invoices
-        await show_pending_invoices_for_payment(message, state, customer)
+        if current_state == ClientStates.waiting_for_payment_screenshot:
+            # They're in payment mode - process the screenshot
+            logger.info(f"Processing payment screenshot for customer {telegram_id}")
+            await process_client_payment_screenshot(message, state, customer, state_data)
+        else:
+            # They sent a photo but not in payment mode - show pending invoices
+            logger.info(f"Customer {telegram_id} not in payment mode, showing pending invoices")
+            await show_pending_invoices_for_payment(message, state, customer)
+    except Exception as e:
+        logger.error(f"❌ Error handling photo from {telegram_id}: {e}", exc_info=True)
+        await message.answer(
+            "Sorry, there was an error processing your photo. Please try again or contact support."
+        )
 
 
 @router.message()
@@ -578,15 +595,19 @@ async def process_client_payment_screenshot(
     state_data: dict
 ):
     """Process payment screenshot from client."""
+    logger.info(f"🔄 Starting payment screenshot processing for customer {customer.get('id')}")
+
     invoice = state_data.get("selected_invoice")
 
     if not invoice:
+        logger.warning(f"❌ No selected_invoice in state for customer {customer.get('id')}")
         await state.clear()
         await message.answer(
             "Session expired. Please tap on an invoice to start again."
         )
         return
 
+    logger.info(f"📄 Processing screenshot for invoice {invoice.get('invoice_number')} ({invoice.get('id')})")
     await message.answer("Processing your payment screenshot... Please wait.")
 
     try:
@@ -613,6 +634,8 @@ async def process_client_payment_screenshot(
             "tolerancePercent": 5
         }
 
+        logger.info(f"📤 Sending to OCR service: invoice_id={invoice.get('id')}, customer_id={customer.get('id')}, amount={expected_payment['amount']}")
+
         # Send to OCR service
         result = await ocr_service.verify_screenshot(
             image_data=image_data,
@@ -621,6 +644,8 @@ async def process_client_payment_screenshot(
             expected_payment=expected_payment,
             customer_id=customer.get("id")
         )
+
+        logger.info(f"📥 OCR service response: success={result.get('success')}, status={result.get('verification', {}).get('status')}")
 
         await state.clear()
 
@@ -703,12 +728,14 @@ async def process_client_payment_screenshot(
             await notify_merchant_payment(customer, invoice, "pending")
 
     except Exception as e:
-        logger.error(f"Client payment verification error: {e}")
+        logger.error(f"❌ Client payment verification error: {e}", exc_info=True)
         await state.clear()
         await message.answer(
-            "<b>Error Processing Screenshot</b>\n\n"
-            "An error occurred while verifying your payment.\n"
-            "Please try again or contact your merchant."
+            f"<b>Error Processing Screenshot</b>\n\n"
+            f"An error occurred while verifying your payment.\n\n"
+            f"Error details: {type(e).__name__}: {str(e)}\n\n"
+            f"Please try again or contact your merchant.",
+            parse_mode="HTML"
         )
 
 
