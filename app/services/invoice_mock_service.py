@@ -171,8 +171,15 @@ def get_invoice(invoice_id: str) -> Optional[Dict]:
         """), {"invoice_id": invoice_id}).fetchone()
 
         if result:
-            # Parse items JSON
-            items = json.loads(result.items) if result.items else []
+            # Parse items JSON (handle both string and already-parsed list)
+            if result.items:
+                if isinstance(result.items, str):
+                    items = json.loads(result.items)
+                else:
+                    # SQLAlchemy already deserialized JSONB to list
+                    items = result.items
+            else:
+                items = []
 
             # Calculate totals from items if needed
             subtotal = sum(
