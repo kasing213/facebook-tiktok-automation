@@ -194,6 +194,147 @@ VITE_API_URL=https://your-railway-backend.railway.app
 
 ## Change Log
 
+### 2026-01-13 - Photo Handler & Invoice UX Fixes
+
+#### 1. Photo Handler - FSM State Priority Fix (Critical)
+**File:** `api-gateway/src/bot/handlers/client.py`
+
+**Problem:** Merchants who are also customers (testing their own system) couldn't verify payments. Photo handler checked merchant status FIRST and blocked client payment flow.
+
+**Railway Logs Showed:**
+```
+User 1450060367 is a merchant, checking OCR state...
+Merchant 1450060367 in state ClientStates:waiting_for_payment_screenshot, delegating to state handler
+```
+But no state handler exists for merchants in `ClientStates` → Nothing happened.
+
+**Root Cause:** User identity (merchant/customer) was checked before FSM state. Merchants with `ClientStates` were blocked from client payment processing.
+
+**Fix:** Reordered logic to check FSM state FIRST:
+```python
+# BEFORE: Check user type first (blocked merchant-customers)
+user = await get_user_by_telegram_id(telegram_id)
+if user:
+    if current_state:
+        return  # ❌ Blocked here - no handler for merchants in ClientStates
+
+# AFTER: Check FSM state first (allows merchant-customers)
+current_state = await state.get_state()
+if current_state == ClientStates.waiting_for_payment_screenshot:
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+    if customer:
+        await process_client_payment_screenshot(...)  # ✅ Works for merchants too
+        return
+```
+
+**Priority Order (Most Specific → Least Specific):**
+1. `ClientStates.waiting_for_payment_screenshot` → Process client payment (merchants can be customers)
+2. Merchant with other states (`OCRStates.*`) → Delegate to OCR handlers
+3. Customer without state → Show pending invoices
+
+#### 2. Invoice Button UX - Show Invoice Number
+**File:** `api-gateway/src/api/internal.py`
+
+**Problem:** Button text "Verify This Payment" was generic, not clear which invoice.
+
+**Fix:** Changed button text to include invoice number:
+```python
+# BEFORE
+text="Verify This Payment"
+text="View Other Invoices"
+
+# AFTER
+text=f"✅ Verify {data.invoice_number}"  # e.g., "✅ Verify INV-2601-00002"
+text="📋 Other Invoices"
+```
+
+#### 3. Invoice Selection - Inline Edit (No Content Push)
+**File:** `api-gateway/src/bot/handlers/client.py`
+
+**Problem:** "View Other Invoices" created a new message that pushed the PDF down.
+
+**Fix:** Edit existing message buttons inline instead of creating new message:
+```python
+# BEFORE: New message pushes content down
+await callback.message.answer("Select Invoice...", reply_markup=keyboard)
+
+# AFTER: Edit buttons inline (keeps PDF in place)
+await callback.message.edit_reply_markup(reply_markup=keyboard)
+```
+
+**Added:** "⬅️ Back" button to restore original buttons.
+
+#### 4. PDF Generation - Remove Non-Existent Column
+**File:** `app/services/invoice_mock_service.py`
+
+**Problem:** SQL query referenced `c.company` column that doesn't exist in `invoice.customer` table.
+
+**Error:** `column c.company does not exist`
+
+**Fix:** Removed non-existent column from SQL query:
+```sql
+-- BEFORE (error)
+SELECT ... c.company as customer_company ...
+
+-- AFTER (works)
+SELECT ... c.name, c.email, c.phone, c.address ...
+```
+
+**Actual `invoice.customer` columns:** id, tenant_id, name, email, phone, address, meta, created_at, updated_at
+
+#### 5. PDF Generation - JSONB Auto-Deserialization
+**File:** `app/services/invoice_mock_service.py`
+
+**Problem:** SQLAlchemy auto-deserializes JSONB columns to Python lists, but code tried to parse again.
+
+**Error:** `the JSON object must be str, bytes or bytearray, not list`
+
+**Fix:** Handle both string and already-parsed list:
+```python
+# BEFORE (error when already parsed)
+items = json.loads(result.items) if result.items else []
+
+# AFTER (handles both cases)
+if result.items:
+    if isinstance(result.items, str):
+        items = json.loads(result.items)
+    else:
+        items = result.items  # Already deserialized by SQLAlchemy
+else:
+    items = []
+```
+
+#### Photo Handler Decision Flow Reference
+```
+Photo Received
+    │
+    ├─ Check FSM State FIRST
+    │   ├─ ClientStates.waiting_for_payment_screenshot?
+    │   │   ├─ YES: Check customer registration
+    │   │   │   ├─ Customer found → Process payment screenshot ✅
+    │   │   │   └─ Not found → "Session expired" message
+    │   │   └─ NO: Continue to next check
+    │   │
+    ├─ Check if Merchant
+    │   ├─ YES: Has other state (OCRStates.*)?
+    │   │   ├─ YES → Delegate to OCR handler
+    │   │   └─ NO → Ignore photo
+    │   └─ NO: Continue
+    │
+    └─ Check if Customer
+        ├─ YES → Show pending invoices
+        └─ NO → Ignore photo
+```
+
+#### Files Modified
+| File | Changes |
+|------|---------|
+| `api-gateway/src/bot/handlers/client.py` | FSM state priority, inline selection, back button |
+| `api-gateway/src/api/internal.py` | Button text with invoice number |
+| `app/services/invoice_mock_service.py` | Remove company column, handle JSONB |
+
+---
+
 ### 2026-01-11 - OCR Verification & Invoice Edit Fixes
 
 #### 1. OCR Verification - Recipient Name Array Fix
