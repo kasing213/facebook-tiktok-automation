@@ -145,7 +145,7 @@ def get_invoice(invoice_id: str) -> Optional[Dict]:
 
         db = next(get_db_sync())
 
-        # Query invoice with customer data (matching the database structure)
+        # Query invoice with customer data (matching actual database schema)
         result = db.execute(text("""
             SELECT
                 i.id,
@@ -153,19 +153,14 @@ def get_invoice(invoice_id: str) -> Optional[Dict]:
                 i.customer_id,
                 i.status,
                 i.amount,
-                i.total,
-                i.subtotal,
-                i.discount,
                 i.currency,
                 i.items,
-                i.notes,
                 i.due_date,
-                i.invoice_date,
                 i.created_at,
-                i.updated_at,
                 i.bank,
                 i.expected_account,
                 i.recipient_name,
+                i.verification_status,
                 c.name as customer_name,
                 c.email as customer_email,
                 c.phone as customer_phone,
@@ -180,26 +175,34 @@ def get_invoice(invoice_id: str) -> Optional[Dict]:
             # Parse items JSON
             items = json.loads(result.items) if result.items else []
 
+            # Calculate totals from items if needed
+            subtotal = sum(
+                item.get("quantity", 0) * item.get("unit_price", 0)
+                for item in items
+            )
+            total = float(result.amount) if result.amount else subtotal
+
             # Build invoice dict
             invoice = {
                 "id": str(result.id),
                 "invoice_number": result.invoice_number,
                 "customer_id": str(result.customer_id) if result.customer_id else None,
                 "status": result.status,
-                "amount": float(result.amount) if result.amount else 0,
-                "total": float(result.total) if result.total else float(result.amount) if result.amount else 0,
-                "subtotal": float(result.subtotal) if result.subtotal else 0,
-                "discount": float(result.discount) if result.discount else 0,
+                "amount": total,
+                "total": total,
+                "subtotal": subtotal,
+                "discount": 0,
                 "currency": result.currency or "KHR",
                 "items": items,
-                "notes": result.notes,
+                "notes": None,
                 "due_date": result.due_date.isoformat() if result.due_date else None,
-                "invoice_date": result.invoice_date.isoformat() if result.invoice_date else None,
+                "invoice_date": result.created_at.isoformat() if result.created_at else None,
                 "created_at": result.created_at.isoformat() if result.created_at else None,
-                "updated_at": result.updated_at.isoformat() if result.updated_at else None,
+                "updated_at": result.created_at.isoformat() if result.created_at else None,
                 "bank": result.bank,
                 "expected_account": result.expected_account,
                 "recipient_name": result.recipient_name,
+                "verification_status": result.verification_status,
                 "customer": {
                     "id": str(result.customer_id) if result.customer_id else None,
                     "name": result.customer_name,
