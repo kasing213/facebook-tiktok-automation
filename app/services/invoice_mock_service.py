@@ -129,12 +129,94 @@ def list_invoices(
 
 def get_invoice(invoice_id: str) -> Optional[Dict]:
     """Get a single invoice by ID with customer info."""
+    # First check in-memory mock data
     invoice = _invoices.get(invoice_id)
     if invoice:
         # Return a copy with customer info
         invoice = invoice.copy()
         invoice["customer"] = _customers.get(invoice["customer_id"])
-    return invoice
+        return invoice
+
+    # Fallback to PostgreSQL database if not found in mock data
+    try:
+        from app.core.db import get_db_sync
+        from sqlalchemy import text
+        import json
+
+        db = next(get_db_sync())
+
+        # Query invoice with customer data (matching the database structure)
+        result = db.execute(text("""
+            SELECT
+                i.id,
+                i.invoice_number,
+                i.customer_id,
+                i.status,
+                i.amount,
+                i.total,
+                i.subtotal,
+                i.discount,
+                i.currency,
+                i.items,
+                i.notes,
+                i.due_date,
+                i.invoice_date,
+                i.created_at,
+                i.updated_at,
+                i.bank,
+                i.expected_account,
+                i.recipient_name,
+                c.name as customer_name,
+                c.email as customer_email,
+                c.phone as customer_phone,
+                c.company as customer_company,
+                c.address as customer_address
+            FROM invoice.invoice i
+            LEFT JOIN invoice.customer c ON i.customer_id = c.id
+            WHERE i.id = :invoice_id
+        """), {"invoice_id": invoice_id}).fetchone()
+
+        if result:
+            # Parse items JSON
+            items = json.loads(result.items) if result.items else []
+
+            # Build invoice dict
+            invoice = {
+                "id": str(result.id),
+                "invoice_number": result.invoice_number,
+                "customer_id": str(result.customer_id) if result.customer_id else None,
+                "status": result.status,
+                "amount": float(result.amount) if result.amount else 0,
+                "total": float(result.total) if result.total else float(result.amount) if result.amount else 0,
+                "subtotal": float(result.subtotal) if result.subtotal else 0,
+                "discount": float(result.discount) if result.discount else 0,
+                "currency": result.currency or "KHR",
+                "items": items,
+                "notes": result.notes,
+                "due_date": result.due_date.isoformat() if result.due_date else None,
+                "invoice_date": result.invoice_date.isoformat() if result.invoice_date else None,
+                "created_at": result.created_at.isoformat() if result.created_at else None,
+                "updated_at": result.updated_at.isoformat() if result.updated_at else None,
+                "bank": result.bank,
+                "expected_account": result.expected_account,
+                "recipient_name": result.recipient_name,
+                "customer": {
+                    "id": str(result.customer_id) if result.customer_id else None,
+                    "name": result.customer_name,
+                    "email": result.customer_email,
+                    "phone": result.customer_phone,
+                    "company": result.customer_company,
+                    "address": result.customer_address
+                } if result.customer_name else None
+            }
+            return invoice
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to query invoice {invoice_id} from database: {e}")
+
+    return None
 
 
 def create_invoice(data: Dict) -> Dict:

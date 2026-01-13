@@ -79,6 +79,23 @@ def get_db_session() -> Generator[Session, None, None]:
     finally:
         db.close()
 
+def get_db_sync() -> Generator[Session, None, None]:
+    """
+    Synchronous database session generator for non-async contexts.
+
+    Usage:
+        db = next(get_db_sync())
+        try:
+            # perform database operations
+        finally:
+            db.close()
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def get_tenant_by_id(db: Session, tenant_id: str) -> Optional[Tenant]:
     """Get a tenant by ID with proper validation"""
     return db.query(Tenant).filter(
