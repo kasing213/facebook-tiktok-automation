@@ -346,10 +346,15 @@ def generate_pdf(invoice_id: str) -> Optional[bytes]:
 
     Uses fpdf2 library for real PDF generation with proper styling.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
         from fpdf import FPDF
-    except ImportError:
+        logger.info(f"✅ fpdf2 imported successfully for invoice {invoice_id}")
+    except ImportError as e:
         # Fallback if fpdf2 not installed
+        logger.error(f"❌ fpdf2 not installed (ImportError: {e}), using fallback PDF for invoice {invoice_id}")
         return _generate_pdf_fallback(invoice_id)
 
     invoice = get_invoice(invoice_id)
