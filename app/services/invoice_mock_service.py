@@ -164,7 +164,6 @@ def get_invoice(invoice_id: str) -> Optional[Dict]:
                 c.name as customer_name,
                 c.email as customer_email,
                 c.phone as customer_phone,
-                c.company as customer_company,
                 c.address as customer_address
             FROM invoice.invoice i
             LEFT JOIN invoice.customer c ON i.customer_id = c.id
@@ -208,7 +207,6 @@ def get_invoice(invoice_id: str) -> Optional[Dict]:
                     "name": result.customer_name,
                     "email": result.customer_email,
                     "phone": result.customer_phone,
-                    "company": result.customer_company,
                     "address": result.customer_address
                 } if result.customer_name else None
             }
