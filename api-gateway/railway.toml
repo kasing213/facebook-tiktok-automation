@@ -1,6 +1,7 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "api-gateway/Dockerfile"
+watchPatterns = ["api-gateway/**"]
 
 [deploy]
 # startCommand removed - using Dockerfile CMD instead (python src/run.py)
