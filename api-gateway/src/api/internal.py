@@ -222,11 +222,11 @@ async def send_invoice_pdf(data: InvoicePDFRequest):
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Verify This Payment",
+                    text=f"✅ Verify {data.invoice_number}",
                     callback_data=f"verify_invoice:{data.invoice_id}"
                 ),
                 InlineKeyboardButton(
-                    text="View Other Invoices",
+                    text="📋 Other Invoices",
                     callback_data=f"view_other_invoices:{data.invoice_id}"
                 )
             ]

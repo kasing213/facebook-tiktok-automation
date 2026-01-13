@@ -478,45 +478,14 @@ async def handle_view_other_invoices_button(callback: types.CallbackQuery, state
     other_invoices.sort(key=lambda x: x.get("created_at") or x.get("invoice_date") or "")
 
     if not other_invoices:
-        await callback.message.answer(
-            "✅ <b>No Other Pending Invoices</b>\n\n"
-            "You don't have any other pending invoices at the moment.\n"
-            "You're all caught up!",
-            parse_mode="HTML"
+        await callback.answer(
+            "✅ No other pending invoices. You're all caught up!",
+            show_alert=True
         )
         return
 
-    if len(other_invoices) == 1:
-        # Auto-select single invoice
-        invoice = other_invoices[0]
-        await state.update_data(selected_invoice=invoice)
-        await state.set_state(ClientStates.waiting_for_payment_screenshot)
-
-        currency = invoice.get("currency", "KHR")
-        amount = invoice.get("amount", 0)
-        if currency == "KHR":
-            amount_str = f"{amount:,.0f} KHR"
-        else:
-            amount_str = f"${amount:.2f}"
-
-        due_date = invoice.get('due_date')
-        due_date_str = due_date[:10] if due_date else "Not specified"
-
-        await callback.message.answer(
-            f"<b>Payment Verification</b>\n\n"
-            f"Invoice: <code>{invoice['invoice_number']}</code>\n"
-            f"Amount: <b>{amount_str}</b>\n"
-            f"Bank: {invoice.get('bank') or 'Not specified'}\n"
-            f"Account: <code>{invoice.get('expected_account') or 'Not specified'}</code>\n"
-            f"Recipient: {invoice.get('recipient_name') or 'Not specified'}\n"
-            f"Due Date: {due_date_str}\n\n"
-            f"Please send a screenshot of your payment receipt.\n\n"
-            f"<i>Use /cancel to cancel verification.</i>",
-            parse_mode="HTML"
-        )
-        return
-
-    # Multiple invoices - show selection
+    # Show invoice selection (works for 1 or more invoices)
+    # Build selection buttons
     buttons = []
     for inv in other_invoices[:10]:  # Limit to 10
         currency = inv.get("currency", "KHR")
@@ -536,16 +505,62 @@ async def handle_view_other_invoices_button(callback: types.CallbackQuery, state
             )
         ])
 
+    # Add a "Back" button to return to original view
+    buttons.append([
+        InlineKeyboardButton(
+            text="⬅️ Back",
+            callback_data=f"back_to_invoice:{current_invoice_id}"
+        )
+    ])
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await state.set_state(ClientStates.waiting_for_invoice_selection)
-    await callback.message.answer(
-        f"<b>Select Invoice to Verify</b>\n\n"
-        f"You have {len(other_invoices)} other pending invoice(s).\n"
-        f"Select which one you want to verify:",
-        reply_markup=keyboard,
-        parse_mode="HTML"
-    )
+
+    # Edit the existing message's buttons inline (doesn't push content down)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=keyboard)
+    except Exception as e:
+        logger.warning(f"Could not edit inline buttons, sending new message: {e}")
+        # Fallback: send new message if edit fails
+        await callback.message.answer(
+            f"<b>Select Invoice to Verify</b>\n\n"
+            f"You have {len(other_invoices)} other pending invoice(s).\n"
+            f"Select which one you want to verify:",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+
+
+@router.callback_query(F.data.startswith("back_to_invoice:"))
+async def handle_back_to_invoice_button(callback: types.CallbackQuery, state: FSMContext):
+    """Handle back button - restore original invoice buttons."""
+    await callback.answer()
+
+    invoice_id = callback.data.split(":")[1]
+
+    # Get invoice details to show invoice number in button
+    invoice = await invoice_service.get_invoice_by_id(invoice_id)
+    if not invoice:
+        await callback.answer("Invoice not found", show_alert=True)
+        return
+
+    # Restore original buttons
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=f"✅ Verify {invoice['invoice_number']}",
+                callback_data=f"verify_invoice:{invoice_id}"
+            ),
+            InlineKeyboardButton(
+                text="📋 Other Invoices",
+                callback_data=f"view_other_invoices:{invoice_id}"
+            )
+        ]
+    ])
+
+    await state.clear()
+    await callback.message.edit_reply_markup(reply_markup=keyboard)
 
 
 @router.message(Command("cancel"), ClientStates.waiting_for_payment_screenshot)
