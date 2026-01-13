@@ -223,42 +223,48 @@ async def handle_client_photo(message: types.Message, state: FSMContext):
     logger.info(f"📸 Photo received from {telegram_id}")
 
     try:
-        # Check if this is a merchant (linked user)
-        user = await get_user_by_telegram_id(telegram_id)
-        if user:
-            logger.info(f"User {telegram_id} is a merchant, checking OCR state...")
-            # This is a merchant - let other handlers deal with it
-            # Check if they're in an OCR state
-            current_state = await state.get_state()
-            if current_state:
-                logger.info(f"Merchant {telegram_id} in state {current_state}, delegating to state handler")
-                return  # Let the appropriate state handler deal with it
-            logger.info(f"Merchant {telegram_id} not in OCR state, ignoring photo")
-            return  # Ignore photos from merchants outside of OCR flows
-
-        # Check if this is a registered client
-        customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
-        if not customer:
-            logger.info(f"User {telegram_id} is not a registered customer, ignoring photo")
-            # Not a merchant, not a client - ignore
-            return
-
-        logger.info(f"✅ User {telegram_id} is registered customer {customer.get('id')}")
-
-        # This is a registered client - check if they're in payment mode
+        # Check FSM state FIRST - most specific indicator of user intent
         current_state = await state.get_state()
         state_data = await state.get_data()
 
-        logger.info(f"Customer {telegram_id} current state: {current_state}")
-
+        # CLIENT PAYMENT FLOW - highest priority (state-based)
         if current_state == ClientStates.waiting_for_payment_screenshot:
-            # They're in payment mode - process the screenshot
-            logger.info(f"Processing payment screenshot for customer {telegram_id}")
-            await process_client_payment_screenshot(message, state, customer, state_data)
-        else:
-            # They sent a photo but not in payment mode - show pending invoices
-            logger.info(f"Customer {telegram_id} not in payment mode, showing pending invoices")
-            await show_pending_invoices_for_payment(message, state, customer)
+            logger.info(f"User {telegram_id} in client payment state, checking customer registration...")
+
+            # Verify customer registration (merchant can also be customer)
+            customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+            if customer:
+                logger.info(f"Processing payment screenshot for customer {customer.get('id')}")
+                await process_client_payment_screenshot(message, state, customer, state_data)
+                return
+            else:
+                logger.warning(f"User {telegram_id} in payment state but not registered as customer")
+                await state.clear()
+                await message.answer(
+                    "Session expired or invalid. Please request a new invoice link from your merchant."
+                )
+                return
+
+        # MERCHANT OCR FLOW - second priority (for other states)
+        user = await get_user_by_telegram_id(telegram_id)
+        if user:
+            logger.info(f"User {telegram_id} is a merchant")
+            # If merchant has OTHER states (OCRStates.*), let those handlers process
+            if current_state:
+                logger.info(f"Merchant {telegram_id} in state {current_state}, delegating to state handler")
+                return  # Let OCR handlers deal with it
+            logger.info(f"Merchant {telegram_id} not in any state, ignoring photo")
+            return  # Ignore photos from merchants outside flows
+
+        # UNREGISTERED CLIENT - show pending invoices
+        customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+        if not customer:
+            logger.info(f"User {telegram_id} is neither merchant nor customer, ignoring photo")
+            return
+
+        logger.info(f"✅ User {telegram_id} is registered customer, showing pending invoices")
+        await show_pending_invoices_for_payment(message, state, customer)
+
     except Exception as e:
         logger.error(f"❌ Error handling photo from {telegram_id}: {e}", exc_info=True)
         await message.answer(
