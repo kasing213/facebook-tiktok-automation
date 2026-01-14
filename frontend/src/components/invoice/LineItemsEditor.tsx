@@ -1,6 +1,7 @@
 import React from 'react'
 import styled from 'styled-components'
 import { LineItem, Currency } from '../../types/invoice'
+import ProductPicker from './ProductPicker'
 
 interface LineItemsEditorProps {
   items: LineItem[]
@@ -21,6 +22,12 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+`
+
+const HeaderButtons = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 `
 
 const Label = styled.h3`
@@ -256,6 +263,24 @@ export const LineItemsEditor: React.FC<LineItemsEditorProps> = ({
     onChange([...items, newItem])
   }
 
+  const addProductItem = (product: {
+    id: string
+    name: string
+    sku?: string
+    unit_price: number
+    currency: string
+    current_stock: number
+    track_stock: boolean
+  }) => {
+    const newItem: LineItem = {
+      description: product.sku ? `${product.name} (${product.sku})` : product.name,
+      quantity: 1,
+      unit_price: product.unit_price,
+      tax_rate: 0
+    }
+    onChange([...items, newItem])
+  }
+
   const updateItem = (index: number, field: keyof LineItem, value: string | number) => {
     const updated = items.map((item, i) => {
       if (i === index) {
@@ -325,7 +350,12 @@ export const LineItemsEditor: React.FC<LineItemsEditorProps> = ({
     <Container>
       <Header>
         <Label>Line Items</Label>
-        {!readOnly && <AddButton onClick={addItem}>+ Add Item</AddButton>}
+        {!readOnly && (
+          <HeaderButtons>
+            <ProductPicker onSelect={addProductItem} />
+            <AddButton onClick={addItem}>+ Add Item</AddButton>
+          </HeaderButtons>
+        )}
       </Header>
 
       {!readOnly && (

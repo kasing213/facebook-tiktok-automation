@@ -1,0 +1,936 @@
+import React, { useEffect, useState, useCallback } from 'react'
+import styled from 'styled-components'
+import { inventoryService } from '../../../services/inventoryApi'
+import { Product, ProductCreate, ProductUpdate } from '../../../types/inventory'
+
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+`
+
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+`
+
+const Title = styled.h1`
+  font-size: 2rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+`
+
+const HeaderActions = styled.div`
+  display: flex;
+  gap: 0.75rem;
+`
+
+const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  ${props => props.$variant === 'primary' ? `
+    background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+    color: white;
+    border: none;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+    }
+  ` : props.$variant === 'danger' ? `
+    background: #dc3545;
+    color: white;
+    border: none;
+
+    &:hover {
+      background: #c82333;
+    }
+  ` : `
+    background: white;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+
+    &:hover {
+      background: #f9fafb;
+    }
+  `}
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+`
+
+const StatCard = styled.div`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.25rem;
+`
+
+const StatLabel = styled.div`
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+`
+
+const StatValue = styled.div<{ $color?: string }>`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: ${props => props.$color || '#1f2937'};
+`
+
+const FilterToolbar = styled.div`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+`
+
+const SearchBox = styled.div`
+  flex: 1;
+  min-width: 200px;
+  position: relative;
+`
+
+const SearchIcon = styled.span`
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+`
+
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 0.625rem 1rem 0.625rem 2.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: #1f2937;
+
+  &:focus {
+    outline: none;
+    border-color: #4a90e2;
+  }
+`
+
+const FilterCheckbox = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  cursor: pointer;
+
+  input {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+`
+
+const TableSection = styled.section`
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+`
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+`
+
+const TableHeader = styled.thead`
+  background: #f9fafb;
+`
+
+const TableHeaderCell = styled.th`
+  text-align: left;
+  padding: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e5e7eb;
+`
+
+const TableBody = styled.tbody``
+
+const TableRow = styled.tr`
+  border-bottom: 1px solid #e5e7eb;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: #f9fafb;
+  }
+`
+
+const TableCell = styled.td`
+  padding: 1rem;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  vertical-align: middle;
+`
+
+const ProductName = styled.div`
+  font-weight: 500;
+  color: #1f2937;
+`
+
+const ProductSku = styled.div`
+  font-size: 0.75rem;
+  color: #6b7280;
+`
+
+const StockBadge = styled.span<{ $isLow: boolean }>`
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: ${props => props.$isLow ? '#fef2f2' : '#f0fdf4'};
+  color: ${props => props.$isLow ? '#dc2626' : '#16a34a'};
+`
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 0.5rem;
+`
+
+const IconButton = styled.button`
+  padding: 0.5rem;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`
+
+const ErrorMessage = styled.div`
+  background: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+`
+
+const SuccessMessage = styled.div`
+  background: #d4edda;
+  color: #155724;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+`
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+
+  h3 {
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+  }
+`
+
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: 3rem;
+`
+
+// Modal Components
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+`
+
+const ModalContent = styled.div`
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+
+  h2 {
+    margin: 0 0 1.5rem 0;
+    color: #1f2937;
+    font-size: 1.5rem;
+  }
+`
+
+const FormGroup = styled.div`
+  margin-bottom: 1rem;
+`
+
+const FormLabel = styled.label`
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+`
+
+const FormInput = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: #1f2937;
+
+  &:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+  }
+`
+
+const FormTextarea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  min-height: 80px;
+  resize: vertical;
+
+  &:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+  }
+`
+
+const FormSelect = styled.select`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: #1f2937;
+  background: white;
+
+  &:focus {
+    outline: none;
+    border-color: #4a90e2;
+  }
+`
+
+const FormCheckbox = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  color: #374151;
+  cursor: pointer;
+
+  input {
+    width: 1.125rem;
+    height: 1.125rem;
+    cursor: pointer;
+  }
+`
+
+const ModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+`
+
+const FormRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+`
+
+const InventoryListPage: React.FC = () => {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false)
+
+  // Modal states
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showStockModal, setShowStockModal] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  // Form states
+  const [formData, setFormData] = useState<ProductCreate>({
+    name: '',
+    sku: '',
+    description: '',
+    unit_price: 0,
+    cost_price: 0,
+    currency: 'USD',
+    current_stock: 0,
+    low_stock_threshold: 10,
+    track_stock: true
+  })
+  const [newStockLevel, setNewStockLevel] = useState(0)
+  const [stockNotes, setStockNotes] = useState('')
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await inventoryService.listProducts({
+        search: searchQuery || undefined,
+        low_stock_only: showLowStockOnly || undefined
+      })
+      setProducts(data)
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch products')
+    } finally {
+      setLoading(false)
+    }
+  }, [searchQuery, showLowStockOnly])
+
+  useEffect(() => {
+    fetchProducts()
+  }, [fetchProducts])
+
+  const formatCurrency = (amount: number, currency: string = 'USD'): string => {
+    if (currency === 'KHR') {
+      return new Intl.NumberFormat('km-KH', {
+        style: 'currency',
+        currency: 'KHR',
+        minimumFractionDigits: 0
+      }).format(amount)
+    }
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount)
+  }
+
+  const handleCreate = async () => {
+    try {
+      setSaving(true)
+      await inventoryService.createProduct(formData)
+      setSuccess('Product created successfully')
+      setShowCreateModal(false)
+      resetForm()
+      fetchProducts()
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to create product')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUpdate = async () => {
+    if (!selectedProduct) return
+    try {
+      setSaving(true)
+      const updateData: ProductUpdate = {
+        name: formData.name,
+        sku: formData.sku,
+        description: formData.description,
+        unit_price: formData.unit_price,
+        cost_price: formData.cost_price,
+        currency: formData.currency,
+        low_stock_threshold: formData.low_stock_threshold,
+        track_stock: formData.track_stock
+      }
+      await inventoryService.updateProduct(selectedProduct.id, updateData)
+      setSuccess('Product updated successfully')
+      setShowEditModal(false)
+      resetForm()
+      fetchProducts()
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to update product')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selectedProduct) return
+    try {
+      setSaving(true)
+      await inventoryService.deleteProduct(selectedProduct.id)
+      setSuccess('Product deleted successfully')
+      setShowDeleteModal(false)
+      setSelectedProduct(null)
+      fetchProducts()
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to delete product')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStockAdjustment = async () => {
+    if (!selectedProduct) return
+    try {
+      setSaving(true)
+      await inventoryService.adjustStock({
+        product_id: selectedProduct.id,
+        new_stock_level: newStockLevel,
+        notes: stockNotes || undefined
+      })
+      setSuccess('Stock adjusted successfully')
+      setShowStockModal(false)
+      setSelectedProduct(null)
+      setNewStockLevel(0)
+      setStockNotes('')
+      fetchProducts()
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to adjust stock')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const openEditModal = (product: Product) => {
+    setSelectedProduct(product)
+    setFormData({
+      name: product.name,
+      sku: product.sku || '',
+      description: product.description || '',
+      unit_price: product.unit_price,
+      cost_price: product.cost_price || 0,
+      currency: product.currency || 'USD',
+      current_stock: product.current_stock,
+      low_stock_threshold: product.low_stock_threshold,
+      track_stock: product.track_stock
+    })
+    setShowEditModal(true)
+  }
+
+  const openStockModal = (product: Product) => {
+    setSelectedProduct(product)
+    setNewStockLevel(product.current_stock)
+    setStockNotes('')
+    setShowStockModal(true)
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      sku: '',
+      description: '',
+      unit_price: 0,
+      cost_price: 0,
+      currency: 'USD',
+      current_stock: 0,
+      low_stock_threshold: 10,
+      track_stock: true
+    })
+    setSelectedProduct(null)
+  }
+
+  // Stats calculations
+  const totalProducts = products.length
+  const activeProducts = products.filter(p => p.is_active).length
+  const lowStockCount = products.filter(p => p.track_stock && p.current_stock <= p.low_stock_threshold).length
+  const totalStockValue = products.reduce((sum, p) => sum + (p.current_stock * p.unit_price), 0)
+
+  return (
+    <Container>
+      <Header>
+        <Title>Inventory</Title>
+        <HeaderActions>
+          <Button $variant="primary" onClick={() => setShowCreateModal(true)}>
+            + Add Product
+          </Button>
+        </HeaderActions>
+      </Header>
+
+      {error && (
+        <ErrorMessage>
+          {error}
+          <button onClick={() => setError(null)} style={{ marginLeft: '1rem' }}>Dismiss</button>
+        </ErrorMessage>
+      )}
+
+      {success && <SuccessMessage>{success}</SuccessMessage>}
+
+      <StatsGrid>
+        <StatCard>
+          <StatLabel>Total Products</StatLabel>
+          <StatValue>{totalProducts}</StatValue>
+        </StatCard>
+        <StatCard>
+          <StatLabel>Active Products</StatLabel>
+          <StatValue $color="#28a745">{activeProducts}</StatValue>
+        </StatCard>
+        <StatCard>
+          <StatLabel>Low Stock</StatLabel>
+          <StatValue $color={lowStockCount > 0 ? '#dc3545' : '#28a745'}>{lowStockCount}</StatValue>
+        </StatCard>
+        <StatCard>
+          <StatLabel>Total Stock Value</StatLabel>
+          <StatValue $color="#4a90e2">{formatCurrency(totalStockValue)}</StatValue>
+        </StatCard>
+      </StatsGrid>
+
+      <FilterToolbar>
+        <SearchBox>
+          <SearchIcon>🔍</SearchIcon>
+          <SearchInput
+            type="text"
+            placeholder="Search products by name or SKU..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </SearchBox>
+        <FilterCheckbox>
+          <input
+            type="checkbox"
+            checked={showLowStockOnly}
+            onChange={(e) => setShowLowStockOnly(e.target.checked)}
+          />
+          Low Stock Only
+        </FilterCheckbox>
+      </FilterToolbar>
+
+      <TableSection>
+        {loading ? (
+          <LoadingSpinner>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+          </LoadingSpinner>
+        ) : products.length === 0 ? (
+          <EmptyState>
+            <h3>No products found</h3>
+            <p>Create your first product to start tracking inventory.</p>
+            <Button $variant="primary" onClick={() => setShowCreateModal(true)} style={{ marginTop: '1rem' }}>
+              + Add Product
+            </Button>
+          </EmptyState>
+        ) : (
+          <Table>
+            <TableHeader>
+              <tr>
+                <TableHeaderCell>Product</TableHeaderCell>
+                <TableHeaderCell>Price</TableHeaderCell>
+                <TableHeaderCell>Stock</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell>Actions</TableHeaderCell>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {products.map(product => {
+                const isLowStock = product.track_stock && product.current_stock <= product.low_stock_threshold
+                return (
+                  <TableRow key={product.id}>
+                    <TableCell>
+                      <ProductName>{product.name}</ProductName>
+                      {product.sku && <ProductSku>SKU: {product.sku}</ProductSku>}
+                    </TableCell>
+                    <TableCell>{formatCurrency(product.unit_price, product.currency)}</TableCell>
+                    <TableCell>
+                      {product.track_stock ? (
+                        <StockBadge $isLow={isLowStock}>
+                          {product.current_stock} units
+                        </StockBadge>
+                      ) : (
+                        <span style={{ color: '#6b7280' }}>Not tracked</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {product.is_active ? (
+                        <span style={{ color: '#16a34a' }}>Active</span>
+                      ) : (
+                        <span style={{ color: '#6b7280' }}>Inactive</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <ActionButtons>
+                        <IconButton title="Edit" onClick={() => openEditModal(product)}>
+                          ✏️
+                        </IconButton>
+                        <IconButton title="Adjust Stock" onClick={() => openStockModal(product)}>
+                          📦
+                        </IconButton>
+                        <IconButton
+                          title="Delete"
+                          onClick={() => {
+                            setSelectedProduct(product)
+                            setShowDeleteModal(true)
+                          }}
+                        >
+                          🗑️
+                        </IconButton>
+                      </ActionButtons>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </TableSection>
+
+      {/* Create/Edit Product Modal */}
+      {(showCreateModal || showEditModal) && (
+        <ModalOverlay onClick={() => {
+          setShowCreateModal(false)
+          setShowEditModal(false)
+          resetForm()
+        }}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <h2>{showCreateModal ? 'Add Product' : 'Edit Product'}</h2>
+
+            <FormGroup>
+              <FormLabel>Product Name *</FormLabel>
+              <FormInput
+                type="text"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter product name"
+              />
+            </FormGroup>
+
+            <FormRow>
+              <FormGroup>
+                <FormLabel>SKU</FormLabel>
+                <FormInput
+                  type="text"
+                  value={formData.sku}
+                  onChange={e => setFormData({ ...formData, sku: e.target.value })}
+                  placeholder="e.g., PROD-001"
+                />
+              </FormGroup>
+              <FormGroup>
+                <FormLabel>Currency</FormLabel>
+                <FormSelect
+                  value={formData.currency}
+                  onChange={e => setFormData({ ...formData, currency: e.target.value })}
+                >
+                  <option value="USD">USD</option>
+                  <option value="KHR">KHR</option>
+                </FormSelect>
+              </FormGroup>
+            </FormRow>
+
+            <FormGroup>
+              <FormLabel>Description</FormLabel>
+              <FormTextarea
+                value={formData.description}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Product description (optional)"
+              />
+            </FormGroup>
+
+            <FormRow>
+              <FormGroup>
+                <FormLabel>Unit Price *</FormLabel>
+                <FormInput
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.unit_price}
+                  onChange={e => setFormData({ ...formData, unit_price: parseFloat(e.target.value) || 0 })}
+                />
+              </FormGroup>
+              <FormGroup>
+                <FormLabel>Cost Price</FormLabel>
+                <FormInput
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.cost_price}
+                  onChange={e => setFormData({ ...formData, cost_price: parseFloat(e.target.value) || 0 })}
+                />
+              </FormGroup>
+            </FormRow>
+
+            {showCreateModal && (
+              <FormGroup>
+                <FormLabel>Initial Stock</FormLabel>
+                <FormInput
+                  type="number"
+                  min="0"
+                  value={formData.current_stock}
+                  onChange={e => setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })}
+                />
+              </FormGroup>
+            )}
+
+            <FormRow>
+              <FormGroup>
+                <FormLabel>Low Stock Threshold</FormLabel>
+                <FormInput
+                  type="number"
+                  min="0"
+                  value={formData.low_stock_threshold}
+                  onChange={e => setFormData({ ...formData, low_stock_threshold: parseInt(e.target.value) || 0 })}
+                />
+              </FormGroup>
+              <FormGroup style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <FormCheckbox>
+                  <input
+                    type="checkbox"
+                    checked={formData.track_stock}
+                    onChange={e => setFormData({ ...formData, track_stock: e.target.checked })}
+                  />
+                  Track Stock
+                </FormCheckbox>
+              </FormGroup>
+            </FormRow>
+
+            <ModalActions>
+              <Button onClick={() => {
+                setShowCreateModal(false)
+                setShowEditModal(false)
+                resetForm()
+              }}>Cancel</Button>
+              <Button
+                $variant="primary"
+                onClick={showCreateModal ? handleCreate : handleUpdate}
+                disabled={saving || !formData.name}
+              >
+                {saving ? 'Saving...' : (showCreateModal ? 'Create Product' : 'Save Changes')}
+              </Button>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* Stock Adjustment Modal */}
+      {showStockModal && selectedProduct && (
+        <ModalOverlay onClick={() => {
+          setShowStockModal(false)
+          setSelectedProduct(null)
+        }}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <h2>Adjust Stock</h2>
+            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+              Adjust stock level for <strong>{selectedProduct.name}</strong>
+            </p>
+
+            <FormGroup>
+              <FormLabel>Current Stock: {selectedProduct.current_stock} units</FormLabel>
+            </FormGroup>
+
+            <FormGroup>
+              <FormLabel>New Stock Level *</FormLabel>
+              <FormInput
+                type="number"
+                min="0"
+                value={newStockLevel}
+                onChange={e => setNewStockLevel(parseInt(e.target.value) || 0)}
+              />
+            </FormGroup>
+
+            <FormGroup>
+              <FormLabel>Notes</FormLabel>
+              <FormTextarea
+                value={stockNotes}
+                onChange={e => setStockNotes(e.target.value)}
+                placeholder="Reason for adjustment (optional)"
+              />
+            </FormGroup>
+
+            <ModalActions>
+              <Button onClick={() => {
+                setShowStockModal(false)
+                setSelectedProduct(null)
+              }}>Cancel</Button>
+              <Button
+                $variant="primary"
+                onClick={handleStockAdjustment}
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : 'Adjust Stock'}
+              </Button>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedProduct && (
+        <ModalOverlay onClick={() => {
+          setShowDeleteModal(false)
+          setSelectedProduct(null)
+        }}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <h2>Delete Product</h2>
+            <p style={{ color: '#6b7280' }}>
+              Are you sure you want to delete <strong>{selectedProduct.name}</strong>?
+              This action cannot be undone.
+            </p>
+            <ModalActions>
+              <Button onClick={() => {
+                setShowDeleteModal(false)
+                setSelectedProduct(null)
+              }}>Cancel</Button>
+              <Button
+                $variant="danger"
+                onClick={handleDelete}
+                disabled={saving}
+              >
+                {saving ? 'Deleting...' : 'Delete Product'}
+              </Button>
+            </ModalActions>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+    </Container>
+  )
+}
+
+export default InventoryListPage

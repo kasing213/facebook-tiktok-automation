@@ -163,6 +163,7 @@ const menuItems: MenuItem[] = [
     ]
   },
   { path: '/dashboard/invoices', label: 'Invoices' },
+  { path: '/dashboard/inventory', label: 'Inventory' },
   { path: '/dashboard/settings', label: 'Settings' }
 ]
 

@@ -250,6 +250,41 @@ quantity, reference_type, reference_id, notes, created_by, created_at
 - ✅ Input validation and SQL injection protection
 - ✅ Owner-only delete operations
 
+**✅ Frontend UI (2026-01-14):**
+- ✅ Inventory List Page (`/dashboard/inventory`)
+  - Product list with search and low-stock filter
+  - Stats cards: Total Products, Active Products, Low Stock, Stock Value
+  - CRUD modals: Create Product, Edit Product, Adjust Stock, Delete
+  - Stock badge indicators (green/red based on threshold)
+- ✅ Product Picker in Invoice Creation
+  - Dropdown in LineItemsEditor header
+  - Search products by name/SKU
+  - Shows price and stock availability
+  - Auto-fills line item with product details
+  - Blocks selection of out-of-stock items
+
+**Frontend Files:**
+| File | Purpose |
+|------|---------|
+| `frontend/src/types/inventory.ts` | TypeScript interfaces for Product, StockMovement |
+| `frontend/src/services/inventoryApi.ts` | API client for inventory endpoints |
+| `frontend/src/components/dashboard/inventory/InventoryListPage.tsx` | Main inventory management page |
+| `frontend/src/components/invoice/ProductPicker.tsx` | Product selection dropdown for invoices |
+| `frontend/src/components/invoice/LineItemsEditor.tsx` | Updated with ProductPicker integration |
+
+**Invoice-Inventory Integration Flow:**
+```
+1. Dashboard: Create Invoice → Select Customer
+2. Line Items: Click "📦 Select Product" button
+3. Search/select product from dropdown
+4. Product name, SKU, unit_price auto-fill the line item
+5. Adjust quantity if needed
+6. Save Invoice → Send to Customer via Telegram
+7. Customer pays → Sends screenshot → OCR verifies
+8. Payment verified → Stock automatically deducted
+9. Stock movement recorded with invoice_id reference
+```
+
 ### Authentication System Status
 
 **✅ Core Features (COMPLETED):**
