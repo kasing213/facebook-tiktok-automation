@@ -497,10 +497,11 @@ const InventoryListPage: React.FC = () => {
     try {
       setSaving(true)
       // Convert prices to backend format (cents for USD)
+      const currency = formData.currency || 'USD'
       const submitData: ProductCreate = {
         ...formData,
-        unit_price: priceToBackend(formData.unit_price, formData.currency),
-        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, formData.currency) : undefined
+        unit_price: priceToBackend(formData.unit_price, currency),
+        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, currency) : undefined
       }
       await inventoryService.createProduct(submitData)
       setSuccess('Product created successfully')
@@ -520,13 +521,14 @@ const InventoryListPage: React.FC = () => {
     try {
       setSaving(true)
       // Convert prices to backend format (cents for USD)
+      const currency = formData.currency || 'USD'
       const updateData: ProductUpdate = {
         name: formData.name,
         sku: formData.sku,
         description: formData.description,
-        unit_price: priceToBackend(formData.unit_price, formData.currency),
-        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, formData.currency) : undefined,
-        currency: formData.currency,
+        unit_price: priceToBackend(formData.unit_price, currency),
+        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, currency) : undefined,
+        currency: currency,
         low_stock_threshold: formData.low_stock_threshold,
         track_stock: formData.track_stock
       }
