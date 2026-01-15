@@ -206,27 +206,42 @@ export const ProductPicker: React.FC<ProductPickerProps> = ({ onSelect, disabled
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Convert backend price to display price
+  // Inventory stores USD in cents (multiplied by 100), KHR in whole units
+  const priceFromBackend = (amount: number, currency: string): number => {
+    if (currency === 'KHR') {
+      return amount
+    }
+    return amount / 100 // USD: cents to dollars
+  }
+
   const handleSelect = (product: Product) => {
     if (product.track_stock && product.current_stock <= 0) {
       return // Don't select out-of-stock items
     }
-    onSelect(product)
+    // Convert price from backend format (cents for USD) to user-friendly format (dollars)
+    const convertedProduct = {
+      ...product,
+      unit_price: priceFromBackend(product.unit_price, product.currency)
+    }
+    onSelect(convertedProduct)
     setIsOpen(false)
     setSearchQuery('')
   }
 
   const formatCurrency = (amount: number, currency: string): string => {
+    const displayAmount = priceFromBackend(amount, currency)
     if (currency === 'KHR') {
       return new Intl.NumberFormat('km-KH', {
         style: 'currency',
         currency: 'KHR',
         minimumFractionDigits: 0
-      }).format(amount)
+      }).format(displayAmount)
     }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(amount)
+    }).format(displayAmount)
   }
 
   return (

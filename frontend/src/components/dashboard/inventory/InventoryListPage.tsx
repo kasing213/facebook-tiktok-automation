@@ -447,6 +447,9 @@ const InventoryListPage: React.FC = () => {
   }, [fetchProducts])
 
   const formatCurrency = (amount: number, currency: string = 'USD'): string => {
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return currency === 'KHR' ? 'KHR 0' : '$0.00'
+    }
     if (currency === 'KHR') {
       return new Intl.NumberFormat('km-KH', {
         style: 'currency',
@@ -454,23 +457,59 @@ const InventoryListPage: React.FC = () => {
         minimumFractionDigits: 0
       }).format(amount)
     }
+    // USD is stored in cents, convert to dollars for display
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(amount)
+    }).format(amount / 100)
+  }
+
+  // Helper to extract error message from FastAPI validation errors
+  const extractErrorMessage = (err: any): string => {
+    const detail = err.response?.data?.detail
+    if (Array.isArray(detail)) {
+      return detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', ')
+    }
+    if (typeof detail === 'string') return detail
+    if (detail && typeof detail === 'object') {
+      return detail.msg || detail.message || JSON.stringify(detail)
+    }
+    return err.message || 'An error occurred'
+  }
+
+  // Convert user-friendly decimal price to backend integer (cents for USD)
+  const priceToBackend = (price: number, currency: string): number => {
+    if (currency === 'KHR') {
+      return Math.round(price) // KHR doesn't use decimals
+    }
+    return Math.round(price * 100) // USD: dollars to cents
+  }
+
+  // Convert backend integer price to user-friendly decimal
+  const priceFromBackend = (price: number, currency: string): number => {
+    if (currency === 'KHR') {
+      return price
+    }
+    return price / 100 // USD: cents to dollars
   }
 
   const handleCreate = async () => {
     try {
       setSaving(true)
-      await inventoryService.createProduct(formData)
+      // Convert prices to backend format (cents for USD)
+      const submitData: ProductCreate = {
+        ...formData,
+        unit_price: priceToBackend(formData.unit_price, formData.currency),
+        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, formData.currency) : undefined
+      }
+      await inventoryService.createProduct(submitData)
       setSuccess('Product created successfully')
       setShowCreateModal(false)
       resetForm()
       fetchProducts()
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Failed to create product')
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -480,12 +519,13 @@ const InventoryListPage: React.FC = () => {
     if (!selectedProduct) return
     try {
       setSaving(true)
+      // Convert prices to backend format (cents for USD)
       const updateData: ProductUpdate = {
         name: formData.name,
         sku: formData.sku,
         description: formData.description,
-        unit_price: formData.unit_price,
-        cost_price: formData.cost_price,
+        unit_price: priceToBackend(formData.unit_price, formData.currency),
+        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, formData.currency) : undefined,
         currency: formData.currency,
         low_stock_threshold: formData.low_stock_threshold,
         track_stock: formData.track_stock
@@ -497,7 +537,7 @@ const InventoryListPage: React.FC = () => {
       fetchProducts()
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Failed to update product')
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -514,7 +554,7 @@ const InventoryListPage: React.FC = () => {
       fetchProducts()
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Failed to delete product')
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -537,7 +577,7 @@ const InventoryListPage: React.FC = () => {
       fetchProducts()
       setTimeout(() => setSuccess(null), 3000)
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Failed to adjust stock')
+      setError(extractErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -545,13 +585,15 @@ const InventoryListPage: React.FC = () => {
 
   const openEditModal = (product: Product) => {
     setSelectedProduct(product)
+    const currency = product.currency || 'USD'
     setFormData({
       name: product.name,
       sku: product.sku || '',
       description: product.description || '',
-      unit_price: product.unit_price,
-      cost_price: product.cost_price || 0,
-      currency: product.currency || 'USD',
+      // Convert backend prices (cents) to user-friendly format (dollars)
+      unit_price: priceFromBackend(product.unit_price, currency),
+      cost_price: product.cost_price ? priceFromBackend(product.cost_price, currency) : 0,
+      currency: currency,
       current_stock: product.current_stock,
       low_stock_threshold: product.low_stock_threshold,
       track_stock: product.track_stock
@@ -585,6 +627,7 @@ const InventoryListPage: React.FC = () => {
   const totalProducts = products.length
   const activeProducts = products.filter(p => p.is_active).length
   const lowStockCount = products.filter(p => p.track_stock && p.current_stock <= p.low_stock_threshold).length
+  // Note: unit_price is in cents for USD, so totalStockValue will also be in cents
   const totalStockValue = products.reduce((sum, p) => sum + (p.current_stock * p.unit_price), 0)
 
   return (
