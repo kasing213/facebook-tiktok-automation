@@ -223,7 +223,7 @@ const VerificationPendingPage: React.FC<VerificationPendingPageProps> = ({
 
   useEffect(() => {
     // Cooldown timer
-    let interval: NodeJS.Timeout | null = null
+    let interval: number | null = null
     if (cooldownSeconds > 0) {
       interval = setInterval(() => {
         setCooldownSeconds(prev => prev - 1)
