@@ -1,0 +1,138 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "search": "Search",
+    "filter": "Filter",
+    "all": "All",
+    "actions": "Actions",
+    "download": "Download",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit"
+  },
+  "header": {
+    "selectWorkspace": "Select Workspace",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "sidebar": {
+    "main": "Main",
+    "overview": "Overview",
+    "services": "Services",
+    "socialMedia": "Social Media",
+    "invoices": "Invoices",
+    "inventory": "Inventory",
+    "clients": "Clients",
+    "settings": "Settings",
+    "integrations": "Integrations",
+    "proPlan": "Pro Plan",
+    "active": "Active"
+  },
+  "clients": {
+    "title": "Clients",
+    "subtitle": "Manage your Telegram-linked customers",
+    "totalClients": "Total Clients",
+    "telegramLinked": "Telegram Linked",
+    "totalReceivable": "Total Receivable",
+    "addClient": "Add Client",
+    "searchPlaceholder": "Search clients...",
+    "linked": "Linked",
+    "notLinked": "Not Linked",
+    "pending": "Pending",
+    "generateQR": "Generate QR",
+    "sendLink": "Send Link",
+    "newInvoice": "New Invoice",
+    "lastActivity": "Last Activity",
+    "totalPaid": "Total Paid",
+    "pendingAmount": "Pending",
+    "paid": "Paid",
+    "noClients": "No clients found",
+    "telegramColumn": "Telegram",
+    "invoicesColumn": "Invoices",
+    "telegramWarning": {
+      "title": "Connect Telegram First",
+      "description": "You need to connect your Telegram account before you can:",
+      "bullet1": "Send invoices to customers via Telegram",
+      "bullet2": "Receive payment verification notifications",
+      "bullet3": "Generate QR codes for customer linking",
+      "connectButton": "Connect Telegram"
+    },
+    "linkInstructions": {
+      "title": "How clients link via Telegram",
+      "description": "Share a unique QR code with your client. When they scan it, they'll be connected to your bot and can receive invoices directly.",
+      "generateLink": "Generate Link"
+    }
+  },
+  "qrModal": {
+    "title": "Link via Telegram",
+    "subtitle": "Scan QR to link account",
+    "scanInstructions": "Scan this QR code to link your account",
+    "scanInstructionsKm": "ស្កេន QR code នេះដើម្បីភ្ជាប់គណនី",
+    "expiresIn": "Expires in",
+    "expired": "Expired",
+    "downloadQR": "Download QR",
+    "copyLink": "Copy Link",
+    "regenerate": "Regenerate",
+    "generating": "Generating...",
+    "instructions": {
+      "step1": "Open camera on your phone",
+      "step2": "Point at the QR code",
+      "step3": "Tap the notification to open Telegram",
+      "step4": "Start the bot to link your account"
+    }
+  },
+  "invoices": {
+    "title": "Invoices",
+    "createNew": "Create Invoice"
+  },
+  "inventory": {
+    "title": "Inventory",
+    "products": "Products"
+  },
+  "integrations": {
+    "title": "Integrations",
+    "facebook": "Facebook",
+    "tiktok": "TikTok",
+    "telegram": "Telegram"
+  },
+  "socialMedia": {
+    "title": "Social Media",
+    "subtitle": "Connect and manage your social media accounts for marketing",
+    "noWorkspace": "No workspace selected. Please select a workspace from the header.",
+    "loadError": "Failed to load status",
+    "connectedPlatforms": "Connected Platforms",
+    "linkedAccounts": "Linked Accounts",
+    "scheduledPosts": "Scheduled Posts",
+    "yourPlatforms": "Your Platforms",
+    "connected": "Connected",
+    "notConnected": "Not Connected",
+    "expires": "Expires",
+    "noExpiration": "No expiration",
+    "valid": "Valid",
+    "expired": "Expired",
+    "manage": "Manage",
+    "addAccount": "Add Account",
+    "connecting": "Connecting...",
+    "connectFacebook": "Connect Facebook",
+    "connectTikTok": "Connect TikTok",
+    "features": "Features",
+    "featureSchedule": "Post Scheduling",
+    "featureScheduleDesc": "Plan and schedule your posts across platforms",
+    "featureAnalytics": "Analytics Dashboard",
+    "featureAnalyticsDesc": "Track engagement and performance metrics",
+    "featureAds": "Ad Management",
+    "featureAdsDesc": "Create and manage advertising campaigns",
+    "featureInbox": "Unified Inbox",
+    "featureInboxDesc": "Manage all messages in one place",
+    "comingSoon": "Coming Soon"
+  }
+}

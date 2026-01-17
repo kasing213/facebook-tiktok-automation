@@ -1,0 +1,138 @@
+{
+  "common": {
+    "save": "រក្សាទុក",
+    "cancel": "បោះបង់",
+    "delete": "លុប",
+    "edit": "កែសម្រួល",
+    "close": "បិទ",
+    "loading": "កំពុងផ្ទុក...",
+    "error": "មានបញ្ហា",
+    "success": "ជោគជ័យ",
+    "search": "ស្វែងរក",
+    "filter": "តម្រង",
+    "all": "ទាំងអស់",
+    "actions": "សកម្មភាព",
+    "download": "ទាញយក",
+    "copy": "ចម្លង",
+    "copied": "បានចម្លង!",
+    "back": "ត្រឡប់",
+    "next": "បន្ទាប់",
+    "submit": "ដាក់ស្នើ"
+  },
+  "header": {
+    "selectWorkspace": "ជ្រើសរើសកន្លែងធ្វើការ",
+    "settings": "ការកំណត់",
+    "logout": "ចាកចេញ"
+  },
+  "sidebar": {
+    "main": "មេ",
+    "overview": "ទិដ្ឋភាពទូទៅ",
+    "services": "សេវាកម្ម",
+    "socialMedia": "បណ្តាញសង្គម",
+    "invoices": "វិក្កយបត្រ",
+    "inventory": "សន្និធិ",
+    "clients": "អតិថិជន",
+    "settings": "ការកំណត់",
+    "integrations": "ការភ្ជាប់",
+    "proPlan": "គម្រោង Pro",
+    "active": "សកម្ម"
+  },
+  "clients": {
+    "title": "អតិថិជន",
+    "subtitle": "គ្រប់គ្រងអតិថិជនដែលភ្ជាប់ Telegram",
+    "totalClients": "អតិថិជនសរុប",
+    "telegramLinked": "បានភ្ជាប់ Telegram",
+    "totalReceivable": "សរុបត្រូវទទួល",
+    "addClient": "បន្ថែមអតិថិជន",
+    "searchPlaceholder": "ស្វែងរកអតិថិជន...",
+    "linked": "បានភ្ជាប់",
+    "notLinked": "មិនទាន់ភ្ជាប់",
+    "pending": "កំពុងរង់ចាំ",
+    "generateQR": "បង្កើត QR",
+    "sendLink": "ផ្ញើតំណ",
+    "newInvoice": "វិក្កយបត្រថ្មី",
+    "lastActivity": "សកម្មភាពចុងក្រោយ",
+    "totalPaid": "បានបង់សរុប",
+    "pendingAmount": "រង់ចាំ",
+    "paid": "បានបង់",
+    "noClients": "រកមិនឃើញអតិថិជន",
+    "telegramColumn": "Telegram",
+    "invoicesColumn": "វិក្កយបត្រ",
+    "telegramWarning": {
+      "title": "ភ្ជាប់ Telegram ជាមុនសិន",
+      "description": "អ្នកត្រូវភ្ជាប់គណនី Telegram របស់អ្នកមុនពេលអ្នកអាច:",
+      "bullet1": "ផ្ញើវិក្កយបត្រទៅអតិថិជនតាម Telegram",
+      "bullet2": "ទទួលការជូនដំណឹងផ្ទៀងផ្ទាត់ការទូទាត់",
+      "bullet3": "បង្កើត QR code សម្រាប់ភ្ជាប់អតិថិជន",
+      "connectButton": "ភ្ជាប់ Telegram"
+    },
+    "linkInstructions": {
+      "title": "របៀបភ្ជាប់អតិថិជនតាម Telegram",
+      "description": "ចែករំលែក QR code ពិសេសជាមួយអតិថិជនរបស់អ្នក។ នៅពេលពួកគេស្កេន ពួកគេនឹងត្រូវបានភ្ជាប់ទៅ bot របស់អ្នក ហើយអាចទទួលវិក្កយបត្រដោយផ្ទាល់។",
+      "generateLink": "បង្កើតតំណ"
+    }
+  },
+  "qrModal": {
+    "title": "ភ្ជាប់តាម Telegram",
+    "subtitle": "ស្កេន QR ដើម្បីភ្ជាប់គណនី",
+    "scanInstructions": "Scan this QR code to link your account",
+    "scanInstructionsKm": "ស្កេន QR code នេះដើម្បីភ្ជាប់គណនី",
+    "expiresIn": "ផុតកំណត់ក្នុង",
+    "expired": "ផុតកំណត់",
+    "downloadQR": "ទាញយក QR",
+    "copyLink": "ចម្លងតំណ",
+    "regenerate": "បង្កើតឡើងវិញ",
+    "generating": "កំពុងបង្កើត...",
+    "instructions": {
+      "step1": "បើកកាមេរ៉ានៅលើទូរស័ព្ទរបស់អ្នក",
+      "step2": "ចង្អុលទៅ QR code",
+      "step3": "ចុចការជូនដំណឹងដើម្បីបើក Telegram",
+      "step4": "ចាប់ផ្តើម bot ដើម្បីភ្ជាប់គណនីរបស់អ្នក"
+    }
+  },
+  "invoices": {
+    "title": "វិក្កយបត្រ",
+    "createNew": "បង្កើតវិក្កយបត្រ"
+  },
+  "inventory": {
+    "title": "សន្និធិ",
+    "products": "ផលិតផល"
+  },
+  "integrations": {
+    "title": "ការភ្ជាប់",
+    "facebook": "Facebook",
+    "tiktok": "TikTok",
+    "telegram": "Telegram"
+  },
+  "socialMedia": {
+    "title": "បណ្តាញសង្គម",
+    "subtitle": "ភ្ជាប់និងគ្រប់គ្រងគណនីបណ្តាញសង្គមរបស់អ្នកសម្រាប់ទីផ្សារ",
+    "noWorkspace": "មិនបានជ្រើសរើសកន្លែងធ្វើការ។ សូមជ្រើសរើសកន្លែងធ្វើការពីបឋមកថា។",
+    "loadError": "បរាជ័យក្នុងការផ្ទុកស្ថានភាព",
+    "connectedPlatforms": "វេទិកាដែលបានភ្ជាប់",
+    "linkedAccounts": "គណនីដែលបានភ្ជាប់",
+    "scheduledPosts": "ការបង្ហោះដែលបានកំណត់",
+    "yourPlatforms": "វេទិការបស់អ្នក",
+    "connected": "បានភ្ជាប់",
+    "notConnected": "មិនបានភ្ជាប់",
+    "expires": "ផុតកំណត់",
+    "noExpiration": "គ្មានការផុតកំណត់",
+    "valid": "មានសុពលភាព",
+    "expired": "ផុតកំណត់",
+    "manage": "គ្រប់គ្រង",
+    "addAccount": "បន្ថែមគណនី",
+    "connecting": "កំពុងភ្ជាប់...",
+    "connectFacebook": "ភ្ជាប់ Facebook",
+    "connectTikTok": "ភ្ជាប់ TikTok",
+    "features": "មុខងារ",
+    "featureSchedule": "កំណត់ពេលបង្ហោះ",
+    "featureScheduleDesc": "រៀបចំនិងកំណត់ពេលបង្ហោះរបស់អ្នកនៅលើវេទិកាផ្សេងៗ",
+    "featureAnalytics": "ផ្ទាំងវិភាគ",
+    "featureAnalyticsDesc": "តាមដានការចូលរួមនិងសូចនាករប្រតិបត្តិការ",
+    "featureAds": "គ្រប់គ្រងការផ្សាយពាណិជ្ជកម្ម",
+    "featureAdsDesc": "បង្កើតនិងគ្រប់គ្រងយុទ្ធនាការផ្សាយពាណិជ្ជកម្ម",
+    "featureInbox": "ប្រអប់សំបុត្ររួម",
+    "featureInboxDesc": "គ្រប់គ្រងសារទាំងអស់នៅកន្លែងតែមួយ",
+    "comingSoon": "មកដល់ឆាប់ៗ"
+  }
+}
