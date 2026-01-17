@@ -419,6 +419,126 @@ export const authService = {
       console.error('Failed to get sessions:', error)
       throw new Error(`Failed to get sessions: ${error.response?.data?.detail || error.message}`)
     }
+  },
+
+  /**
+   * Change user password
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    try {
+      const response = await api.post('/auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword
+      })
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to change password:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to change password')
+    }
+  },
+
+  /**
+   * Send email verification link
+   */
+  async sendVerificationEmail(): Promise<{ message: string }> {
+    try {
+      const response = await api.post('/auth/send-verification-email')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to send verification email:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to send verification email')
+    }
+  },
+
+  /**
+   * Verify email with token
+   */
+  async verifyEmail(token: string): Promise<{ message: string; success: boolean; user_verified: boolean }> {
+    try {
+      const response = await api.post('/auth/verify-email', { token })
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to verify email:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to verify email')
+    }
+  },
+
+  /**
+   * Request a new verification email
+   */
+  async requestVerification(): Promise<{ message: string; success: boolean }> {
+    try {
+      const response = await api.post('/auth/request-verification')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to request verification:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to send verification email')
+    }
+  },
+
+  /**
+   * Get current user's verification status
+   */
+  async getVerificationStatus(): Promise<{
+    is_verified: boolean
+    email: string | null
+    verified_at: string | null
+    message: string
+  }> {
+    try {
+      const response = await api.get('/auth/verification-status')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to get verification status:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to get verification status')
+    }
+  },
+
+  /**
+   * Check if email verification is required (public endpoint)
+   */
+  async checkVerificationRequired(): Promise<{
+    verification_required: boolean
+    verification_expire_hours: number
+    smtp_configured: boolean
+  }> {
+    try {
+      const response = await api.get('/auth/verification-required')
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to check verification requirement:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to check verification requirement')
+    }
+  },
+
+  /**
+   * Request password reset email (forgot password)
+   * Always returns success to prevent email enumeration
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    try {
+      const response = await api.post('/auth/forgot-password', { email })
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to request password reset:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to send password reset email')
+    }
+  },
+
+  /**
+   * Reset password using token from email
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    try {
+      const response = await api.post('/auth/reset-password', {
+        token,
+        new_password: newPassword
+      })
+      return response.data
+    } catch (error: any) {
+      console.error('Failed to reset password:', error)
+      throw new Error(error.response?.data?.detail || 'Failed to reset password')
+    }
   }
 
 }

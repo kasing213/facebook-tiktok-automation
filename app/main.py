@@ -23,6 +23,7 @@ from app.routes.users import router as users_router
 from app.routes.subscription import router as subscription_mgmt_router
 from app.routes.subscription_payment import router as subscription_payment_router
 from app.routes.inventory import router as inventory_router
+from app.routes.email_verification import router as email_verification_router
 
 
 # Request/Response models
@@ -151,6 +152,10 @@ app.add_middleware(
 from app.middleware.rate_limit import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware)
 
+# Add email verification middleware
+from app.middleware.email_verification import email_verification_middleware
+app.middleware("http")(email_verification_middleware)
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(oauth_router)
@@ -165,6 +170,7 @@ app.include_router(users_router)
 app.include_router(subscription_mgmt_router)
 app.include_router(subscription_payment_router)
 app.include_router(inventory_router)
+app.include_router(email_verification_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")

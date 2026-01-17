@@ -289,6 +289,16 @@ const InvoiceListPage: React.FC = () => {
     }
   }
 
+  const handleDuplicate = (invoice: Invoice) => {
+    // Navigate to create page with invoice data as state for duplication
+    navigate('/dashboard/invoices/new', {
+      state: {
+        duplicate: true,
+        sourceInvoice: invoice
+      }
+    })
+  }
+
   const filteredInvoices = invoices.filter(invoice => {
     if (statusFilter !== 'all' && invoice.status !== statusFilter) {
       return false
@@ -397,6 +407,7 @@ const InvoiceListPage: React.FC = () => {
           onDelete={(invoice) => setDeleteTarget(invoice)}
           onDownloadPDF={handleDownloadPDF}
           onSendToCustomer={handleSendToCustomer}
+          onDuplicate={handleDuplicate}
           sendingInvoiceId={sendingInvoiceId}
           loading={loading}
         />

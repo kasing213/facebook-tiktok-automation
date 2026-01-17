@@ -6,12 +6,15 @@ import datetime as dt
 from datetime import timedelta
 from typing import Optional
 from uuid import UUID, uuid4
+import secrets
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Cookie
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.config import get_settings
 from app.core.models import User, UserRole
 from app.core.security import (
     hash_password,
@@ -29,9 +32,11 @@ from app.core.cookies import (
     clear_refresh_token_cookie,
     get_refresh_token_cookie_name,
 )
-from app.repositories import UserRepository, RefreshTokenRepository, TokenBlacklistRepository
+from app.repositories import UserRepository, RefreshTokenRepository, TokenBlacklistRepository, EmailVerificationRepository, PasswordResetRepository
 from app.core.dependencies import get_current_user  # Shared dependency
 from app.core.authorization import get_current_owner
+from app.services.email_service import EmailService, send_verification_email
+from app.services.email_verification_service import EmailVerificationService
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -89,19 +94,21 @@ async def register_user(
     db: Session = Depends(get_db)
 ):
     """
-    Register a new user account.
+    Register a new user account with automatic email verification.
 
     Args:
         user_data: User registration data
         db: Database session
 
     Returns:
-        Created user data
+        Created user data with verification status
 
     Raises:
         HTTPException: If username or email already exists
     """
     user_repo = UserRepository(db)
+    email_verification_service = EmailVerificationService()
+    email_service = EmailService()
 
     # Check if username already exists for this tenant
     existing_user = user_repo.get_by_username(user_data.tenant_id, user_data.username)
@@ -125,7 +132,7 @@ async def register_user(
     # Determine role - first user in tenant becomes owner
     role = UserRole.admin if user_repo.is_first_user_in_tenant(user_data.tenant_id) else UserRole.user
 
-    # Create user
+    # Create user (email_verified=False by default)
     user = user_repo.create_user(
         tenant_id=user_data.tenant_id,
         username=user_data.username,
@@ -137,6 +144,17 @@ async def register_user(
 
     db.commit()
     db.refresh(user)
+
+    # Send verification email (non-blocking, errors logged but don't fail registration)
+    try:
+        verification_token = email_verification_service.generate_token(db, user)
+        await email_service.send_verification_email(user, verification_token)
+    except Exception as e:
+        # Log error but don't fail registration
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to send verification email to {user.email}: {e}")
+        # Continue with registration - user can request verification later
 
     return user
 
@@ -512,3 +530,300 @@ async def get_active_sessions(
         ],
         "count": len(sessions)
     }
+
+
+# Email Verification Models
+class VerifyEmailRequest(BaseModel):
+    """Email verification request"""
+    token: str
+
+
+class SendVerificationEmailResponse(BaseModel):
+    """Response for send verification email"""
+    message: str
+
+
+# Email Verification Endpoints
+@router.post("/send-verification-email", response_model=SendVerificationEmailResponse)
+async def send_verification_email_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Send email verification link to the user's email address.
+
+    Args:
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If email already verified or sending fails
+    """
+    if current_user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is already verified"
+        )
+
+    if not current_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No email address associated with this account"
+        )
+
+    settings = get_settings()
+
+    # Generate secure token
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    # Invalidate any existing tokens for this user
+    verification_repo = EmailVerificationRepository(db)
+    verification_repo.invalidate_user_tokens(current_user.id)
+
+    # Create new token
+    expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS)
+    verification_repo.create_token(
+        user_id=current_user.id,
+        token_hash=token_hash,
+        expires_at=expires_at
+    )
+
+    db.commit()
+
+    # Build verification URL
+    frontend_url = str(settings.FRONTEND_URL).rstrip('/')
+    verification_url = f"{frontend_url}/verify-email?token={raw_token}"
+
+    # Send email
+    email_sent = send_verification_email(
+        to_email=current_user.email,
+        verification_url=verification_url,
+        username=current_user.username or "User"
+    )
+
+    if not email_sent:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send verification email. Please try again later."
+        )
+
+    return {"message": "Verification email sent. Please check your inbox."}
+
+
+@router.post("/verify-email")
+async def verify_email(
+    request: VerifyEmailRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Verify email address using the token from the verification link.
+
+    Args:
+        request: Contains the verification token
+        db: Database session
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If token is invalid, expired, or already used
+    """
+    # Hash the provided token
+    token_hash = hashlib.sha256(request.token.encode()).hexdigest()
+
+    # Find the token
+    verification_repo = EmailVerificationRepository(db)
+    stored_token = verification_repo.get_by_token(token_hash)
+
+    if not stored_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification token"
+        )
+
+    # Check if already used
+    if stored_token.used_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This verification link has already been used"
+        )
+
+    # Check if expired
+    now = dt.datetime.now(dt.timezone.utc)
+    if stored_token.expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This verification link has expired. Please request a new one."
+        )
+
+    # Mark token as used
+    verification_repo.mark_as_used(stored_token.id)
+
+    # Update user's email_verified status
+    user_repo = UserRepository(db)
+    user_repo.update(stored_token.user_id, email_verified=True)
+
+    db.commit()
+
+    return {"message": "Email verified successfully"}
+
+
+# Password Reset Models
+class ForgotPasswordRequest(BaseModel):
+    """Forgot password request - sends reset email"""
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Reset password request - sets new password with token"""
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+
+# Password Reset Endpoints
+@router.post("/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Request a password reset link.
+
+    Always returns success message to prevent email enumeration.
+    If the email exists, sends a password reset link.
+
+    Args:
+        request: Contains the user's email
+        db: Database session
+
+    Returns:
+        Success message (always, even if email doesn't exist)
+    """
+    settings = get_settings()
+    user_repo = UserRepository(db)
+    reset_repo = PasswordResetRepository(db)
+    email_service = EmailService()
+
+    # Find user by email (across all tenants)
+    user = user_repo.get_by_email_global(request.email)
+
+    # Always return success to prevent email enumeration
+    success_message = {"message": "If your email is registered, you will receive a password reset link shortly."}
+
+    if not user:
+        return success_message
+
+    if not user.is_active:
+        return success_message
+
+    # Check rate limiting - don't send if recent token exists
+    recent_token = reset_repo.get_recent_token_for_user(user.id, minutes=10)
+    if recent_token:
+        return success_message
+
+    # Generate secure token
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    # Invalidate any existing tokens for this user
+    reset_repo.invalidate_user_tokens(user.id)
+
+    # Create new token (expires in 1 hour for security)
+    expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(hours=1)
+    reset_repo.create_token(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at
+    )
+
+    db.commit()
+
+    # Build reset URL
+    frontend_url = str(settings.FRONTEND_URL).rstrip('/')
+    reset_url = f"{frontend_url}/reset-password?token={raw_token}"
+
+    # Send email (log if SMTP not configured)
+    try:
+        email_service.send_password_reset_email(user, reset_url)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to send password reset email to {user.email}: {e}")
+
+    return success_message
+
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Reset password using the token from the reset link.
+
+    Args:
+        request: Contains the reset token and new password
+        db: Database session
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If token is invalid, expired, or already used
+    """
+    # Hash the provided token
+    token_hash = hashlib.sha256(request.token.encode()).hexdigest()
+
+    # Find the token
+    reset_repo = PasswordResetRepository(db)
+    stored_token = reset_repo.get_by_token(token_hash)
+
+    if not stored_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset link"
+        )
+
+    # Check if already used
+    if stored_token.used_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link has already been used"
+        )
+
+    # Check if expired
+    now = dt.datetime.now(dt.timezone.utc)
+    if stored_token.expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This reset link has expired. Please request a new one."
+        )
+
+    # Get the user
+    user_repo = UserRepository(db)
+    user = user_repo.get_by_id(stored_token.user_id)
+
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User account not found or inactive"
+        )
+
+    # Mark token as used
+    reset_repo.mark_as_used(stored_token.id)
+
+    # Update password
+    new_password_hash = hash_password(request.new_password)
+    user_repo.update_password(user.id, new_password_hash)
+
+    # Revoke all existing sessions for security
+    refresh_repo = RefreshTokenRepository(db)
+    refresh_repo.revoke_user_tokens(user.id)
+
+    db.commit()
+
+    return {"message": "Password reset successfully. Please login with your new password."}

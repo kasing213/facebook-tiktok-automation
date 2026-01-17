@@ -230,19 +230,26 @@ const ActionButtons = styled.div`
 const IconButton = styled.button`
   padding: 0.5rem;
   background: transparent;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  border: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 0.875rem;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   &:hover {
-    background: #f3f4f6;
+    color: #6b7280;
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
   }
 `
 
@@ -744,10 +751,32 @@ const InventoryListPage: React.FC = () => {
                     <TableCell>
                       <ActionButtons>
                         <IconButton title="Edit" onClick={() => openEditModal(product)}>
-                          ✏️
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
                         </IconButton>
                         <IconButton title="Adjust Stock" onClick={() => openStockModal(product)}>
-                          📦
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                          </svg>
+                        </IconButton>
+                        <IconButton title="Duplicate" onClick={() => {
+                          setFormData({
+                            name: product.name + ' (Copy)',
+                            sku: product.sku ? product.sku + '-COPY' : '',
+                            description: product.description || '',
+                            unit_price: priceFromBackend(product.unit_price, product.currency || 'USD'),
+                            cost_price: product.cost_price ? priceFromBackend(product.cost_price, product.currency || 'USD') : 0,
+                            currency: product.currency || 'USD',
+                            current_stock: 0,
+                            low_stock_threshold: product.low_stock_threshold,
+                            track_stock: product.track_stock
+                          })
+                          setShowCreateModal(true)
+                        }}>
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
                         </IconButton>
                         <IconButton
                           title="Delete"
@@ -756,7 +785,9 @@ const InventoryListPage: React.FC = () => {
                             setShowDeleteModal(true)
                           }}
                         >
-                          🗑️
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
                         </IconButton>
                       </ActionButtons>
                     </TableCell>

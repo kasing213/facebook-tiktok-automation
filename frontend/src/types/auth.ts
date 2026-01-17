@@ -79,4 +79,5 @@ export interface User {
   tenant_id: string
   role: string
   is_active: boolean
+  email_verified: boolean
 }

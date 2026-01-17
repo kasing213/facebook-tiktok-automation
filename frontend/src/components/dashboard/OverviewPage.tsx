@@ -2,6 +2,11 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+// Platform logos
+import facebookLogo from '../../assets/images/social/facebook-logo.png'
+import tiktokLogo from '../../assets/images/social/tiktok-logo.png'
+import telegramLogo from '../../assets/images/social/telegram-logo.png'
+
 // Color constants (blue theme)
 const COLORS = {
   primary: '#4a90e2',
@@ -276,8 +281,11 @@ const PlatformInfo = styled.div`
   gap: 0.75rem;
 `
 
-const PlatformIcon = styled.span`
-  font-size: 1.25rem;
+const PlatformIcon = styled.img`
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
 `
 
 const PlatformName = styled.p`
@@ -397,9 +405,9 @@ const recentActivity = [
 ]
 
 const connectedPlatforms = [
-  { name: 'Facebook', connected: true, detail: '2 pages', icon: '📘' },
-  { name: 'TikTok', connected: true, detail: '1 account', icon: '🎵' },
-  { name: 'Telegram Bot', connected: true, detail: '45 linked users', icon: '✈️' },
+  { name: 'Facebook', connected: true, detail: '2 pages', icon: facebookLogo },
+  { name: 'TikTok', connected: true, detail: '1 account', icon: tiktokLogo },
+  { name: 'Telegram Bot', connected: true, detail: '45 linked users', icon: telegramLogo },
 ]
 
 const formatKHR = (amount: number) => {
@@ -555,7 +563,7 @@ const OverviewPage: React.FC = () => {
               {connectedPlatforms.map((platform, i) => (
                 <PlatformItem key={i}>
                   <PlatformInfo>
-                    <PlatformIcon>{platform.icon}</PlatformIcon>
+                    <PlatformIcon src={platform.icon} alt={platform.name} />
                     <div>
                       <PlatformName>{platform.name}</PlatformName>
                       <PlatformDetail>{platform.detail}</PlatformDetail>

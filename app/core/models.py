@@ -90,6 +90,7 @@ class User(Base):
     username = Column(String(100), nullable=True)
     password_hash = Column(String(255), nullable=True)  # For web-based authentication
     email_verified = Column(Boolean, default=False, nullable=False)
+    email_verified_at = Column(DateTime, nullable=True)  # When email was verified
     role = Column(Enum(UserRole), default=UserRole.user, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     last_login = Column(DateTime, nullable=True)
@@ -394,6 +395,48 @@ class TokenBlacklist(Base):
         Index("idx_token_blacklist_jti", "jti", unique=True),
         Index("idx_token_blacklist_expires", "expires_at"),
         Index("idx_token_blacklist_user", "user_id"),
+    )
+
+
+class EmailVerificationToken(Base):
+    """Email verification tokens for user email confirmation"""
+    __tablename__ = "email_verification_token"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    token = Column(String(64), nullable=False, unique=True)  # SHA-256 hash of the token
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user = relationship("User", backref="email_verification_tokens")
+
+    __table_args__ = (
+        Index("idx_email_verification_token", "token", unique=True),
+        Index("idx_email_verification_user", "user_id"),
+        Index("idx_email_verification_expires", "expires_at"),
+    )
+
+
+class PasswordResetToken(Base):
+    """Password reset tokens for forgot password flow"""
+    __tablename__ = "password_reset_token"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    token = Column(String(64), nullable=False, unique=True)  # SHA-256 hash of the token
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    used_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user = relationship("User", backref="password_reset_tokens")
+
+    __table_args__ = (
+        Index("idx_password_reset_token", "token", unique=True),
+        Index("idx_password_reset_user", "user_id"),
+        Index("idx_password_reset_expires", "expires_at"),
     )
 
 

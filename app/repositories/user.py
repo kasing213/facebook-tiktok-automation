@@ -35,6 +35,10 @@ class UserRepository(BaseRepository[User]):
         """Get user by username across all tenants (for login)"""
         return self.db.query(User).filter(User.username == username).first()
 
+    def get_by_email_global(self, email: str) -> Optional[User]:
+        """Get user by email across all tenants (for password reset)"""
+        return self.db.query(User).filter(User.email == email).first()
+
     def create_user(
         self,
         tenant_id: UUID,

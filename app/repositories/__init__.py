@@ -6,6 +6,8 @@ from .destination import DestinationRepository
 from .automation import AutomationRepository, AutomationRunRepository
 from .telegram import TelegramRepository
 from .auth_token import RefreshTokenRepository, TokenBlacklistRepository
+from .email_verification import EmailVerificationRepository
+from .password_reset import PasswordResetRepository
 
 __all__ = [
     "TenantRepository",
@@ -17,4 +19,6 @@ __all__ = [
     "TelegramRepository",
     "RefreshTokenRepository",
     "TokenBlacklistRepository",
+    "EmailVerificationRepository",
+    "PasswordResetRepository",
 ]

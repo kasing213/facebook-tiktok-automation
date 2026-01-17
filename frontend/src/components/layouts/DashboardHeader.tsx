@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { useTenants } from '../../hooks/useAuth'
 import { authService } from '../../services/api'
+import LanguageSwitcher from './LanguageSwitcher'
 
 interface DashboardHeaderProps {
   onMenuClick: () => void
@@ -189,6 +191,7 @@ const Divider = styled.div`
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
   const navigate = useNavigate()
   const location = useLocation()
+  const { t } = useTranslation()
   const { tenants } = useTenants()
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -256,9 +259,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
       </LeftSection>
 
       <RightSection>
+        <LanguageSwitcher />
+
         <WorkspaceSelector ref={workspaceRef}>
           <WorkspaceButton onClick={() => setWorkspaceOpen(!workspaceOpen)}>
-            <span>{currentTenant?.name || 'Select Workspace'}</span>
+            <span>{currentTenant?.name || t('header.selectWorkspace')}</span>
             <span style={{ fontSize: '0.625rem' }}>{workspaceOpen ? '\u25B2' : '\u25BC'}</span>
           </WorkspaceButton>
           <Dropdown isOpen={workspaceOpen}>
@@ -280,11 +285,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
           </UserAvatar>
           <Dropdown isOpen={userMenuOpen}>
             <DropdownItem onClick={() => navigate('/dashboard/settings')}>
-              Settings
+              {t('header.settings')}
             </DropdownItem>
             <Divider />
             <DropdownItem onClick={handleLogout}>
-              Logout
+              {t('header.logout')}
             </DropdownItem>
           </Dropdown>
         </WorkspaceSelector>

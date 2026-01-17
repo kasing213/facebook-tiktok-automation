@@ -5,6 +5,7 @@ import { useAuth, useOAuth } from '../hooks/useAuth'
 import { LoadingSpinner } from './LoadingSpinner'
 import { ErrorMessage } from './ErrorMessage'
 import SocialIcon from './SocialIcon'
+import EmailVerificationBanner from './EmailVerificationBanner'
 
 const DashboardContainer = styled.div`
   max-width: 800px;
@@ -286,8 +287,10 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <DashboardContainer>
-      <Header>
+    <>
+      <EmailVerificationBanner />
+      <DashboardContainer>
+        <Header>
         <Title>Dashboard</Title>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <RefreshButton onClick={handleRefresh} disabled={loading}>
@@ -447,6 +450,7 @@ const Dashboard: React.FC = () => {
         </StatusGrid>
       )}
     </DashboardContainer>
+    </>
   )
 }
 

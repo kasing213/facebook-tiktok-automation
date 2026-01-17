@@ -79,6 +79,15 @@ class Settings(BaseSettings):
     OCR_API_URL: str = Field(default="", description="OCR verification service base URL")
     OCR_API_KEY: SecretStr = Field(default=SecretStr(""), description="OCR API authentication key")
 
+    # Email/SMTP Configuration (optional - falls back to console logging in dev)
+    SMTP_HOST: str = Field(default="", description="SMTP server host (e.g., smtp.gmail.com)")
+    SMTP_PORT: int = Field(default=587, description="SMTP server port")
+    SMTP_USER: str = Field(default="", description="SMTP username/email")
+    SMTP_PASSWORD: SecretStr = Field(default=SecretStr(""), description="SMTP password or app password")
+    SMTP_FROM_EMAIL: str = Field(default="noreply@example.com", description="From email address")
+    SMTP_FROM_NAME: str = Field(default="KS Automation", description="From name in emails")
+    EMAIL_VERIFICATION_EXPIRE_HOURS: int = Field(default=24, description="Email verification token expiry in hours")
+
     # API Gateway (for Telegram notifications)
     API_GATEWAY_URL: str = Field(default="", description="API Gateway base URL for internal service calls")
 
