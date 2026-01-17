@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -300,9 +300,7 @@ const ErrorMessage = styled.div`
 const SocialMediaPage: React.FC = () => {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [tenantId, setTenantId] = useState<string>(() => {
-    return localStorage.getItem('selectedTenantId') || ''
-  })
+  const tenantId = localStorage.getItem('selectedTenantId') || ''
 
   const { authStatus, loading, error } = useAuth(tenantId || null)
   const { initiating, errors: oauthErrors, clearErrors, initiateFacebookOAuth, initiateTikTokOAuth } = useOAuth()
