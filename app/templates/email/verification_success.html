@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verified Successfully - KS Automation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header p {
+            margin: 0;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px 30px;
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        .success-icon {
+            text-align: center;
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #111827;
+            text-align: center;
+        }
+
+        .message {
+            font-size: 16px;
+            margin-bottom: 30px;
+            color: #4b5563;
+            text-align: center;
+        }
+
+        .features-list {
+            background-color: #f0fdf4;
+            padding: 25px;
+            border-radius: 8px;
+            border: 1px solid #bbf7d0;
+            margin: 30px 0;
+        }
+
+        .features-list h3 {
+            margin: 0 0 15px 0;
+            color: #065f46;
+            font-size: 16px;
+        }
+
+        .features-list ul {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .features-list li {
+            padding: 8px 0;
+            color: #047857;
+            font-size: 14px;
+        }
+
+        .features-list li::before {
+            content: "✅ ";
+            margin-right: 8px;
+        }
+
+        .dashboard-button {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .dashboard-button a {
+            display: inline-block;
+            background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        .dashboard-button a:hover {
+            transform: translateY(-1px);
+        }
+
+        .footer {
+            background-color: #f9fafb;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .footer p {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .footer .company {
+            font-weight: 600;
+            color: #4A90E2;
+        }
+
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 0;
+                border-radius: 0;
+            }
+
+            .header, .content, .footer {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .success-icon {
+                font-size: 48px;
+            }
+
+            .dashboard-button a {
+                padding: 14px 30px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>✅ Email Verified!</h1>
+            <p>Your KS Automation account is now active</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <div class="success-icon">🎉</div>
+
+            <div class="greeting">
+                Welcome aboard, {{ user_name or 'valued user' }}!
+            </div>
+
+            <div class="message">
+                Your email address has been successfully verified. You now have full access to all KS Automation features.
+            </div>
+
+            <div class="features-list">
+                <h3>🚀 What you can do now:</h3>
+                <ul>
+                    <li>Create and send professional invoices via Telegram</li>
+                    <li>Automate payment verification with OCR technology</li>
+                    <li>Connect your Facebook and TikTok accounts</li>
+                    <li>Track inventory and stock levels</li>
+                    <li>Receive low stock alerts via Telegram bot</li>
+                    <li>Export reports and analytics</li>
+                </ul>
+            </div>
+
+            <div class="dashboard-button">
+                <a href="{{ dashboard_url }}" target="_blank">
+                    🚀 Go to Dashboard
+                </a>
+            </div>
+
+            <div class="message">
+                Need help getting started? Check out our quick start guide or connect with our support team through the dashboard.
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>
+                <span class="company">KS Automation</span><br>
+                Streamlining your business operations
+            </p>
+            <p>
+                Questions? Reply to this email or visit your dashboard for support.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
