@@ -321,7 +321,7 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
   useEffect(() => {
     const loadChats = async () => {
       try {
-        const loadedChats = await adsAlertService.listChats({ subscribed: true })
+        const loadedChats = await adsAlertService.listChats({ subscribed_only: true })
         setChats(loadedChats)
       } catch (err) {
         console.error('Failed to load chats:', err)
@@ -337,19 +337,19 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
       const existingMedia: MediaFile[] = promotion.media_urls.map((url, index) => ({
         id: `existing-${index}`,
         tenant_id: '',
-        folder_id: null,
+        folder_id: undefined,
         filename: url.split('/').pop() || `media-${index}`,
-        original_filename: null,
+        original_filename: undefined,
         storage_path: url,
         url: url,
         file_type: url.includes('.mp4') ? 'video/mp4' :
                    url.includes('.pdf') ? 'application/pdf' : 'image/jpeg',
-        file_size: null,
-        thumbnail_url: null,
-        width: null,
-        height: null,
-        duration: null,
-        created_by: null,
+        file_size: undefined,
+        thumbnail_url: undefined,
+        width: undefined,
+        height: undefined,
+        duration: undefined,
+        created_by: undefined,
         created_at: new Date().toISOString()
       }))
       setSelectedMedia(existingMedia)
@@ -369,18 +369,18 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
     const mediaFiles: MediaFile[] = files.map(f => ({
       id: f.id,
       tenant_id: '',
-      folder_id: null,
+      folder_id: undefined,
       filename: f.filename,
       original_filename: f.filename,
       storage_path: f.url,
       url: f.url,
       file_type: f.fileType,
       file_size: f.fileSize,
-      thumbnail_url: null,
-      width: null,
-      height: null,
-      duration: null,
-      created_by: null,
+      thumbnail_url: undefined,
+      width: undefined,
+      height: undefined,
+      duration: undefined,
+      created_by: undefined,
       created_at: new Date().toISOString()
     }))
     setSelectedMedia(prev => [...prev, ...mediaFiles])

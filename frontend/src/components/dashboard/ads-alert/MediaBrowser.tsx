@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import styled from 'styled-components'
 import { adsAlertService } from '../../../services/adsAlertApi'
-import { MediaFile, MediaFolder, FolderTreeNode } from '../../../types/adsAlert'
+import { MediaFile, FolderTreeNode } from '../../../types/adsAlert'
 
 interface MediaBrowserProps {
   onSelect?: (files: MediaFile[]) => void

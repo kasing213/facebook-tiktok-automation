@@ -1,5 +1,5 @@
 // frontend/src/components/dashboard/ads-alert/ChatList.tsx
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import { adsAlertService } from '../../../services/adsAlertApi'
 import { Chat, ChatCreate, ChatUpdate } from '../../../types/adsAlert'
