@@ -25,11 +25,21 @@ def init_postgres():
         logger.warning("DATABASE_URL not set - PostgreSQL disabled")
         return
 
+    # NOTE: Pool sizes kept MINIMAL for Supabase pooler compatibility
+    # Main backend + API Gateway share the same database, must stay under pooler limits
+    # Using Transaction mode (port 6543) for better connection handling
     engine = create_engine(
         settings.DATABASE_URL,
         pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=1,              # MINIMAL - one connection per pool
+        max_overflow=2,           # Total max: 3 connections per instance
+        pool_recycle=300,         # recycle connections every 5 min (aggressive)
+        pool_timeout=10,          # fail fast if pool exhausted
+        connect_args={
+            # CRITICAL: Disable prepared statements for pgbouncer Transaction mode (port 6543)
+            # pgbouncer doesn't support prepared statements, causing "SSL connection closed unexpectedly"
+            "prepare_threshold": 0,
+        },
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -37,8 +37,29 @@ from app.core.dependencies import get_current_user  # Shared dependency
 from app.core.authorization import get_current_owner
 from app.services.email_service import EmailService, send_verification_email
 from app.services.email_verification_service import EmailVerificationService
+from app.services.login_attempt_service import LoginAttemptService
+from app.core.models import LoginAttemptResult
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+
+
+def get_client_ip(request: Request) -> str:
+    """Extract client IP address from request headers"""
+    # Check X-Forwarded-For first (for proxies like Railway/Vercel)
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+
+    # Check X-Real-IP
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+
+    # Fallback to direct client host
+    if request.client:
+        return request.client.host
+
+    return "unknown"
 
 
 # Request/Response Models
@@ -148,7 +169,8 @@ async def register_user(
     # Send verification email (non-blocking, errors logged but don't fail registration)
     try:
         verification_token = email_verification_service.generate_token(db, user)
-        await email_service.send_verification_email(user, verification_token)
+        # Note: send_verification_email is synchronous, don't use await
+        email_service.send_verification_email(user, verification_token)
     except Exception as e:
         # Log error but don't fail registration
         import logging
@@ -167,7 +189,12 @@ async def login(
     db: Session = Depends(get_db)
 ):
     """
-    User login with username and password.
+    User login with username and password including account lockout protection.
+
+    Security Features:
+    - Account lockout after 5 failed attempts (30 minutes)
+    - Exponential backoff for repeat offenders
+    - Login attempt logging for security monitoring
 
     Args:
         request: FastAPI request object
@@ -179,36 +206,112 @@ async def login(
         JWT access token (refresh token set as httpOnly cookie)
 
     Raises:
-        HTTPException: If credentials are invalid
+        HTTPException: If credentials are invalid or account is locked
     """
+    # Initialize services
     user_repo = UserRepository(db)
+    login_service = LoginAttemptService(db)
+
+    # Get client information
+    ip_address = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")[:255]
+    email_attempted = form_data.username.lower()  # Normalize for consistency
+
+    # Check if account is currently locked
+    if login_service.is_account_locked(email_attempted):
+        lockout_info = login_service.get_account_lockout_info(email_attempted)
+
+        # Record the failed attempt (account locked)
+        login_service.record_login_attempt(
+            email=email_attempted,
+            ip_address=ip_address,
+            result=LoginAttemptResult.failure,
+            user_agent=user_agent,
+            failure_reason="account_locked"
+        )
+
+        if lockout_info:
+            time_remaining = lockout_info.unlock_at - dt.datetime.now(dt.timezone.utc)
+            minutes_remaining = int(time_remaining.total_seconds() / 60)
+
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=f"Account is temporarily locked due to too many failed login attempts. Try again in {minutes_remaining} minutes.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail="Account is temporarily locked due to too many failed login attempts.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
 
     # Find user by username across all tenants
-    # In production, you might want to require tenant_id for login
     user = user_repo.get_by_username_global(form_data.username)
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    # Validate user exists and password is correct
+    credentials_valid = (
+        user and
+        user.password_hash and
+        verify_password(form_data.password, user.password_hash)
+    )
+
+    if not credentials_valid:
+        # Record failed attempt
+        login_service.record_login_attempt(
+            email=email_attempted,
+            ip_address=ip_address,
+            result=LoginAttemptResult.failure,
+            user_agent=user_agent,
+            failure_reason="invalid_credentials"
         )
 
-    # Verify password
-    if not user.password_hash or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Check if this should trigger account lockout
+        was_locked, lockout_info = login_service.check_and_apply_lockout(email_attempted, ip_address)
 
+        if was_locked:
+            # Account was just locked
+            time_remaining = lockout_info.unlock_at - dt.datetime.now(dt.timezone.utc)
+            minutes_remaining = int(time_remaining.total_seconds() / 60)
+
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=f"Too many failed attempts. Account locked for {minutes_remaining} minutes.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        else:
+            # Normal failed login response
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+
+    # Check if user account is active
     if not user.is_active:
+        # Record failed attempt (inactive account)
+        login_service.record_login_attempt(
+            email=email_attempted,
+            ip_address=ip_address,
+            result=LoginAttemptResult.failure,
+            user_agent=user_agent,
+            failure_reason="account_inactive"
+        )
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive"
         )
 
-    # Update last login
+    # Successful login - record the success
+    login_service.record_login_attempt(
+        email=email_attempted,
+        ip_address=ip_address,
+        result=LoginAttemptResult.success,
+        user_agent=user_agent
+    )
+
+    # Update last login timestamp
     user_repo.update_last_login(user.id)
 
     # Create access token with JTI for blacklist support
@@ -223,10 +326,6 @@ async def login(
     family_id = uuid4()  # New token family for this login session
     refresh_expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
 
-    # Get device info and IP for security tracking
-    device_info = request.headers.get("User-Agent", "")[:255]
-    ip_address = request.client.host if request.client else None
-
     # Store refresh token in database
     refresh_repo = RefreshTokenRepository(db)
     refresh_repo.create_token(
@@ -235,7 +334,7 @@ async def login(
         token_hash=refresh_token_hash,
         family_id=family_id,
         expires_at=refresh_expires_at,
-        device_info=device_info,
+        device_info=user_agent,
         ip_address=ip_address,
     )
 

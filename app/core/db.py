@@ -10,20 +10,28 @@ from app.core.models import Tenant
 _settings = get_settings()
 
 # Enhanced PostgreSQL engine configuration for multi-tenant application
+# NOTE: Pool sizes are kept small because:
+# 1. Supabase pooler (Session mode) has connection limits (~25 for free tier)
+# 2. Both main backend AND api-gateway share the same database
+# 3. Railway instances can scale, each creating new pools
+# For Supabase, consider using Transaction mode (port 6543) for better connection reuse
 engine = create_engine(
     _settings.DATABASE_URL,
     poolclass=QueuePool,
-    pool_size=10,             # number of connections to maintain
-    max_overflow=20,          # additional connections on demand
+    pool_size=1,              # MINIMAL - Supabase pooler has strict limits
+    max_overflow=2,           # Total max: 3 connections per instance
     pool_pre_ping=True,       # validate connections before use
-    pool_recycle=3600,        # recycle connections after 1 hour
-    pool_timeout=30,          # timeout when getting connection from pool
+    pool_recycle=300,         # recycle connections every 5 min (aggressive)
+    pool_timeout=10,          # fail fast if pool exhausted (was 30)
     connect_args={
         "connect_timeout": 10,  # connection timeout in seconds
-        "options": "-c timezone=utc"  # set timezone to UTC
+        "options": "-c timezone=utc",  # set timezone to UTC
+        # CRITICAL: Disable prepared statements for pgbouncer Transaction mode (port 6543)
+        # pgbouncer doesn't support prepared statements, causing "SSL connection closed unexpectedly"
+        "prepare_threshold": 0,
     },
     future=True,
-    echo=True,  # TEMPORARY: Force SQL logging to debug token_type issue
+    echo=False,  # Disable SQL logging in production (set to True for debugging)
 )
 
 SessionLocal = sessionmaker(

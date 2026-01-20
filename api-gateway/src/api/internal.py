@@ -265,6 +265,150 @@ async def send_invoice_pdf(data: InvoicePDFRequest):
         )
 
 
+class BroadcastRequest(BaseModel):
+    """Request model for broadcasting promotional content to multiple chats."""
+    chat_ids: list[str]
+    content: str
+    media_type: str = "text"  # text, image, video, document, mixed
+    media_urls: list[str] = []
+
+
+class BroadcastResult(BaseModel):
+    """Result of broadcasting to a single chat."""
+    chat_id: str
+    success: bool
+    error: Optional[str] = None
+
+
+@router.post("/telegram/broadcast")
+async def broadcast_message(data: BroadcastRequest):
+    """
+    Broadcast promotional content to multiple Telegram chats.
+
+    Supports different media types:
+    - text: Plain text message with HTML formatting
+    - image: Single image with caption
+    - video: Single video with caption
+    - document: Single document with caption
+    - mixed: Media group (up to 10 items)
+
+    Called by the main backend's ads-alert system for promotional broadcasts.
+    """
+    from aiogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
+
+    bot, _ = create_bot()
+
+    if not bot:
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram bot not configured"
+        )
+
+    results = []
+
+    for chat_id in data.chat_ids:
+        try:
+            if data.media_type == "text":
+                # Plain text message
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=data.content,
+                    parse_mode="HTML"
+                )
+                results.append(BroadcastResult(chat_id=chat_id, success=True))
+
+            elif data.media_type == "image" and data.media_urls:
+                # Single image with caption
+                await bot.send_photo(
+                    chat_id=chat_id,
+                    photo=data.media_urls[0],
+                    caption=data.content[:1024] if data.content else None,
+                    parse_mode="HTML"
+                )
+                results.append(BroadcastResult(chat_id=chat_id, success=True))
+
+            elif data.media_type == "video" and data.media_urls:
+                # Single video with caption
+                await bot.send_video(
+                    chat_id=chat_id,
+                    video=data.media_urls[0],
+                    caption=data.content[:1024] if data.content else None,
+                    parse_mode="HTML"
+                )
+                results.append(BroadcastResult(chat_id=chat_id, success=True))
+
+            elif data.media_type == "document" and data.media_urls:
+                # Single document with caption
+                await bot.send_document(
+                    chat_id=chat_id,
+                    document=data.media_urls[0],
+                    caption=data.content[:1024] if data.content else None,
+                    parse_mode="HTML"
+                )
+                results.append(BroadcastResult(chat_id=chat_id, success=True))
+
+            elif data.media_type == "mixed" and data.media_urls:
+                # Media group (up to 10 items)
+                media_group = []
+                for i, url in enumerate(data.media_urls[:10]):
+                    # Determine media type from URL extension
+                    url_lower = url.lower()
+                    if any(ext in url_lower for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                        media_item = InputMediaPhoto(
+                            media=url,
+                            caption=data.content[:1024] if i == 0 and data.content else None,
+                            parse_mode="HTML" if i == 0 else None
+                        )
+                    elif any(ext in url_lower for ext in ['.mp4', '.webm', '.mov']):
+                        media_item = InputMediaVideo(
+                            media=url,
+                            caption=data.content[:1024] if i == 0 and data.content else None,
+                            parse_mode="HTML" if i == 0 else None
+                        )
+                    else:
+                        # Default to document for other file types
+                        media_item = InputMediaDocument(
+                            media=url,
+                            caption=data.content[:1024] if i == 0 and data.content else None,
+                            parse_mode="HTML" if i == 0 else None
+                        )
+                    media_group.append(media_item)
+
+                if media_group:
+                    await bot.send_media_group(chat_id=chat_id, media=media_group)
+                results.append(BroadcastResult(chat_id=chat_id, success=True))
+
+            else:
+                # Fallback to text if media type unknown or no media URLs
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=data.content or "No content",
+                    parse_mode="HTML"
+                )
+                results.append(BroadcastResult(chat_id=chat_id, success=True))
+
+            logger.info(f"Broadcast sent to chat {chat_id}, type: {data.media_type}")
+
+        except Exception as e:
+            logger.error(f"Failed to broadcast to chat {chat_id}: {e}")
+            results.append(BroadcastResult(
+                chat_id=chat_id,
+                success=False,
+                error=str(e)
+            ))
+
+    # Calculate stats
+    sent_count = sum(1 for r in results if r.success)
+    failed_count = sum(1 for r in results if not r.success)
+
+    return {
+        "total": len(results),
+        "sent": sent_count,
+        "failed": failed_count,
+        "results": [r.model_dump() for r in results]
+    }
+
+
 @router.get("/health")
 async def internal_health():
     """Health check for internal API."""

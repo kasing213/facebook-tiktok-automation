@@ -127,7 +127,7 @@ class EmailService:
             msg.attach(MIMEText(html_content, 'html'))
 
             # Send email
-            with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT) as server:
+            with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT, timeout=30) as server:
                 server.starttls()
                 server.login(self.settings.SMTP_USER, self.settings.SMTP_PASSWORD.get_secret_value())
                 server.send_message(msg)
@@ -135,8 +135,17 @@ class EmailService:
             logger.info(f"Email sent to {to_email}: {subject}")
             return True
 
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"SMTP Authentication failed for {to_email}: {e}. Check SMTP_USER and SMTP_PASSWORD")
+            return False
+        except smtplib.SMTPConnectError as e:
+            logger.error(f"SMTP Connection failed for {to_email}: {e}. Gmail may be blocking connections from this IP")
+            return False
+        except smtplib.SMTPException as e:
+            logger.error(f"SMTP Error for {to_email}: {type(e).__name__}: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {e}")
+            logger.error(f"Failed to send email to {to_email}: {type(e).__name__}: {e}")
             return False
 
     def _log_email_to_console(self, to_email: str, subject: str, html_content: str) -> None:
@@ -424,7 +433,7 @@ The {settings.SMTP_FROM_NAME} Team
         msg.attach(MIMEText(html_content, 'html'))
 
         # Send email
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
             server.starttls()
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD.get_secret_value())
             server.send_message(msg)
@@ -432,6 +441,15 @@ The {settings.SMTP_FROM_NAME} Team
         logger.info(f"Verification email sent to {to_email}")
         return True
 
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error(f"SMTP Authentication failed for {to_email}: {e}. Check SMTP_USER and SMTP_PASSWORD (use Gmail App Password)")
+        return False
+    except smtplib.SMTPConnectError as e:
+        logger.error(f"SMTP Connection failed for {to_email}: {e}. Gmail may be blocking connections from this IP (common for cloud providers)")
+        return False
+    except smtplib.SMTPException as e:
+        logger.error(f"SMTP Error for {to_email}: {type(e).__name__}: {e}")
+        return False
     except Exception as e:
-        logger.error(f"Failed to send verification email to {to_email}: {e}")
+        logger.error(f"Failed to send verification email to {to_email}: {type(e).__name__}: {e}")
         return False

@@ -58,3 +58,9 @@ validate_config.py
 # Local artifacts
 nul
 screenshot/
+
+# Playwright
+frontend/e2e/.auth/
+frontend/playwright-report/
+frontend/test-results/
+.playwright-mcp/

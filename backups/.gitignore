@@ -1,0 +1,13 @@
+# Backup files - DO NOT commit actual backups to git
+local/daily/*.dump
+local/weekly/*.dump
+logs/*.log
+
+# Config backups contain sensitive hashes
+configs/env_*.json
+
+# Keep directory structure
+!local/daily/.gitkeep
+!local/weekly/.gitkeep
+!logs/.gitkeep
+!configs/.gitkeep

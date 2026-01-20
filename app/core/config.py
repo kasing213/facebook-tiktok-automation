@@ -91,6 +91,22 @@ class Settings(BaseSettings):
     # API Gateway (for Telegram notifications)
     API_GATEWAY_URL: str = Field(default="", description="API Gateway base URL for internal service calls")
 
+    # Supabase Storage (legacy - use R2 instead)
+    SUPABASE_URL: str = Field(default="", description="Supabase project URL")
+    SUPABASE_SERVICE_KEY: SecretStr = Field(default=SecretStr(""), description="Supabase service role key for backend operations")
+    SUPABASE_STORAGE_BUCKET: str = Field(default="promotions", description="Supabase storage bucket for promotion media")
+
+    # Cloudflare R2 Storage for Media (S3-compatible)
+    # Separate from backup R2 credentials for better access control
+    R2_MEDIA_ACCOUNT_ID: str = Field(default="", description="Cloudflare R2 account ID for media storage")
+    R2_MEDIA_ACCESS_KEY: str = Field(default="", description="R2 access key ID for media storage")
+    R2_MEDIA_SECRET_KEY: SecretStr = Field(default=SecretStr(""), description="R2 secret access key for media storage")
+    R2_MEDIA_BUCKET: str = Field(default="facebook-automation-media", description="R2 bucket name for media storage")
+    R2_MEDIA_PUBLIC_URL: str = Field(default="", description="R2 public URL (e.g., https://pub-xxxxx.r2.dev or custom domain)")
+
+    # MongoDB GridFS for Ads Alert Media Storage
+    MONGO_URL_ADS_ALERT: str = Field(default="", description="MongoDB connection string for ads alert media storage (GridFS)")
+
     # API Server settings
     API_HOST: str = Field(default="0.0.0.0", description="API server host")
     API_PORT: int = Field(default=8000, description="API server port", ge=1024, le=65535)
