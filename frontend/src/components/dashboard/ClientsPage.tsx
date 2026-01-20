@@ -5,9 +5,10 @@ import styled from 'styled-components'
 import { QRCodeSVG } from 'qrcode.react'
 import { useTelegram } from '../../hooks/useTelegram'
 import { invoiceService, BatchCodeResponse } from '../../services/invoiceApi'
-import { RegisteredClient, ClientLinkCodeResponse } from '../../types/invoice'
+import { RegisteredClient, ClientLinkCodeResponse, CustomerCreate } from '../../types/invoice'
 import QRCodeModal from './clients/QRCodeModal'
 import BatchQRModal from './clients/BatchQRModal'
+import AddClientModal from './clients/AddClientModal'
 
 // Styled Components
 const Container = styled.div`
@@ -619,6 +620,10 @@ const ClientsPage: React.FC = () => {
   const [batchCodes, setBatchCodes] = useState<BatchCodeResponse[]>([])
   const [, setLoadingBatchCodes] = useState(false)
 
+  // Add Client Modal state
+  const [addClientModalOpen, setAddClientModalOpen] = useState(false)
+  const [creatingClient, setCreatingClient] = useState(false)
+
   // Fetch clients
   const fetchClients = useCallback(async () => {
     try {
@@ -750,6 +755,21 @@ const ClientsPage: React.FC = () => {
     }
   }
 
+  // Handle add client
+  const handleAddClient = async (data: CustomerCreate) => {
+    setCreatingClient(true)
+    try {
+      await invoiceService.createRegisteredClient(data)
+      // Refresh clients list
+      await fetchClients()
+      setAddClientModalOpen(false)
+    } catch (err: any) {
+      throw err // Let the modal handle the error display
+    } finally {
+      setCreatingClient(false)
+    }
+  }
+
   // Check if Telegram is connected
   const isTelegramConnected = telegramStatus?.connected
 
@@ -770,7 +790,10 @@ const ClientsPage: React.FC = () => {
             </svg>
             Batch QR
           </BatchButton>
-          <AddButton disabled={!isTelegramConnected}>
+          <AddButton
+            onClick={() => setAddClientModalOpen(true)}
+            disabled={!isTelegramConnected}
+          >
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -1025,6 +1048,14 @@ const ClientsPage: React.FC = () => {
         onClose={() => setBatchModalOpen(false)}
         onGenerate={handleGenerateBatchCode}
         isGenerating={generatingBatchCode}
+      />
+
+      {/* Add Client Modal */}
+      <AddClientModal
+        isOpen={addClientModalOpen}
+        onClose={() => setAddClientModalOpen(false)}
+        onSubmit={handleAddClient}
+        isSubmitting={creatingClient}
       />
 
       {/* Error Toast */}

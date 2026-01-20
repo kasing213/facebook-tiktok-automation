@@ -231,6 +231,22 @@ export const invoiceService = {
     }
   },
 
+  async createRegisteredClient(data: {
+    name: string
+    email?: string
+    phone?: string
+    address?: string
+    notes?: string
+  }): Promise<RegisteredClient> {
+    try {
+      const response = await api.post(`${BASE_PATH}/registered-clients`, data)
+      return response.data
+    } catch (error) {
+      console.error('Failed to create registered client:', error)
+      throw new Error(getErrorMessage(error, 'Failed to create client'))
+    }
+  },
+
   // Send invoice to customer via Telegram
   async sendToCustomer(invoiceId: string): Promise<{
     success: boolean

@@ -432,6 +432,81 @@ async def list_registered_clients(
         )
 
 
+class RegisteredClientCreate(BaseModel):
+    """Request model for creating a registered client."""
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.post("/registered-clients")
+async def create_registered_client(
+    data: RegisteredClientCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new client registered via the dashboard.
+
+    This creates a customer record in PostgreSQL with the current user as merchant_id.
+    The client will show up in the registered-clients list and can be linked via Telegram.
+
+    Args:
+        data: Client details (name required, others optional)
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Creating registered client '{data.name}' for user {current_user.id}, tenant {current_user.tenant_id}")
+
+    try:
+        # Insert new customer with merchant_id set to current user
+        result = db.execute(
+            text("""
+                INSERT INTO invoice.customer (tenant_id, merchant_id, name, email, phone, address)
+                VALUES (:tenant_id, :merchant_id, :name, :email, :phone, :address)
+                RETURNING id, tenant_id, merchant_id, name, email, phone, address,
+                          telegram_chat_id, telegram_username, telegram_linked_at,
+                          created_at, updated_at
+            """),
+            {
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id),
+                "name": data.name,
+                "email": data.email,
+                "phone": data.phone,
+                "address": data.address
+            }
+        )
+        db.commit()
+        row = result.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=500, detail="Failed to create client")
+
+        return {
+            "id": str(row.id),
+            "name": row.name,
+            "email": row.email,
+            "phone": row.phone,
+            "address": row.address,
+            "telegram_chat_id": row.telegram_chat_id,
+            "telegram_username": row.telegram_username,
+            "telegram_linked": row.telegram_chat_id is not None,
+            "telegram_linked_at": row.telegram_linked_at.isoformat() if row.telegram_linked_at else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating registered client: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create client: {str(e)}"
+        )
+
+
 @router.get("/registered-clients/check-schema")
 async def check_registered_clients_schema(
     current_user: User = Depends(get_current_user),
