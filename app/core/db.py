@@ -11,10 +11,10 @@ _settings = get_settings()
 
 # Enhanced PostgreSQL engine configuration for multi-tenant application
 # NOTE: Pool sizes are kept small because:
-# 1. Supabase pooler (Session mode) has connection limits (~25 for free tier)
+# 1. Supabase pooler has connection limits (~25 for free tier)
 # 2. Both main backend AND api-gateway share the same database
 # 3. Railway instances can scale, each creating new pools
-# For Supabase, consider using Transaction mode (port 6543) for better connection reuse
+# Using psycopg3 with Transaction mode (port 6543) for better connection handling
 engine = create_engine(
     _settings.DATABASE_URL,
     poolclass=QueuePool,
@@ -26,6 +26,9 @@ engine = create_engine(
     connect_args={
         "connect_timeout": 10,  # connection timeout in seconds
         "options": "-c timezone=utc",  # set timezone to UTC
+        # CRITICAL: Disable prepared statements for pgbouncer Transaction mode (port 6543)
+        # pgbouncer doesn't support prepared statements - this is a psycopg3 option
+        "prepare_threshold": 0,
     },
     future=True,
     echo=False,  # Disable SQL logging in production (set to True for debugging)
@@ -42,12 +45,11 @@ SessionLocal = sessionmaker(
 @event.listens_for(engine, "connect")
 def receive_connect(dbapi_connection, connection_record):
     """Set connection-level configuration when connection is created"""
-    with dbapi_connection.cursor() as cursor:
-        # Set timezone to UTC for consistency
-        cursor.execute("SET timezone TO 'UTC'")
-        # Enable query logging for slow queries in production
-        if _settings.ENV == "prod":
-            cursor.execute("SET log_min_duration_statement = 1000")
+    # psycopg3 uses execute() directly on the connection
+    dbapi_connection.execute("SET timezone TO 'UTC'")
+    # Enable query logging for slow queries in production
+    if _settings.ENV == "prod":
+        dbapi_connection.execute("SET log_min_duration_statement = 1000")
 
 def get_db() -> Generator[Session, None, None]:
     """
