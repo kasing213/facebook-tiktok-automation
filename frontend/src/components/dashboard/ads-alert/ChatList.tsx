@@ -173,8 +173,15 @@ const EmptyState = styled.div`
 `
 
 const EmptyIcon = styled.div`
-  font-size: 48px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 16px;
+  color: #9ca3af;
+
+  svg {
+    width: 48px;
+    height: 48px;
+  }
 `
 
 const EmptyText = styled.p`
@@ -544,7 +551,11 @@ const ChatList: React.FC = () => {
         </EmptyState>
       ) : filteredChats.length === 0 ? (
         <EmptyState>
-          <EmptyIcon>💬</EmptyIcon>
+          <EmptyIcon>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </EmptyIcon>
           <EmptyText>
             {searchQuery ? 'No chats match your search' : 'No chats registered yet'}
           </EmptyText>

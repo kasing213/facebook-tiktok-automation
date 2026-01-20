@@ -209,9 +209,15 @@ const SuccessMessage = styled.div`
 `
 
 const SuccessIcon = styled.div`
-  font-size: 48px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 1rem;
-  text-align: center;
+  color: #0369a1;
+
+  svg {
+    width: 48px;
+    height: 48px;
+  }
 `
 
 const Divider = styled.div`
@@ -347,7 +353,11 @@ const ForgotPasswordPage: React.FC = () => {
         <DecorativeShape2 />
         <Card>
           <Logo>KS</Logo>
-          <SuccessIcon>📧</SuccessIcon>
+          <SuccessIcon>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </SuccessIcon>
           <Title>Check Your Email</Title>
           <SuccessMessage>
             If an account exists with <strong>{email}</strong>, you will receive a password reset link shortly.

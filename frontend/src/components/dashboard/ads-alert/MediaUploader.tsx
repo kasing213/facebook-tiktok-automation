@@ -53,9 +53,15 @@ const DropZone = styled.div<{ $isDragActive: boolean; $hasFiles: boolean }>`
 `
 
 const DropIcon = styled.div`
-  font-size: 48px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 16px;
   color: #9ca3af;
+
+  svg {
+    width: 48px;
+    height: 48px;
+  }
 `
 
 const DropText = styled.p`
@@ -574,7 +580,11 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
       >
         {files.length === 0 ? (
           <>
-            <DropIcon>📁</DropIcon>
+            <DropIcon>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+            </DropIcon>
             <DropText>Drop files here or click to browse</DropText>
             <DropSubtext>
               Supports images (JPG, PNG, GIF, WebP), videos (MP4, WebM), and documents (PDF, DOCX)

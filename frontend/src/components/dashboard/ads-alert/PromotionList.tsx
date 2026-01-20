@@ -126,6 +126,11 @@ const MetaItem = styled.span`
   display: flex;
   align-items: center;
   gap: 4px;
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
 `
 
 const StatusBadge = styled.span<{ $status: string }>`
@@ -214,8 +219,15 @@ const EmptyState = styled.div`
 `
 
 const EmptyIcon = styled.div`
-  font-size: 48px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 16px;
+  color: #9ca3af;
+
+  svg {
+    width: 48px;
+    height: 48px;
+  }
 `
 
 const EmptyText = styled.p`
@@ -356,7 +368,11 @@ const PromotionList: React.FC<PromotionListProps> = ({
         <LoadingState>Loading promotions...</LoadingState>
       ) : filteredPromotions.length === 0 ? (
         <EmptyState>
-          <EmptyIcon>📢</EmptyIcon>
+          <EmptyIcon>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+            </svg>
+          </EmptyIcon>
           <EmptyText>No promotions found</EmptyText>
         </EmptyState>
       ) : (
@@ -383,19 +399,31 @@ const PromotionList: React.FC<PromotionListProps> = ({
                   )}
                   <Meta>
                     <MetaItem>
-                      📅 {formatDate(promotion.created_at)}
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {formatDate(promotion.created_at)}
                     </MetaItem>
                     {promotion.scheduled_at && (
                       <MetaItem>
-                        ⏰ Scheduled: {formatDate(promotion.scheduled_at)}
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Scheduled: {formatDate(promotion.scheduled_at)}
                       </MetaItem>
                     )}
                     <MetaItem>
-                      👥 {promotion.target_type === 'all' ? 'All subscribers' : `${promotion.target_chat_ids.length} chats`}
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      {promotion.target_type === 'all' ? 'All subscribers' : `${promotion.target_chat_ids.length} chats`}
                     </MetaItem>
                     {promotion.media_urls.length > 0 && (
                       <MetaItem>
-                        📎 {promotion.media_urls.length} file{promotion.media_urls.length !== 1 ? 's' : ''}
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        {promotion.media_urls.length} file{promotion.media_urls.length !== 1 ? 's' : ''}
                       </MetaItem>
                     )}
                   </Meta>

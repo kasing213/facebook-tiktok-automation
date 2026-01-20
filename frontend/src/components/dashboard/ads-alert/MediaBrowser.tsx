@@ -60,7 +60,13 @@ const FolderItem = styled.div<{ $active: boolean; $depth: number }>`
 `
 
 const FolderIcon = styled.span`
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
 `
 
 const FolderName = styled.span`
@@ -452,7 +458,17 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({
               </ExpandButton>
             )}
             {!hasChildren && <span style={{ width: 16 }} />}
-            <FolderIcon>{isActive ? '📂' : '📁'}</FolderIcon>
+            <FolderIcon>
+              {isActive ? (
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h9a2 2 0 012 2v8a2 2 0 01-2 2H5z" />
+                </svg>
+              ) : (
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+              )}
+            </FolderIcon>
             <FolderName>{node.name}</FolderName>
           </FolderItem>
           {hasChildren && isExpanded && renderFolderTree(node.children as FolderNode[], depth + 1)}
@@ -465,7 +481,10 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({
     <Container>
       <Sidebar>
         <SidebarHeader>
-          📁 Folders
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: 16, height: 16, marginRight: 6 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+          </svg>
+          Folders
         </SidebarHeader>
         <FolderTree>
           <FolderItem
@@ -474,7 +493,17 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({
             onClick={() => handleFolderClick(null, 'Root')}
           >
             <span style={{ width: 16 }} />
-            <FolderIcon>{currentFolder === null ? '📂' : '📁'}</FolderIcon>
+            <FolderIcon>
+              {currentFolder === null ? (
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h9a2 2 0 012 2v8a2 2 0 01-2 2H5z" />
+                </svg>
+              ) : (
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+              )}
+            </FolderIcon>
             <FolderName>All Files</FolderName>
           </FolderItem>
           {renderFolderTree(folders)}

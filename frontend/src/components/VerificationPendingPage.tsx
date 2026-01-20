@@ -35,8 +35,15 @@ const IconWrapper = styled.div`
 `
 
 const Icon = styled.span`
-  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: white;
+
+  svg {
+    width: 48px;
+    height: 48px;
+  }
 `
 
 const PulsingDot = styled.div`
@@ -176,6 +183,11 @@ const InstructionTitle = styled.h3`
   display: flex;
   align-items: center;
   gap: 0.5rem;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
 `
 
 const InstructionList = styled.ol`
@@ -199,6 +211,19 @@ const Footer = styled.div`
   border-top: 1px solid #e5e7eb;
   font-size: 0.875rem;
   color: #6b7280;
+`
+
+const SuccessText = styled.p`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+
+  svg {
+    width: 16px;
+    height: 16px;
+    color: #10b981;
+  }
 `
 
 interface VerificationPendingPageProps {
@@ -274,7 +299,11 @@ const VerificationPendingPage: React.FC<VerificationPendingPageProps> = ({
     <Container>
       <Card>
         <IconWrapper>
-          <Icon>📧</Icon>
+          <Icon>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </Icon>
           <PulsingDot />
         </IconWrapper>
 
@@ -311,7 +340,9 @@ const VerificationPendingPage: React.FC<VerificationPendingPageProps> = ({
 
         <Instructions>
           <InstructionTitle>
-            <span>💡</span>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
             Next Steps:
           </InstructionTitle>
           <InstructionList>
@@ -324,9 +355,12 @@ const VerificationPendingPage: React.FC<VerificationPendingPageProps> = ({
 
         <Footer>
           {lastResendTime && (
-            <p>
-              ✅ Verification email sent at {lastResendTime.toLocaleTimeString()}
-            </p>
+            <SuccessText>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Verification email sent at {lastResendTime.toLocaleTimeString()}
+            </SuccessText>
           )}
           <p>
             Didn't receive the email? Check your spam folder or contact support.

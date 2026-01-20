@@ -40,8 +40,15 @@ const MessageSection = styled.div`
 `
 
 const Icon = styled.span`
-  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0.9;
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
 `
 
 const TextContent = styled.div`
@@ -220,7 +227,11 @@ const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = ({
     <BannerContainer $visible={isVisible}>
       <BannerContent>
         <MessageSection>
-          <Icon>📧</Icon>
+          <Icon>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </Icon>
           <TextContent>
             <Title>Email Verification Required</Title>
             <Description>
