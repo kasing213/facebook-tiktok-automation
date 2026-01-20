@@ -1,6 +1,15 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
+import {
+  fadeInUp,
+  fadeInDown,
+  easings,
+  buttonHoverEffect,
+  reduceMotion,
+  glowPulse
+} from '../styles/animations'
+import { useScrollAnimation } from '../hooks/useScrollAnimation'
 
 // Modern landing page with blue color scheme
 // Colors: #4a90e2 (primary blue), #2a5298 (dark blue), #e8f4fd (light blue bg)
@@ -112,7 +121,7 @@ const GetStartedButton = styled.button`
   font-weight: 500;
   border: none;
   cursor: pointer;
-  transition: background 0.2s;
+  ${buttonHoverEffect}
 
   &:hover {
     background: #2a5298;
@@ -197,6 +206,9 @@ const Badge = styled.div`
   font-size: 0.75rem;
   font-weight: 500;
   margin-bottom: 2rem;
+  opacity: 0;
+  animation: ${fadeInDown} 0.5s ${easings.easeOutCubic} forwards;
+  ${reduceMotion}
 `
 
 const BadgeDot = styled.span`
@@ -213,6 +225,9 @@ const HeroTitle = styled.h1`
   line-height: 1.1;
   margin: 0 0 1.5rem 0;
   color: #1f2937;
+  opacity: 0;
+  animation: ${fadeInUp} 0.6s ${easings.easeOutCubic} 0.1s forwards;
+  ${reduceMotion}
 
   @media (max-width: 1024px) {
     font-size: 3rem;
@@ -236,6 +251,9 @@ const HeroSubtitle = styled.p`
   margin-left: auto;
   margin-right: auto;
   line-height: 1.7;
+  opacity: 0;
+  animation: ${fadeInUp} 0.6s ${easings.easeOutCubic} 0.2s forwards;
+  ${reduceMotion}
 `
 
 const HeroButtons = styled.div`
@@ -244,6 +262,9 @@ const HeroButtons = styled.div`
   gap: 0.75rem;
   justify-content: center;
   align-items: center;
+  opacity: 0;
+  animation: ${fadeInUp} 0.6s ${easings.easeOutCubic} 0.3s forwards;
+  ${reduceMotion}
 
   @media (min-width: 640px) {
     flex-direction: row;
@@ -260,7 +281,7 @@ const PrimaryButton = styled.button`
   cursor: pointer;
   font-size: 0.875rem;
   box-shadow: 0 10px 15px -3px rgba(74, 144, 226, 0.25);
-  transition: all 0.2s;
+  ${buttonHoverEffect}
 
   &:hover {
     background: #2a5298;
@@ -280,12 +301,22 @@ const SecondaryButton = styled.button`
   font-weight: 500;
   cursor: pointer;
   font-size: 0.875rem;
-  transition: all 0.2s;
+  transition: transform 0.2s ${easings.easeOutCubic},
+              box-shadow 0.2s ${easings.easeOutCubic},
+              border-color 0.2s ease,
+              background-color 0.2s ease;
 
   &:hover {
-    border-color: #d1d5db;
-    background: #f9fafb;
+    border-color: #4a90e2;
+    background: #f8fafc;
+    transform: translateY(-1px);
   }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  ${reduceMotion}
 `
 
 const HeroNote = styled.p`
@@ -295,9 +326,15 @@ const HeroNote = styled.p`
 `
 
 // Dashboard Preview
-const PreviewWrapper = styled.div`
+const PreviewWrapper = styled.div<{ $isVisible?: boolean }>`
   margin-top: 4rem;
   position: relative;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(40px)'};
+  transition: opacity 0.8s ${easings.easeOutCubic},
+              transform 0.8s ${easings.easeOutCubic};
+  transition-delay: 0.4s;
+  ${reduceMotion}
 `
 
 const PreviewGradient = styled.div`
@@ -516,17 +553,26 @@ const FeaturesGrid = styled.div`
   }
 `
 
-const FeatureCard = styled.div`
+const FeatureCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   background: white;
   border-radius: 1rem;
   border: 1px solid #e5e7eb;
   padding: 1.5rem;
-  transition: all 0.3s;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(30px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
     border-color: #d1e7f8;
-    box-shadow: 0 20px 25px -5px rgba(74, 144, 226, 0.1);
+    box-shadow: 0 20px 25px -5px rgba(74, 144, 226, 0.15);
+    transform: translateY(-4px);
   }
+
+  ${reduceMotion}
 `
 
 const FeatureIcon = styled.div`
@@ -713,8 +759,14 @@ const StatsGridLarge = styled.div`
   }
 `
 
-const StatItemLarge = styled.div`
+const StatItemLarge = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   text-align: center;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic};
+  transition-delay: ${props => props.$delay || 0}ms;
+  ${reduceMotion}
 `
 
 const StatValueLarge = styled.p`
@@ -754,7 +806,7 @@ const PricingGrid = styled.div`
   }
 `
 
-const PricingCard = styled.div<{ highlighted?: boolean }>`
+const PricingCard = styled.div<{ highlighted?: boolean; $isVisible?: boolean; $delay?: number }>`
   border-radius: 1rem;
   padding: 1.5rem;
   background: ${props => props.highlighted ? '#4a90e2' : 'white'};
@@ -763,6 +815,25 @@ const PricingCard = styled.div<{ highlighted?: boolean }>`
   border: ${props => props.highlighted ? 'none' : '1px solid #e5e7eb'};
   display: flex;
   flex-direction: column;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(30px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.3s ${easings.easeOutCubic},
+              box-shadow 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: ${props => props.highlighted
+      ? '0 30px 60px -12px rgba(74, 144, 226, 0.35)'
+      : '0 20px 40px -12px rgba(0, 0, 0, 0.1)'};
+  }
+
+  ${props => props.highlighted && css`
+    animation: ${glowPulse} 3s ease-in-out infinite;
+  `}
+
+  ${reduceMotion}
 `
 
 const PopularBadge = styled.span`
@@ -900,8 +971,15 @@ const FAQIcon = styled.svg<{ open?: boolean }>`
   transform: ${props => props.open ? 'rotate(180deg)' : 'rotate(0)'};
 `
 
-const FAQAnswer = styled.div`
-  padding: 0 1rem 1rem;
+const FAQAnswer = styled.div<{ $isOpen: boolean }>`
+  max-height: ${props => props.$isOpen ? '200px' : '0'};
+  opacity: ${props => props.$isOpen ? 1 : 0};
+  padding: ${props => props.$isOpen ? '0 1rem 1rem' : '0 1rem'};
+  overflow: hidden;
+  transition: max-height 0.3s ${easings.easeOutCubic},
+              opacity 0.25s ${easings.easeOutCubic},
+              padding 0.3s ${easings.easeOutCubic};
+  ${reduceMotion}
 `
 
 const FAQAnswerText = styled.p`
@@ -1040,6 +1118,13 @@ const HomePage: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [openFaq, setOpenFaq] = useState<number | null>(null)
 
+  // Scroll animation hooks for different sections
+  const previewAnimation = useScrollAnimation({ threshold: 0.1 })
+  const featuresAnimation = useScrollAnimation({ threshold: 0.1 })
+  const socialAnimation = useScrollAnimation({ threshold: 0.1 })
+  const statsAnimation = useScrollAnimation({ threshold: 0.2 })
+  const pricingAnimation = useScrollAnimation({ threshold: 0.2 })
+
   const faqs = [
     {
       question: "How does OCR payment verification work?",
@@ -1156,7 +1241,7 @@ const HomePage: React.FC = () => {
           </HeroContent>
 
           {/* Dashboard Preview */}
-          <PreviewWrapper>
+          <PreviewWrapper ref={previewAnimation.ref} $isVisible={previewAnimation.isVisible}>
             <PreviewGradient />
             <PreviewContainer>
               <BrowserChrome>
@@ -1258,7 +1343,7 @@ const HomePage: React.FC = () => {
       </HeroSection>
 
       {/* Invoice Features */}
-      <FeaturesSection id="features">
+      <FeaturesSection id="features" ref={featuresAnimation.ref}>
         <SectionContainer>
           <SectionHeader>
             <SectionTitle>Invoice & Payment Management</SectionTitle>
@@ -1267,7 +1352,7 @@ const HomePage: React.FC = () => {
 
           <FeaturesGrid>
             {/* Telegram Verification */}
-            <FeatureCard>
+            <FeatureCard $isVisible={featuresAnimation.isVisible} $delay={0}>
               <FeatureIcon>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2a5298" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -1293,7 +1378,7 @@ const HomePage: React.FC = () => {
             </FeatureCard>
 
             {/* Smart Inventory */}
-            <FeatureCard>
+            <FeatureCard $isVisible={featuresAnimation.isVisible} $delay={100}>
               <FeatureIcon>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2a5298" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -1335,7 +1420,7 @@ const HomePage: React.FC = () => {
             </FeatureCard>
 
             {/* Beautiful Invoices */}
-            <FeatureCard>
+            <FeatureCard $isVisible={featuresAnimation.isVisible} $delay={200}>
               <FeatureIcon>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2a5298" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1371,7 +1456,7 @@ const HomePage: React.FC = () => {
       </FeaturesSection>
 
       {/* Social Media Features */}
-      <SocialFeaturesSection id="social">
+      <SocialFeaturesSection id="social" ref={socialAnimation.ref}>
         <SectionContainer>
           <SectionHeader>
             <SectionTitle>Social Media Automation</SectionTitle>
@@ -1380,7 +1465,7 @@ const HomePage: React.FC = () => {
 
           <FeaturesGrid>
             {/* Facebook Automation */}
-            <FeatureCard>
+            <FeatureCard $isVisible={socialAnimation.isVisible} $delay={0}>
               <FeatureIcon>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="#2a5298">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -1413,7 +1498,7 @@ const HomePage: React.FC = () => {
             </FeatureCard>
 
             {/* TikTok Automation */}
-            <FeatureCard>
+            <FeatureCard $isVisible={socialAnimation.isVisible} $delay={100}>
               <FeatureIcon>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="#2a5298">
                   <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
@@ -1455,7 +1540,7 @@ const HomePage: React.FC = () => {
             </FeatureCard>
 
             {/* Cross-platform Dashboard */}
-            <FeatureCard>
+            <FeatureCard $isVisible={socialAnimation.isVisible} $delay={200}>
               <FeatureIcon>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2a5298" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
@@ -1484,22 +1569,22 @@ const HomePage: React.FC = () => {
       </SocialFeaturesSection>
 
       {/* Stats */}
-      <StatsSection>
+      <StatsSection ref={statsAnimation.ref}>
         <StatsContainer>
           <StatsGridLarge>
-            <StatItemLarge>
+            <StatItemLarge $isVisible={statsAnimation.isVisible} $delay={0}>
               <StatValueLarge>300ms</StatValueLarge>
               <StatLabelLarge>OCR processing time</StatLabelLarge>
             </StatItemLarge>
-            <StatItemLarge>
+            <StatItemLarge $isVisible={statsAnimation.isVisible} $delay={100}>
               <StatValueLarge>99.2%</StatValueLarge>
               <StatLabelLarge>Recognition accuracy</StatLabelLarge>
             </StatItemLarge>
-            <StatItemLarge>
+            <StatItemLarge $isVisible={statsAnimation.isVisible} $delay={200}>
               <StatValueLarge>10+</StatValueLarge>
               <StatLabelLarge>Payment methods</StatLabelLarge>
             </StatItemLarge>
-            <StatItemLarge>
+            <StatItemLarge $isVisible={statsAnimation.isVisible} $delay={300}>
               <StatValueLarge>24/7</StatValueLarge>
               <StatLabelLarge>Telegram bot uptime</StatLabelLarge>
             </StatItemLarge>
@@ -1508,7 +1593,7 @@ const HomePage: React.FC = () => {
       </StatsSection>
 
       {/* Pricing */}
-      <PricingSection id="pricing">
+      <PricingSection id="pricing" ref={pricingAnimation.ref}>
         <SectionContainer>
           <SectionHeader>
             <SectionTitle>Simple pricing</SectionTitle>
@@ -1517,7 +1602,7 @@ const HomePage: React.FC = () => {
 
           <PricingGrid>
             {/* Free Plan */}
-            <PricingCard>
+            <PricingCard $isVisible={pricingAnimation.isVisible} $delay={0}>
               <PlanName>Starter</PlanName>
               <PlanDescription>For small businesses getting started</PlanDescription>
               <PlanPrice>
@@ -1555,7 +1640,7 @@ const HomePage: React.FC = () => {
             </PricingCard>
 
             {/* Pro Plan */}
-            <PricingCard highlighted>
+            <PricingCard highlighted $isVisible={pricingAnimation.isVisible} $delay={100}>
               <PopularBadge>Most popular</PopularBadge>
               <PlanName highlighted>Pro</PlanName>
               <PlanDescription highlighted>For growing businesses</PlanDescription>
@@ -1625,11 +1710,9 @@ const HomePage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </FAQIcon>
                 </FAQButton>
-                {openFaq === i && (
-                  <FAQAnswer>
-                    <FAQAnswerText>{faq.answer}</FAQAnswerText>
-                  </FAQAnswer>
-                )}
+                <FAQAnswer $isOpen={openFaq === i}>
+                  <FAQAnswerText>{faq.answer}</FAQAnswerText>
+                </FAQAnswer>
               </FAQItem>
             ))}
           </FAQList>

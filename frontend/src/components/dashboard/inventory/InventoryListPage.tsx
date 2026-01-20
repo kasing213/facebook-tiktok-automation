@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react'
 import styled from 'styled-components'
 import { inventoryService } from '../../../services/inventoryApi'
 import { Product, ProductCreate, ProductUpdate } from '../../../types/inventory'
+import { fadeInDown, scaleIn, shake, easings, reduceMotion } from '../../../styles/animations'
+import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -35,32 +37,45 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ${easings.easeOutCubic},
+              box-shadow 0.2s ${easings.easeOutCubic},
+              background 0.2s ease;
 
   ${props => props.$variant === 'primary' ? `
     background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
     color: white;
     border: none;
 
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+    &:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 4px 12px rgba(74, 144, 226, 0.35);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0) scale(0.98);
     }
   ` : props.$variant === 'danger' ? `
     background: #dc3545;
     color: white;
     border: none;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: #c82333;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0) scale(0.98);
     }
   ` : `
     background: white;
     color: #6b7280;
     border: 1px solid #e5e7eb;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: #f9fafb;
+      border-color: #d1d5db;
     }
   `}
 
@@ -68,6 +83,8 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
     opacity: 0.6;
     cursor: not-allowed;
   }
+
+  ${reduceMotion}
 `
 
 const StatsGrid = styled.div`
@@ -77,11 +94,23 @@ const StatsGrid = styled.div`
   margin-bottom: 1.5rem;
 `
 
-const StatCard = styled.div`
+const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 1.25rem;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(15px)'};
+  transition: opacity 0.4s ${easings.easeOutCubic},
+              transform 0.4s ${easings.easeOutCubic},
+              box-shadow 0.2s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  }
+
+  ${reduceMotion}
 `
 
 const StatLabel = styled.div`
@@ -183,8 +212,14 @@ const TableHeaderCell = styled.th`
 
 const TableBody = styled.tbody``
 
-const TableRow = styled.tr`
+const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
   border-bottom: 1px solid #e5e7eb;
+  opacity: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 1 : 0) : 1};
+  transform: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 'translateX(0)' : 'translateX(-10px)') : 'translateX(0)'};
+  transition: opacity 0.3s ${easings.easeOutCubic},
+              transform 0.3s ${easings.easeOutCubic},
+              background 0.15s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:last-child {
     border-bottom: none;
@@ -193,6 +228,8 @@ const TableRow = styled.tr`
   &:hover {
     background: #f9fafb;
   }
+
+  ${reduceMotion}
 `
 
 const TableCell = styled.td`
@@ -259,6 +296,9 @@ const ErrorMessage = styled.div`
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
+  animation: ${shake} 0.4s ease, ${fadeInDown} 0.3s ${easings.easeOutCubic};
+
+  ${reduceMotion}
 `
 
 const SuccessMessage = styled.div`
@@ -267,6 +307,9 @@ const SuccessMessage = styled.div`
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
+  animation: ${fadeInDown} 0.3s ${easings.easeOutCubic};
+
+  ${reduceMotion}
 `
 
 const EmptyState = styled.div`
@@ -298,6 +341,14 @@ const ModalOverlay = styled.div`
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  animation: fadeIn 0.2s ${easings.easeOutCubic};
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  ${reduceMotion}
 `
 
 const ModalContent = styled.div`
@@ -308,12 +359,15 @@ const ModalContent = styled.div`
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
+  animation: ${scaleIn} 0.3s ${easings.easeOutCubic};
 
   h2 {
     margin: 0 0 1.5rem 0;
     color: #1f2937;
     font-size: 1.5rem;
   }
+
+  ${reduceMotion}
 `
 
 const FormGroup = styled.div`
@@ -410,6 +464,10 @@ const InventoryListPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
+
+  // Animation hooks
+  const statsVisible = useStaggeredAnimation(4, 80) // 4 stat cards
+  const rowsVisible = useStaggeredAnimation(products.length, 40)
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -660,19 +718,19 @@ const InventoryListPage: React.FC = () => {
       {success && <SuccessMessage>{success}</SuccessMessage>}
 
       <StatsGrid>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[0]} $delay={0}>
           <StatLabel>Total Products</StatLabel>
           <StatValue>{totalProducts}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[1]} $delay={80}>
           <StatLabel>Active Products</StatLabel>
           <StatValue $color="#28a745">{activeProducts}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[2]} $delay={160}>
           <StatLabel>Low Stock</StatLabel>
           <StatValue $color={lowStockCount > 0 ? '#dc3545' : '#28a745'}>{lowStockCount}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[3]} $delay={240}>
           <StatLabel>Total Stock Value</StatLabel>
           <StatValue $color="#4a90e2">{formatCurrency(totalStockValue)}</StatValue>
         </StatCard>
@@ -723,10 +781,10 @@ const InventoryListPage: React.FC = () => {
               </tr>
             </TableHeader>
             <TableBody>
-              {products.map(product => {
+              {products.map((product, index) => {
                 const isLowStock = product.track_stock && product.current_stock <= product.low_stock_threshold
                 return (
-                  <TableRow key={product.id}>
+                  <TableRow key={product.id} $isVisible={rowsVisible[index]} $delay={index * 40}>
                     <TableCell>
                       <ProductName>{product.name}</ProductName>
                       {product.sku && <ProductSku>SKU: {product.sku}</ProductSku>}

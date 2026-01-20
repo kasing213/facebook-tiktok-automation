@@ -353,6 +353,7 @@ const SettingsPage: React.FC = () => {
   const [manualToken, setManualToken] = useState('')
   const [verifyingToken, setVerifyingToken] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
+  const [cooldownSeconds, setCooldownSeconds] = useState(0)
 
   // Notification preferences
   const [emailNotifications, setEmailNotifications] = useState(true)
@@ -390,6 +391,14 @@ const SettingsPage: React.FC = () => {
     }
   }, [])
 
+  // Cooldown countdown timer
+  useEffect(() => {
+    if (cooldownSeconds > 0) {
+      const timer = setTimeout(() => setCooldownSeconds(cooldownSeconds - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [cooldownSeconds])
+
   const handleChangePassword = async () => {
     setPasswordError(null)
     setPasswordSuccess(null)
@@ -426,13 +435,37 @@ const SettingsPage: React.FC = () => {
   }
 
   const handleSendVerification = async () => {
+    // Prevent rapid clicks with cooldown
+    if (cooldownSeconds > 0 || sendingVerification) {
+      return
+    }
+
     setSendingVerification(true)
     setVerificationError(null)
+
     try {
       await authService.sendVerificationEmail()
       setVerificationSent(true)
+      setCooldownSeconds(30) // 30 second cooldown after success
     } catch (error: any) {
-      setVerificationError(error.message || 'Failed to send verification email')
+      // Better error messages for different error types
+      let errorMessage = 'Failed to send verification email'
+
+      if (error.message?.includes('timeout') || error.message?.includes('network')) {
+        errorMessage = 'Server is busy. Please try again in a moment.'
+        setCooldownSeconds(10) // Shorter cooldown for timeout errors
+      } else if (error.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment before trying again.'
+        setCooldownSeconds(60) // Longer cooldown for rate limit
+      } else if (error.response?.status >= 500) {
+        errorMessage = 'Server temporarily unavailable. Please try again later.'
+        setCooldownSeconds(15)
+      } else if (error.message) {
+        errorMessage = error.message
+        setCooldownSeconds(5) // Short cooldown for other errors
+      }
+
+      setVerificationError(errorMessage)
     } finally {
       setSendingVerification(false)
     }
@@ -521,9 +554,15 @@ const SettingsPage: React.FC = () => {
                       {!user?.email_verified && user?.email && (
                         <VerifyButton
                           onClick={handleSendVerification}
-                          disabled={sendingVerification || verificationSent}
+                          disabled={sendingVerification || verificationSent || cooldownSeconds > 0}
                         >
-                          {sendingVerification ? 'Sending...' : verificationSent ? 'Email Sent' : 'Verify Email'}
+                          {sendingVerification
+                            ? 'Sending...'
+                            : verificationSent
+                            ? 'Email Sent'
+                            : cooldownSeconds > 0
+                            ? `Wait ${cooldownSeconds}s`
+                            : 'Verify Email'}
                         </VerifyButton>
                       )}
                     </EmailRow>

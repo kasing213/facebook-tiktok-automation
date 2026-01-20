@@ -1,6 +1,8 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
+import { easings, reduceMotion } from '../../styles/animations'
+import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
 
 // Platform logos
 import facebookLogo from '../../assets/images/social/facebook-logo.png'
@@ -48,16 +50,24 @@ const StatsGrid = styled.div`
   }
 `
 
-const StatCard = styled.div`
+const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   background: white;
   border-radius: 0.75rem;
   border: 1px solid ${COLORS.border};
   padding: 1.25rem;
-  transition: all 0.2s;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              box-shadow 0.2s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: ${props => props.$isVisible ? 'translateY(-2px)' : 'translateY(20px)'};
   }
+
+  ${reduceMotion}
 `
 
 const StatHeader = styled.div`
@@ -169,13 +179,18 @@ const ViewAllLink = styled.a`
 
 const ActivityList = styled.div``
 
-const ActivityItem = styled.div`
+const ActivityItem = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   padding: 0.75rem 1.25rem;
   display: flex;
   align-items: center;
   gap: 1rem;
   border-bottom: 1px solid ${COLORS.borderLight};
-  transition: background 0.2s;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(-15px)'};
+  transition: opacity 0.4s ${easings.easeOutCubic},
+              transform 0.4s ${easings.easeOutCubic},
+              background 0.15s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
     background: ${COLORS.bgLight};
@@ -184,6 +199,8 @@ const ActivityItem = styled.div`
   &:last-child {
     border-bottom: none;
   }
+
+  ${reduceMotion}
 `
 
 const ActivityIcon = styled.div<{ $variant: 'success' | 'warning' | 'info' }>`
@@ -266,13 +283,20 @@ const PlatformList = styled.div`
   gap: 0.75rem;
 `
 
-const PlatformItem = styled.div`
+const PlatformItem = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem;
   background: ${COLORS.bgLight};
   border-radius: 0.5rem;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(10px)'};
+  transition: opacity 0.4s ${easings.easeOutCubic},
+              transform 0.4s ${easings.easeOutCubic};
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  ${reduceMotion}
 `
 
 const PlatformInfo = styled.div`
@@ -350,12 +374,21 @@ const QuickActionItem = styled.a`
   color: ${COLORS.textSecondary};
   font-size: 0.875rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s ease,
+              color 0.2s ease,
+              transform 0.2s ${easings.easeOutCubic};
 
   &:hover {
     background: ${COLORS.bgLight};
     color: ${COLORS.textPrimary};
+    transform: translateX(4px);
   }
+
+  &:active {
+    transform: translateX(2px);
+  }
+
+  ${reduceMotion}
 `
 
 const QuickActionIcon = styled.div<{ $color: 'blue' | 'green' | 'amber' }>`
@@ -421,6 +454,11 @@ const formatUSD = (amount: number) => {
 const OverviewPage: React.FC = () => {
   const navigate = useNavigate()
 
+  // Animation hooks
+  const statsVisible = useStaggeredAnimation(4, 100) // 4 stat cards, 100ms stagger
+  const activityVisible = useStaggeredAnimation(recentActivity.length, 60)
+  const platformsVisible = useStaggeredAnimation(connectedPlatforms.length, 80)
+
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'invoice_paid':
@@ -477,7 +515,7 @@ const OverviewPage: React.FC = () => {
       {/* Stats Grid */}
       <StatsGrid>
         {/* Revenue */}
-        <StatCard>
+        <StatCard $isVisible={statsVisible[0]} $delay={0}>
           <StatHeader>
             <StatLabel>Revenue (This Month)</StatLabel>
             <StatBadge $variant="success">+{stats.revenue.change}%</StatBadge>
@@ -487,7 +525,7 @@ const OverviewPage: React.FC = () => {
         </StatCard>
 
         {/* Pending Invoices */}
-        <StatCard>
+        <StatCard $isVisible={statsVisible[1]} $delay={100}>
           <StatHeader>
             <StatLabel>Pending Invoices</StatLabel>
             <StatBadge $variant="warning">{stats.invoicesPending.count} unpaid</StatBadge>
@@ -497,7 +535,7 @@ const OverviewPage: React.FC = () => {
         </StatCard>
 
         {/* Scheduled Posts */}
-        <StatCard>
+        <StatCard $isVisible={statsVisible[2]} $delay={200}>
           <StatHeader>
             <StatLabel>Scheduled Posts</StatLabel>
             <StatBadge>Next 7 days</StatBadge>
@@ -510,7 +548,7 @@ const OverviewPage: React.FC = () => {
         </StatCard>
 
         {/* Verified Today */}
-        <StatCard>
+        <StatCard $isVisible={statsVisible[3]} $delay={300}>
           <StatHeader>
             <StatLabel>Verified Today</StatLabel>
             <StatBadge>OCR</StatBadge>
@@ -530,7 +568,7 @@ const OverviewPage: React.FC = () => {
           </CardHeader>
           <ActivityList>
             {recentActivity.map((activity, i) => (
-              <ActivityItem key={i}>
+              <ActivityItem key={i} $isVisible={activityVisible[i]} $delay={i * 60}>
                 <ActivityIcon $variant={getActivityVariant(activity.status)}>
                   {getActivityIcon(activity.type)}
                 </ActivityIcon>
@@ -561,7 +599,7 @@ const OverviewPage: React.FC = () => {
             </CardHeader>
             <PlatformList>
               {connectedPlatforms.map((platform, i) => (
-                <PlatformItem key={i}>
+                <PlatformItem key={i} $isVisible={platformsVisible[i]} $delay={i * 80 + 200}>
                   <PlatformInfo>
                     <PlatformIcon src={platform.icon} alt={platform.name} />
                     <div>

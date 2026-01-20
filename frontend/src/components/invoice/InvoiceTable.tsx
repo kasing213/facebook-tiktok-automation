@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import styled from 'styled-components'
 import { Invoice } from '../../types/invoice'
 import { InvoiceStatusBadge } from './InvoiceStatusBadge'
+import { easings, reduceMotion } from '../../styles/animations'
+import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
 
 interface InvoiceTableProps {
   invoices: Invoice[]
@@ -43,9 +45,14 @@ const HeaderCell = styled.th`
 
 const TableBody = styled.tbody``
 
-const TableRow = styled.tr`
+const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
   border-bottom: 1px solid #e5e7eb;
-  transition: background-color 0.2s ease;
+  opacity: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 1 : 0) : 1};
+  transform: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 'translateX(0)' : 'translateX(-8px)') : 'translateX(0)'};
+  transition: opacity 0.3s ${easings.easeOutCubic},
+              transform 0.3s ${easings.easeOutCubic},
+              background-color 0.15s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
     background-color: #f9fafb;
@@ -54,6 +61,8 @@ const TableRow = styled.tr`
   &:last-child {
     border-bottom: none;
   }
+
+  ${reduceMotion}
 `
 
 const TableCell = styled.td`
@@ -111,13 +120,21 @@ const SendButton = styled.button`
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease,
+              transform 0.15s ${easings.easeOutCubic},
+              box-shadow 0.2s ease;
   background: #22c55e;
   color: white;
   border: none;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: #16a34a;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(34, 197, 94, 0.3);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
   }
 
   &:disabled {
@@ -129,6 +146,8 @@ const SendButton = styled.button`
     width: 14px;
     height: 14px;
   }
+
+  ${reduceMotion}
 `
 
 const IconButton = styled.button`
@@ -136,14 +155,23 @@ const IconButton = styled.button`
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease,
+              transform 0.15s ${easings.easeOutCubic},
+              background 0.15s ease;
   color: #9ca3af;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
 
-  &:hover {
-    color: #6b7280;
+  &:hover:not(:disabled) {
+    color: #4a90e2;
+    background: rgba(74, 144, 226, 0.08);
+    transform: scale(1.1);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
   }
 
   &:disabled {
@@ -155,6 +183,8 @@ const IconButton = styled.button`
     width: 18px;
     height: 18px;
   }
+
+  ${reduceMotion}
 `
 
 const MenuButton = styled.button`
@@ -191,7 +221,14 @@ const DropdownMenu = styled.div<{ $visible: boolean }>`
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 140px;
   z-index: 100;
-  display: ${props => props.$visible ? 'block' : 'none'};
+  opacity: ${props => props.$visible ? 1 : 0};
+  transform: ${props => props.$visible ? 'translateY(0) scale(1)' : 'translateY(-8px) scale(0.95)'};
+  transform-origin: top right;
+  pointer-events: ${props => props.$visible ? 'auto' : 'none'};
+  transition: opacity 0.15s ${easings.easeOutCubic},
+              transform 0.2s ${easings.easeOutCubic};
+
+  ${reduceMotion}
 `
 
 const DropdownItem = styled.button<{ $danger?: boolean }>`
@@ -259,6 +296,9 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
+  // Animation hook for table rows
+  const rowsVisible = useStaggeredAnimation(invoices.length, 50)
+
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -320,8 +360,8 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
           </tr>
         </TableHeader>
         <TableBody>
-          {invoices.map(invoice => (
-            <TableRow key={invoice.id}>
+          {invoices.map((invoice, index) => (
+            <TableRow key={invoice.id} $isVisible={rowsVisible[index]} $delay={index * 50}>
               <TableCell>
                 <InvoiceNumber onClick={() => onView(invoice)}>
                   {invoice.invoice_number}

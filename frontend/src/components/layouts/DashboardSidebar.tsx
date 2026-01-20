@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
+import { easings, reduceMotion } from '../../styles/animations'
 
 // Color constants
 const COLORS = {
@@ -120,13 +121,34 @@ const NavItem = styled(Link)<{ $active: boolean }>`
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.15s ease;
+  position: relative;
+  transition: background 0.2s ${easings.easeOutCubic},
+              color 0.2s ${easings.easeOutCubic},
+              transform 0.15s ${easings.easeOutCubic};
   color: ${props => props.$active ? COLORS.primary : COLORS.textSecondary};
   background: ${props => props.$active ? COLORS.primaryLight : 'transparent'};
+
+  /* Active indicator line */
+  &::before {
+    content: '';
+    position: absolute;
+    left: -0.5rem;
+    top: 50%;
+    transform: translateY(-50%) scaleY(${props => props.$active ? 1 : 0});
+    width: 3px;
+    height: 60%;
+    background: ${COLORS.primary};
+    border-radius: 0 2px 2px 0;
+    transition: transform 0.2s ${easings.easeOutCubic};
+  }
 
   &:hover {
     background: ${props => props.$active ? COLORS.primaryLight : COLORS.bgLight};
     color: ${props => props.$active ? COLORS.primary : COLORS.textPrimary};
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 
   svg {
@@ -134,6 +156,8 @@ const NavItem = styled(Link)<{ $active: boolean }>`
     height: 18px;
     flex-shrink: 0;
   }
+
+  ${reduceMotion}
 `
 
 // Accordion styled components
@@ -146,17 +170,38 @@ const AccordionToggle = styled.button<{ $active: boolean; $expanded: boolean }>`
   border-radius: 8px;
   width: calc(100% - 1rem);
   border: none;
+  position: relative;
   background: ${props => props.$active ? COLORS.primaryLight : 'transparent'};
   color: ${props => props.$active ? COLORS.primary : COLORS.textSecondary};
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.2s ${easings.easeOutCubic},
+              color 0.2s ${easings.easeOutCubic},
+              transform 0.15s ${easings.easeOutCubic};
   text-align: left;
+
+  /* Active indicator line */
+  &::before {
+    content: '';
+    position: absolute;
+    left: -0.5rem;
+    top: 50%;
+    transform: translateY(-50%) scaleY(${props => props.$active ? 1 : 0});
+    width: 3px;
+    height: 60%;
+    background: ${COLORS.primary};
+    border-radius: 0 2px 2px 0;
+    transition: transform 0.2s ${easings.easeOutCubic};
+  }
 
   &:hover {
     background: ${props => props.$active ? COLORS.primaryLight : COLORS.bgLight};
     color: ${props => props.$active ? COLORS.primary : COLORS.textPrimary};
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 
   svg {
@@ -164,11 +209,13 @@ const AccordionToggle = styled.button<{ $active: boolean; $expanded: boolean }>`
     height: 18px;
     flex-shrink: 0;
   }
+
+  ${reduceMotion}
 `
 
 const ChevronIcon = styled.span<{ $expanded: boolean }>`
   margin-left: auto;
-  transition: transform 0.2s ease;
+  transition: transform 0.25s ${easings.easeOutCubic};
   transform: ${props => props.$expanded ? 'rotate(180deg)' : 'rotate(0)'};
   font-size: 0.625rem;
   color: ${COLORS.textMuted};
@@ -180,7 +227,11 @@ const SubMenu = styled.ul<{ $expanded: boolean }>`
   margin: 0;
   overflow: hidden;
   max-height: ${props => props.$expanded ? '500px' : '0'};
-  transition: max-height 0.3s ease;
+  opacity: ${props => props.$expanded ? 1 : 0};
+  transition: max-height 0.3s ${easings.easeOutCubic},
+              opacity 0.25s ${easings.easeOutCubic};
+
+  ${reduceMotion}
 `
 
 const SubNavItem = styled(Link)<{ $active: boolean }>`
@@ -193,7 +244,9 @@ const SubNavItem = styled(Link)<{ $active: boolean }>`
   text-decoration: none;
   font-size: 0.8125rem;
   font-weight: 500;
-  transition: all 0.15s ease;
+  transition: background 0.2s ${easings.easeOutCubic},
+              color 0.2s ${easings.easeOutCubic},
+              transform 0.15s ${easings.easeOutCubic};
   color: ${props => props.$active ? COLORS.primary : COLORS.textSecondary};
   background: ${props => props.$active ? COLORS.primaryLight : 'transparent'};
 
@@ -201,6 +254,12 @@ const SubNavItem = styled(Link)<{ $active: boolean }>`
     background: ${props => props.$active ? COLORS.primaryLight : COLORS.bgLight};
     color: ${props => props.$active ? COLORS.primary : COLORS.textPrimary};
   }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  ${reduceMotion}
 `
 
 // Subscription card at bottom

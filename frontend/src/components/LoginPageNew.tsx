@@ -2,6 +2,14 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 import { authService } from '../services/api'
+import {
+  fadeIn,
+  fadeInUp,
+  fadeInDown,
+  shake,
+  easings,
+  reduceMotion
+} from '../styles/animations'
 
 // Modern login page based on Figma design
 // Colors: Light blue (#91DDFF to #769EAD gradient), White background
@@ -27,8 +35,10 @@ const DecorativeShape1 = styled.div`
   background: #4a90e2;
   border-radius: 26px;
   transform: rotate(15deg);
-  opacity: 0.8;
   box-shadow: 4px -2px 4px rgba(0, 0, 0, 0.13);
+  animation: ${fadeIn} 0.8s ${easings.easeOutCubic} 0.2s both;
+  opacity: 0.8;
+  ${reduceMotion}
 `
 
 const DecorativeShape2 = styled.div`
@@ -40,8 +50,10 @@ const DecorativeShape2 = styled.div`
   background: #2a5298;
   border-radius: 26px;
   transform: rotate(15deg);
-  opacity: 0.9;
   box-shadow: 4px -2px 4px rgba(0, 0, 0, 0.13);
+  animation: ${fadeIn} 0.8s ${easings.easeOutCubic} both;
+  opacity: 0.9;
+  ${reduceMotion}
 `
 
 const LoginCard = styled.div`
@@ -52,6 +64,8 @@ const LoginCard = styled.div`
   max-width: 428px;
   position: relative;
   z-index: 1;
+  animation: ${fadeInUp} 0.6s ${easings.easeOutCubic} both;
+  ${reduceMotion}
 
   @media (max-width: 480px) {
     padding: 2rem 1.5rem;
@@ -108,12 +122,15 @@ const Input = styled.input`
   height: 61px;
   padding: 0 1rem 0 3rem;
   background: #F3F3F3;
-  border: none;
+  border: 2px solid transparent;
   border-radius: 5px;
   font-family: 'Roboto', sans-serif;
   font-size: 14px;
   color: #515151;
   box-sizing: border-box;
+  transition: background-color 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
 
   &::placeholder {
     color: #515151;
@@ -122,7 +139,11 @@ const Input = styled.input`
   &:focus {
     outline: none;
     background: #EBEBEB;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
   }
+
+  ${reduceMotion}
 `
 
 const InputWithIcon = styled.div`
@@ -177,21 +198,29 @@ const LoginButton = styled.button`
   color: #FFFFFF;
   background: linear-gradient(180deg, #4a90e2 0%, #2a5298 100%);
   cursor: pointer;
-  transition: all 0.3s ease;
   box-shadow: 0px 5px 7px rgba(0, 0, 0, 0.19);
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.2s ${easings.easeOutCubic},
+              box-shadow 0.2s ${easings.easeOutCubic};
 
   &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0px 7px 10px rgba(0, 0, 0, 0.25);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0px 8px 16px rgba(74, 144, 226, 0.35);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
   }
 
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
+
+  ${reduceMotion}
 `
 
 const SignUpSection = styled.div`
@@ -228,6 +257,8 @@ const ErrorMessage = styled.div`
   font-size: 0.9rem;
   margin-bottom: 1rem;
   border-left: 3px solid #c33;
+  animation: ${shake} 0.4s ease, ${fadeInDown} 0.3s ease;
+  ${reduceMotion}
 `
 
 interface LoginPageNewProps {
