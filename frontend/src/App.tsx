@@ -19,6 +19,7 @@ import LogsPage from './components/dashboard/LogsPage'
 import SettingsPage from './components/dashboard/SettingsPage'
 import { InvoiceListPage, InvoiceCreatePage, InvoiceDetailPage } from './components/dashboard/invoices'
 import { InventoryListPage } from './components/dashboard/inventory'
+import { AdsAlertPage } from './components/dashboard/ads-alert'
 import ClientsPage from './components/dashboard/ClientsPage'
 import SocialMediaPage from './components/dashboard/SocialMediaPage'
 import {
@@ -125,6 +126,7 @@ function App() {
           <Route path="invoices/new" element={<InvoiceCreatePage />} />
           <Route path="invoices/:id" element={<InvoiceDetailPage />} />
           <Route path="inventory" element={<InventoryListPage />} />
+          <Route path="ads-alert" element={<AdsAlertPage />} />
           <Route path="clients" element={<ClientsPage />} />
           <Route path="social" element={<SocialMediaPage />} />
           <Route path="settings" element={<SettingsPage />} />

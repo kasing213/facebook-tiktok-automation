@@ -24,6 +24,7 @@ from app.routes.subscription import router as subscription_mgmt_router
 from app.routes.subscription_payment import router as subscription_payment_router
 from app.routes.inventory import router as inventory_router
 from app.routes.email_verification import router as email_verification_router
+from app.routes.ads_alert import router as ads_alert_router
 
 
 # Request/Response models
@@ -54,6 +55,7 @@ async def lifespan(app: FastAPI):
     import asyncio
     from app.jobs.token_refresh import run_token_refresh_scheduler, run_daily_cleanup_scheduler
     from app.jobs.automation_scheduler import run_automation_scheduler
+    from app.jobs.ads_alert_scheduler import run_ads_alert_scheduler
 
     log = get_logger()
     s = get_settings()
@@ -81,6 +83,7 @@ async def lifespan(app: FastAPI):
     token_refresh_task = None
     cleanup_task = None
     automation_task = None
+    ads_alert_task = None
 
     try:
         # Start token refresh and cleanup tasks
@@ -94,13 +97,18 @@ async def lifespan(app: FastAPI):
         )
         log.info(f"✅ Automation scheduler started (check interval: {s.AUTOMATION_CHECK_INTERVAL}s)")
 
+        # Start ads_alert scheduler for scheduled promotions
+        ads_alert_task = asyncio.create_task(run_ads_alert_scheduler(check_interval=60))
+        log.info("✅ Ads Alert scheduler started (check interval: 60s)")
+
         yield
     finally:
         # Cancel background tasks gracefully
         tasks_to_cancel = [
             ("Token Refresh", token_refresh_task),
             ("Cleanup", cleanup_task),
-            ("Automation Scheduler", automation_task)
+            ("Automation Scheduler", automation_task),
+            ("Ads Alert Scheduler", ads_alert_task)
         ]
 
         for task_name, task in tasks_to_cancel:
@@ -171,6 +179,7 @@ app.include_router(subscription_mgmt_router)
 app.include_router(subscription_payment_router)
 app.include_router(inventory_router)
 app.include_router(email_verification_router)
+app.include_router(ads_alert_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")
