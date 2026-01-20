@@ -617,7 +617,7 @@ const ClientsPage: React.FC = () => {
   const [batchModalOpen, setBatchModalOpen] = useState(false)
   const [generatingBatchCode, setGeneratingBatchCode] = useState(false)
   const [batchCodes, setBatchCodes] = useState<BatchCodeResponse[]>([])
-  const [loadingBatchCodes, setLoadingBatchCodes] = useState(false)
+  const [, setLoadingBatchCodes] = useState(false)
 
   // Fetch clients
   const fetchClients = useCallback(async () => {
