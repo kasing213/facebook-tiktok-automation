@@ -58,6 +58,32 @@ class MovementType(str, enum.Enum):
     out_stock = "out"
     adjustment = "adjustment"
 
+class PromotionStatus(str, enum.Enum):
+    draft = "draft"
+    scheduled = "scheduled"
+    sent = "sent"
+    cancelled = "cancelled"
+
+class PromotionMediaType(str, enum.Enum):
+    text = "text"
+    image = "image"
+    video = "video"
+    document = "document"
+    mixed = "mixed"
+
+class PromotionTargetType(str, enum.Enum):
+    all = "all"
+    selected = "selected"
+
+class BroadcastStatus(str, enum.Enum):
+    pending = "pending"
+    sent = "sent"
+    failed = "failed"
+
+class LoginAttemptResult(str, enum.Enum):
+    success = "success"
+    failure = "failure"
+
 # Multi-tenant core models
 class Tenant(Base):
     """Core tenant model for multi-tenant isolation"""
@@ -440,6 +466,49 @@ class PasswordResetToken(Base):
     )
 
 
+class LoginAttempt(Base):
+    """Track login attempts for account lockout and security monitoring"""
+    __tablename__ = "login_attempt"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), nullable=False)  # Email attempted (may not exist)
+    ip_address = Column(String(45), nullable=False)  # IPv4/IPv6 support
+    user_agent = Column(Text, nullable=True)
+    result = Column(Enum(LoginAttemptResult), nullable=False)
+    failure_reason = Column(String(255), nullable=True)  # "invalid_credentials", "account_locked", etc.
+    attempted_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    __table_args__ = (
+        Index("idx_login_attempt_email", "email"),
+        Index("idx_login_attempt_ip", "ip_address"),
+        Index("idx_login_attempt_attempted_at", "attempted_at"),
+        Index("idx_login_attempt_result", "result"),
+        Index("idx_login_attempt_email_time", "email", "attempted_at"),  # For account lockout queries
+        Index("idx_login_attempt_ip_time", "ip_address", "attempted_at"),  # For IP-based lockout
+    )
+
+
+class AccountLockout(Base):
+    """Track account lockouts due to failed login attempts"""
+    __tablename__ = "account_lockout"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), nullable=False)
+    ip_address = Column(String(45), nullable=True)  # IP that triggered the lockout (optional)
+    lockout_reason = Column(String(255), nullable=False)  # "too_many_failures", "security_event"
+    failed_attempts_count = Column(Integer, nullable=False, default=0)
+    locked_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    unlock_at = Column(DateTime(timezone=True), nullable=False)  # When account will auto-unlock
+    unlocked_at = Column(DateTime(timezone=True), nullable=True)  # Manual unlock timestamp
+    unlocked_by = Column(String(255), nullable=True)  # Admin who unlocked (if manual)
+
+    __table_args__ = (
+        Index("idx_account_lockout_email", "email"),
+        Index("idx_account_lockout_unlock_at", "unlock_at"),
+        Index("idx_account_lockout_active", "email", "unlocked_at"),  # For checking active lockouts
+    )
+
+
 class Subscription(Base):
     """User subscription for tiered features (Invoice Pro, etc.)"""
     __tablename__ = "subscription"
@@ -541,4 +610,144 @@ class StockMovement(Base):
         Index("idx_stock_movements_created", "created_at"),
         {"schema": "inventory"}
     )
+
+
+# =============================================
+# Ads Alert Schema Models
+# =============================================
+
+class AdsAlertChat(Base):
+    """Registered chat/customer for promotional broadcasts"""
+    __tablename__ = "chat"
+    __table_args__ = {"schema": "ads_alert"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    platform = Column(String(50), nullable=False, default="telegram")
+    chat_id = Column(String(100), nullable=False)
+    chat_name = Column(String(255), nullable=True)
+    customer_name = Column(String(255), nullable=True)
+    tags = Column(ARRAY(String(100)), nullable=True, default=[])
+    subscribed = Column(Boolean, nullable=False, default=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    meta = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc),
+                       onupdate=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="ads_alert_chats")
+
+
+class AdsAlertPromotion(Base):
+    """Promotional content for broadcasting"""
+    __tablename__ = "promotion"
+    __table_args__ = {"schema": "ads_alert"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=True)
+    status = Column(Enum(PromotionStatus), nullable=False, default=PromotionStatus.draft)
+    media_urls = Column(JSON, nullable=True, default=[])
+    media_type = Column(Enum(PromotionMediaType), nullable=True, default=PromotionMediaType.text)
+    scheduled_at = Column(DateTime(timezone=True), nullable=True)
+    target_type = Column(Enum(PromotionTargetType), nullable=True, default=PromotionTargetType.all)
+    target_chat_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=True, default=[])
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    meta = Column(JSON, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc),
+                       onupdate=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="ads_alert_promotions")
+    creator = relationship("User", backref="created_promotions")
+
+
+class AdsAlertPromoStatus(Base):
+    """Global promotion status tracking per tenant"""
+    __tablename__ = "promo_status"
+    __table_args__ = {"schema": "ads_alert"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    active = Column(Boolean, nullable=False, default=False)
+    last_sent = Column(DateTime(timezone=True), nullable=True)
+    next_scheduled = Column(DateTime(timezone=True), nullable=True)
+    meta = Column(JSON, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc),
+                       onupdate=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="ads_alert_promo_status")
+
+
+class AdsAlertMediaFolder(Base):
+    """Folder structure for organizing media files"""
+    __tablename__ = "media_folder"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "parent_id", "name", name="uq_media_folder_tenant_parent_name"),
+        {"schema": "ads_alert"}
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("ads_alert.media_folder.id", ondelete="CASCADE"), nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="ads_alert_media_folders")
+    creator = relationship("User", backref="created_media_folders")
+    parent = relationship("AdsAlertMediaFolder", remote_side=[id], backref="children")
+
+
+class AdsAlertMedia(Base):
+    """Media files for promotional content"""
+    __tablename__ = "media"
+    __table_args__ = {"schema": "ads_alert"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("ads_alert.media_folder.id", ondelete="SET NULL"), nullable=True)
+    filename = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=True)
+    storage_path = Column(String(500), nullable=False)
+    file_type = Column(String(50), nullable=False)  # MIME type
+    file_size = Column(Integer, nullable=True)
+    thumbnail_path = Column(String(500), nullable=True)
+    width = Column(Integer, nullable=True)
+    height = Column(Integer, nullable=True)
+    duration = Column(Integer, nullable=True)  # For videos, in seconds
+    meta = Column(JSON, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="ads_alert_media")
+    folder = relationship("AdsAlertMediaFolder", backref="media_files")
+    creator = relationship("User", backref="uploaded_media")
+
+
+class AdsAlertBroadcastLog(Base):
+    """Log of broadcast attempts to individual chats"""
+    __tablename__ = "broadcast_log"
+    __table_args__ = {"schema": "ads_alert"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    promotion_id = Column(UUID(as_uuid=True), ForeignKey("ads_alert.promotion.id", ondelete="CASCADE"), nullable=False)
+    chat_id = Column(UUID(as_uuid=True), ForeignKey("ads_alert.chat.id", ondelete="CASCADE"), nullable=False)
+    status = Column(Enum(BroadcastStatus), nullable=False, default=BroadcastStatus.pending)
+    error_message = Column(Text, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+
+    # Relationships
+    tenant = relationship("Tenant", backref="ads_alert_broadcast_logs")
+    promotion = relationship("AdsAlertPromotion", backref="broadcast_logs")
+    chat = relationship("AdsAlertChat", backref="broadcast_logs")
 
