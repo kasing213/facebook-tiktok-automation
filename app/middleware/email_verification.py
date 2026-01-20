@@ -160,9 +160,13 @@ async def email_verification_middleware(request: Request, call_next):
         return await call_next(request)
 
     except Exception as e:
-        logger.error(f"Email verification middleware error: {e}")
-        # On middleware error, allow request through (fail open for availability)
-        return await call_next(request)
+        logger.error(f"Email verification middleware error: {e}", exc_info=True)
+        # On middleware error, return a safe error response
+        # Don't try to call call_next again as it may have already been consumed
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Internal server error during request processing"}
+        )
 
 
 def create_verification_exception() -> HTTPException:
