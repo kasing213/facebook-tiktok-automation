@@ -39,7 +39,15 @@ const SearchIcon = styled.span`
   left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #6b7280;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
 `
 
 const SearchInput = styled.input`
@@ -275,7 +283,11 @@ const LogsPage: React.FC = () => {
       <FilterToolbar>
         <FilterRow>
           <SearchBox>
-            <SearchIcon>🔍</SearchIcon>
+            <SearchIcon>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </SearchIcon>
             <SearchInput
               type="text"
               placeholder="Search logs..."

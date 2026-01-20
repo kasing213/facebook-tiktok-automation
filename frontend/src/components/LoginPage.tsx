@@ -116,9 +116,15 @@ const InputWrapper = styled.div`
 const InputIcon = styled.span`
   position: absolute;
   left: 1rem;
-  color: #999;
-  font-size: 1.1rem;
+  color: #9ca3af;
   pointer-events: none;
+  display: flex;
+  align-items: center;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
 `
 
 const Input = styled.input`
@@ -362,7 +368,11 @@ const LoginPage: React.FC<LoginPageProps> = ({
           <InputGroup>
             <Label htmlFor="username">Username</Label>
             <InputWrapper>
-              <InputIcon>👤</InputIcon>
+              <InputIcon>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </InputIcon>
               <Input
                 id="username"
                 type="text"
@@ -378,7 +388,11 @@ const LoginPage: React.FC<LoginPageProps> = ({
           <InputGroup>
             <Label htmlFor="password">Password</Label>
             <InputWrapper>
-              <InputIcon>🔒</InputIcon>
+              <InputIcon>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </InputIcon>
               <Input
                 id="password"
                 type="password"

@@ -28,6 +28,13 @@ class TargetTypeEnum(str, Enum):
     selected = "selected"
 
 
+class CustomerTargetTypeEnum(str, Enum):
+    """Customer-based targeting for promotions"""
+    none = "none"                    # Use existing chat targeting
+    all_customers = "all_customers"  # All invoice customers with linked Telegram
+    selected_customers = "selected_customers"  # Specific customers by ID
+
+
 class BroadcastStatusEnum(str, Enum):
     pending = "pending"
     sent = "sent"
@@ -56,6 +63,7 @@ class ChatResponse(BaseModel):
     """Chat response model"""
     id: UUID
     tenant_id: UUID
+    customer_id: Optional[UUID] = None  # Link to invoice.customer
     platform: str
     chat_id: str
     chat_name: Optional[str]
@@ -77,8 +85,12 @@ class PromotionCreate(BaseModel):
     content: Optional[str] = None
     media_urls: List[str] = []
     media_type: MediaTypeEnum = MediaTypeEnum.text
+    # Existing chat targeting
     target_type: TargetTypeEnum = TargetTypeEnum.all
     target_chat_ids: List[UUID] = []
+    # Customer-based targeting (alternative to chat targeting)
+    target_customer_type: CustomerTargetTypeEnum = CustomerTargetTypeEnum.none
+    target_customer_ids: List[UUID] = []
     scheduled_at: Optional[datetime] = None
 
 
@@ -90,6 +102,9 @@ class PromotionUpdate(BaseModel):
     media_type: Optional[MediaTypeEnum] = None
     target_type: Optional[TargetTypeEnum] = None
     target_chat_ids: Optional[List[UUID]] = None
+    # Customer-based targeting
+    target_customer_type: Optional[CustomerTargetTypeEnum] = None
+    target_customer_ids: Optional[List[UUID]] = None
     scheduled_at: Optional[datetime] = None
     status: Optional[PromotionStatusEnum] = None
 
@@ -106,6 +121,9 @@ class PromotionResponse(BaseModel):
     scheduled_at: Optional[datetime]
     target_type: TargetTypeEnum
     target_chat_ids: List[UUID]
+    # Customer-based targeting
+    target_customer_type: CustomerTargetTypeEnum = CustomerTargetTypeEnum.none
+    target_customer_ids: List[UUID] = []
     sent_at: Optional[datetime]
     created_by: Optional[UUID]
     created_at: datetime
@@ -244,6 +262,9 @@ class AdsAlertStats(BaseModel):
     """Statistics for ads alert system"""
     total_chats: int
     subscribed_chats: int
+    # Customer-linked chats (invoice customers with Telegram)
+    total_customer_chats: int = 0
+    subscribed_customer_chats: int = 0
     total_promotions: int
     draft_promotions: int
     scheduled_promotions: int

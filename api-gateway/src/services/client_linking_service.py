@@ -251,6 +251,14 @@ class ClientLinkingService:
 
                 db.commit()
 
+                # Auto-register customer in ads_alert system for promotional broadcasts
+                await self.register_customer_in_ads_alert(
+                    tenant_id=link_data["tenant_id"],
+                    customer_id=link_data["customer_id"],
+                    telegram_chat_id=telegram_chat_id,
+                    customer_name=link_data["customer_name"]
+                )
+
                 return {
                     "success": True,
                     "customer_id": link_data["customer_id"],
@@ -709,6 +717,14 @@ class ClientLinkingService:
                     "message": "Failed to create customer record"
                 }
 
+            # Auto-register customer in ads_alert system for promotional broadcasts
+            await self.register_customer_in_ads_alert(
+                tenant_id=batch["tenant_id"],
+                customer_id=customer["id"],
+                telegram_chat_id=telegram_chat_id,
+                customer_name=customer["name"]
+            )
+
             # Increment batch use_count
             with get_db_session() as db:
                 db.execute(
@@ -825,6 +841,170 @@ class ClientLinkingService:
         except Exception as e:
             logger.error(f"Error deleting batch code: {e}")
             return False
+
+    # ========== ADS ALERT INTEGRATION METHODS ==========
+
+    async def register_customer_in_ads_alert(
+        self,
+        tenant_id: str,
+        customer_id: str,
+        telegram_chat_id: str,
+        customer_name: str,
+        platform: str = "telegram"
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Auto-register an invoice customer in the ads_alert.chat table.
+        This allows merchants to target invoice customers with promotional broadcasts.
+
+        Called after:
+        - consume_link_code(): When a customer links their Telegram via single-client link
+        - consume_batch_code(): When a customer registers via batch QR code
+
+        Args:
+            tenant_id: Tenant UUID
+            customer_id: invoice.customer UUID (foreign key)
+            telegram_chat_id: Telegram chat ID (used as chat_id in ads_alert)
+            customer_name: Customer name for display
+            platform: Platform identifier (default: "telegram")
+
+        Returns:
+            Created ads_alert.chat dict or None on error
+        """
+        try:
+            with get_db_session() as db:
+                # Check if already registered in ads_alert (by customer_id or chat_id)
+                existing = db.execute(
+                    text("""
+                        SELECT id FROM ads_alert.chat
+                        WHERE tenant_id = :tenant_id
+                          AND (customer_id = :customer_id OR chat_id = :chat_id)
+                    """),
+                    {
+                        "tenant_id": tenant_id,
+                        "customer_id": customer_id,
+                        "chat_id": telegram_chat_id
+                    }
+                ).fetchone()
+
+                if existing:
+                    logger.info(f"Customer {customer_id} already registered in ads_alert")
+                    return {"id": str(existing.id), "already_exists": True}
+
+                # Create new ads_alert.chat record linked to invoice.customer
+                result = db.execute(
+                    text("""
+                        INSERT INTO ads_alert.chat
+                            (tenant_id, customer_id, platform, chat_id, chat_name, customer_name, subscribed, is_active)
+                        VALUES (:tenant_id, :customer_id, :platform, :chat_id, :chat_name, :customer_name, TRUE, TRUE)
+                        RETURNING id, tenant_id, customer_id, platform, chat_id, chat_name, customer_name, subscribed, is_active, created_at
+                    """),
+                    {
+                        "tenant_id": tenant_id,
+                        "customer_id": customer_id,
+                        "platform": platform,
+                        "chat_id": telegram_chat_id,
+                        "chat_name": customer_name,
+                        "customer_name": customer_name
+                    }
+                )
+                db.commit()
+                row = result.fetchone()
+                if row:
+                    logger.info(f"Auto-registered customer {customer_id} in ads_alert.chat")
+                    return {
+                        "id": str(row.id),
+                        "tenant_id": str(row.tenant_id),
+                        "customer_id": str(row.customer_id),
+                        "platform": row.platform,
+                        "chat_id": row.chat_id,
+                        "chat_name": row.chat_name,
+                        "customer_name": row.customer_name,
+                        "subscribed": row.subscribed,
+                        "is_active": row.is_active,
+                        "created_at": row.created_at.isoformat() if row.created_at else None
+                    }
+                return None
+        except Exception as e:
+            logger.error(f"Error registering customer in ads_alert: {e}")
+            return None
+
+    async def update_ads_alert_subscription(
+        self,
+        telegram_chat_id: str,
+        subscribed: bool
+    ) -> bool:
+        """
+        Update ads_alert subscription status for a customer by their Telegram chat ID.
+
+        Used for /subscribe_ads and /unsubscribe_ads bot commands.
+
+        Args:
+            telegram_chat_id: Telegram chat ID
+            subscribed: True to subscribe, False to unsubscribe
+
+        Returns:
+            True if updated, False if not found or error
+        """
+        try:
+            with get_db_session() as db:
+                result = db.execute(
+                    text("""
+                        UPDATE ads_alert.chat
+                        SET subscribed = :subscribed,
+                            updated_at = NOW()
+                        WHERE chat_id = :chat_id
+                        RETURNING id
+                    """),
+                    {
+                        "chat_id": telegram_chat_id,
+                        "subscribed": subscribed
+                    }
+                )
+                db.commit()
+                row = result.fetchone()
+                if row:
+                    logger.info(f"Updated ads_alert subscription for {telegram_chat_id}: subscribed={subscribed}")
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Error updating ads_alert subscription: {e}")
+            return False
+
+    async def get_ads_alert_subscription_status(
+        self,
+        telegram_chat_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get ads_alert subscription status for a customer.
+
+        Args:
+            telegram_chat_id: Telegram chat ID
+
+        Returns:
+            Dict with subscription info or None if not found
+        """
+        try:
+            with get_db_session() as db:
+                result = db.execute(
+                    text("""
+                        SELECT id, subscribed, customer_name, is_active
+                        FROM ads_alert.chat
+                        WHERE chat_id = :chat_id
+                    """),
+                    {"chat_id": telegram_chat_id}
+                )
+                row = result.fetchone()
+                if row:
+                    return {
+                        "id": str(row.id),
+                        "subscribed": row.subscribed,
+                        "customer_name": row.customer_name,
+                        "is_active": row.is_active
+                    }
+                return None
+        except Exception as e:
+            logger.error(f"Error getting ads_alert subscription status: {e}")
+            return None
 
 
 # Global service instance

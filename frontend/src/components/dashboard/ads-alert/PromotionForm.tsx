@@ -70,6 +70,9 @@ const TabContainer = styled.div`
 `
 
 const Tab = styled.button<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 20px;
   border: none;
   background: transparent;
@@ -83,6 +86,11 @@ const Tab = styled.button<{ $active: boolean }>`
 
   &:hover {
     color: #4A90E2;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
   }
 `
 
@@ -517,14 +525,20 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
             $active={mediaTab === 'browse'}
             onClick={() => setMediaTab('browse')}
           >
-            📁 Browse Files
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            Browse Files
           </Tab>
           <Tab
             type="button"
             $active={mediaTab === 'upload'}
             onClick={() => setMediaTab('upload')}
           >
-            📤 Upload New
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Upload New
           </Tab>
         </TabContainer>
 

@@ -18,8 +18,9 @@ from app.schemas.ads_alert import (
     PromotionScheduleRequest, BroadcastResponse,
     FolderCreate, FolderResponse, FolderTreeResponse,
     MediaResponse, MediaUploadResponse, MediaDeleteResponse,
-    AdsAlertStats, PromotionStatusEnum, MediaTypeEnum
+    AdsAlertStats, PromotionStatusEnum, MediaTypeEnum, CustomerTargetTypeEnum
 )
+from app.core.models import PromotionCustomerTargetType
 from app.repositories.ads_alert import (
     AdsAlertChatRepository, AdsAlertPromotionRepository,
     AdsAlertMediaRepository, AdsAlertMediaFolderRepository
@@ -135,6 +136,39 @@ async def delete_chat(
         raise HTTPException(status_code=404, detail="Chat not found")
 
 
+# ==================== Customer Targeting Endpoints ====================
+
+@router.get("/customers")
+async def list_targetable_customers(
+    subscribed_only: bool = Query(True, description="Filter to subscribed customers only"),
+    limit: int = Query(100, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_member_or_owner)
+):
+    """
+    List invoice customers that can be targeted for promotions.
+    Only returns customers with linked Telegram accounts.
+    """
+    chat_repo = AdsAlertChatRepository(db)
+    chats = chat_repo.get_all_customer_chats(
+        tenant_id=current_user.tenant_id,
+        subscribed_only=subscribed_only
+    )
+
+    # Return customer-focused data
+    return [
+        {
+            "customer_id": str(c.customer_id) if c.customer_id else None,
+            "customer_name": c.customer_name,
+            "chat_id": str(c.id),
+            "telegram_chat_id": c.chat_id,
+            "subscribed": c.subscribed,
+            "created_at": c.created_at.isoformat() if c.created_at else None
+        }
+        for c in chats if c.customer_id  # Only include customer-linked chats
+    ][:limit]
+
+
 # ==================== Promotion Endpoints ====================
 
 @router.get("/promotions", response_model=List[PromotionResponse])
@@ -174,8 +208,12 @@ async def create_promotion(
         content=data.content,
         media_urls=data.media_urls,
         media_type=data.media_type.value if data.media_type else "text",
+        # Existing chat targeting
         target_type=data.target_type.value if data.target_type else "all",
         target_chat_ids=data.target_chat_ids,
+        # Customer-based targeting
+        target_customer_type=PromotionCustomerTargetType[data.target_customer_type.value] if data.target_customer_type else PromotionCustomerTargetType.none,
+        target_customer_ids=data.target_customer_ids,
         scheduled_at=data.scheduled_at,
         status=initial_status
     )
@@ -221,13 +259,16 @@ async def update_promotion(
 
     update_data = data.model_dump(exclude_unset=True)
 
-    # Convert enums to string values
+    # Convert enums to appropriate values
     if "media_type" in update_data and update_data["media_type"]:
         update_data["media_type"] = update_data["media_type"].value
     if "target_type" in update_data and update_data["target_type"]:
         update_data["target_type"] = update_data["target_type"].value
     if "status" in update_data and update_data["status"]:
         update_data["status"] = PromotionStatus[update_data["status"].value]
+    # Customer-based targeting enum conversion
+    if "target_customer_type" in update_data and update_data["target_customer_type"]:
+        update_data["target_customer_type"] = PromotionCustomerTargetType[update_data["target_customer_type"].value]
 
     promotion = promotion_repo.update_by_tenant(promotion_id, current_user.tenant_id, **update_data)
     return promotion

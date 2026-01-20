@@ -123,7 +123,15 @@ const WarningHeader = styled.div`
 `
 
 const WarningIcon = styled.span`
-  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d97706;
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
 `
 
 const WarningTitle = styled.h3`
@@ -806,7 +814,11 @@ const ClientsPage: React.FC = () => {
       {!telegramLoading && !isTelegramConnected && (
         <WarningBanner>
           <WarningHeader>
-            <WarningIcon>⚠️</WarningIcon>
+            <WarningIcon>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </WarningIcon>
             <WarningTitle>{t('clients.telegramWarning.title')}</WarningTitle>
           </WarningHeader>
           <WarningDescription>{t('clients.telegramWarning.description')}</WarningDescription>

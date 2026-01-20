@@ -75,6 +75,12 @@ class PromotionTargetType(str, enum.Enum):
     all = "all"
     selected = "selected"
 
+class PromotionCustomerTargetType(str, enum.Enum):
+    """Customer-based targeting for promotions"""
+    none = "none"                    # Use existing chat targeting
+    all_customers = "all_customers"  # All invoice customers with linked Telegram
+    selected_customers = "selected_customers"  # Specific customers by ID
+
 class BroadcastStatus(str, enum.Enum):
     pending = "pending"
     sent = "sent"
@@ -623,6 +629,8 @@ class AdsAlertChat(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    # Link to invoice.customer for customer-based targeting
+    customer_id = Column(UUID(as_uuid=True), ForeignKey("invoice.customer.id", ondelete="CASCADE"), nullable=True)
     platform = Column(String(50), nullable=False, default="telegram")
     chat_id = Column(String(100), nullable=False)
     chat_name = Column(String(255), nullable=True)
@@ -654,6 +662,9 @@ class AdsAlertPromotion(Base):
     scheduled_at = Column(DateTime(timezone=True), nullable=True)
     target_type = Column(Enum(PromotionTargetType), nullable=True, default=PromotionTargetType.all)
     target_chat_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=True, default=[])
+    # Customer-based targeting (alternative to chat targeting)
+    target_customer_type = Column(Enum(PromotionCustomerTargetType), nullable=False, default=PromotionCustomerTargetType.none)
+    target_customer_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=True, default=[])
     sent_at = Column(DateTime(timezone=True), nullable=True)
     meta = Column(JSON, nullable=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=True)

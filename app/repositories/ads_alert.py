@@ -100,6 +100,99 @@ class AdsAlertChatRepository(BaseRepository[AdsAlertChat]):
             query = query.filter(AdsAlertChat.subscribed == True)
         return query.count()
 
+    # ==========================================
+    # Customer-based targeting methods
+    # ==========================================
+
+    def get_by_customer_id(self, tenant_id: UUID, customer_id: UUID) -> Optional[AdsAlertChat]:
+        """Get chat record by invoice customer ID"""
+        return self.db.query(AdsAlertChat).filter(
+            and_(
+                AdsAlertChat.tenant_id == tenant_id,
+                AdsAlertChat.customer_id == customer_id
+            )
+        ).first()
+
+    def get_chats_by_customer_ids(
+        self,
+        tenant_id: UUID,
+        customer_ids: List[UUID],
+        subscribed_only: bool = True
+    ) -> List[AdsAlertChat]:
+        """Get chats for specific invoice customers"""
+        query = self.db.query(AdsAlertChat).filter(
+            and_(
+                AdsAlertChat.tenant_id == tenant_id,
+                AdsAlertChat.customer_id.in_(customer_ids),
+                AdsAlertChat.is_active == True
+            )
+        )
+        if subscribed_only:
+            query = query.filter(AdsAlertChat.subscribed == True)
+        return query.all()
+
+    def get_all_customer_chats(
+        self,
+        tenant_id: UUID,
+        subscribed_only: bool = True
+    ) -> List[AdsAlertChat]:
+        """Get all chats that are linked to invoice customers"""
+        query = self.db.query(AdsAlertChat).filter(
+            and_(
+                AdsAlertChat.tenant_id == tenant_id,
+                AdsAlertChat.customer_id.isnot(None),  # Must have customer link
+                AdsAlertChat.is_active == True
+            )
+        )
+        if subscribed_only:
+            query = query.filter(AdsAlertChat.subscribed == True)
+        return query.order_by(desc(AdsAlertChat.created_at)).all()
+
+    def create_for_customer(
+        self,
+        tenant_id: UUID,
+        customer_id: UUID,
+        chat_id: str,
+        customer_name: str,
+        platform: str = "telegram"
+    ) -> AdsAlertChat:
+        """Create chat record linked to an invoice customer"""
+        return self.create(
+            tenant_id=tenant_id,
+            customer_id=customer_id,
+            platform=platform,
+            chat_id=chat_id,
+            chat_name=f"Customer: {customer_name}",
+            customer_name=customer_name,
+            subscribed=True,
+            is_active=True
+        )
+
+    def update_subscription_by_chat_id(
+        self,
+        chat_id: str,
+        subscribed: bool
+    ) -> bool:
+        """Update subscription status by telegram chat_id"""
+        updated = self.db.query(AdsAlertChat).filter(
+            AdsAlertChat.chat_id == chat_id
+        ).update({"subscribed": subscribed})
+        self.db.commit()
+        return updated > 0
+
+    def count_customer_chats(self, tenant_id: UUID, subscribed_only: bool = False) -> int:
+        """Count chats linked to invoice customers"""
+        query = self.db.query(AdsAlertChat).filter(
+            and_(
+                AdsAlertChat.tenant_id == tenant_id,
+                AdsAlertChat.customer_id.isnot(None),
+                AdsAlertChat.is_active == True
+            )
+        )
+        if subscribed_only:
+            query = query.filter(AdsAlertChat.subscribed == True)
+        return query.count()
+
 
 class AdsAlertPromotionRepository(BaseRepository[AdsAlertPromotion]):
     """Repository for ads_alert promotion operations"""

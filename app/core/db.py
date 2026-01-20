@@ -1,7 +1,7 @@
 # app/core/db.py
 from contextlib import contextmanager
 from typing import Generator, Optional
-from sqlalchemy import create_engine, text, event
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 from app.core.config import get_settings
@@ -51,15 +51,9 @@ SessionLocal = sessionmaker(
     future=True,
 )
 
-# Add connection event listeners for better observability
-@event.listens_for(engine, "connect")
-def receive_connect(dbapi_connection, connection_record):
-    """Set connection-level configuration when connection is created"""
-    # psycopg3 uses execute() directly on the connection
-    dbapi_connection.execute("SET timezone TO 'UTC'")
-    # Enable query logging for slow queries in production
-    if _settings.ENV == "prod":
-        dbapi_connection.execute("SET log_min_duration_statement = 1000")
+# NOTE: Event listeners removed for pgbouncer Transaction mode compatibility
+# Timezone is set via connect_args options: "-c timezone=utc"
+# Per-connection settings don't work reliably with pgbouncer (connections are pooled/shared)
 
 def get_db() -> Generator[Session, None, None]:
     """

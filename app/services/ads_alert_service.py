@@ -22,7 +22,8 @@ except ImportError:
 from app.core.config import get_settings
 from app.core.models import (
     AdsAlertChat, AdsAlertPromotion, AdsAlertMedia, AdsAlertMediaFolder,
-    AdsAlertBroadcastLog, PromotionStatus, BroadcastStatus, PromotionTargetType
+    AdsAlertBroadcastLog, PromotionStatus, BroadcastStatus, PromotionTargetType,
+    PromotionCustomerTargetType
 )
 from app.repositories.ads_alert import (
     AdsAlertChatRepository, AdsAlertPromotionRepository,
@@ -343,19 +344,41 @@ class AdsAlertService:
         if promotion.status == PromotionStatus.sent:
             raise ValueError("Promotion has already been sent")
 
-        # Get target chats
-        if promotion.target_type == PromotionTargetType.selected and promotion.target_chat_ids:
-            chats = [
-                self.chat_repo.get_by_id_and_tenant(chat_id, tenant_id)
-                for chat_id in promotion.target_chat_ids
-            ]
-            chats = [c for c in chats if c and c.subscribed and c.is_active]
-        else:
-            chats = self.chat_repo.get_by_tenant(
-                tenant_id,
-                subscribed_only=True,
-                active_only=True
-            )
+        # Build target chats list
+        chats = []
+
+        # Check for customer-based targeting first (takes priority if set)
+        if hasattr(promotion, 'target_customer_type') and promotion.target_customer_type:
+            if promotion.target_customer_type == PromotionCustomerTargetType.all_customers:
+                # Target all invoice customers with linked Telegram
+                chats = self.chat_repo.get_all_customer_chats(
+                    tenant_id,
+                    subscribed_only=True
+                )
+            elif promotion.target_customer_type == PromotionCustomerTargetType.selected_customers:
+                # Target specific customers
+                if promotion.target_customer_ids:
+                    chats = self.chat_repo.get_chats_by_customer_ids(
+                        tenant_id,
+                        promotion.target_customer_ids,
+                        subscribed_only=True
+                    )
+
+        # Fallback to existing chat-based targeting if no customer targeting or no chats found
+        if not chats:
+            if promotion.target_type == PromotionTargetType.selected and promotion.target_chat_ids:
+                chats = [
+                    self.chat_repo.get_by_id_and_tenant(chat_id, tenant_id)
+                    for chat_id in promotion.target_chat_ids
+                ]
+                chats = [c for c in chats if c and c.subscribed and c.is_active]
+            else:
+                # Target all chats (including customer chats)
+                chats = self.chat_repo.get_by_tenant(
+                    tenant_id,
+                    subscribed_only=True,
+                    active_only=True
+                )
 
         if not chats:
             raise ValueError("No target chats available")
@@ -406,6 +429,9 @@ class AdsAlertService:
         return {
             "total_chats": self.chat_repo.count_by_tenant(tenant_id),
             "subscribed_chats": self.chat_repo.count_by_tenant(tenant_id, subscribed_only=True),
+            # Customer-linked chats (invoice customers with Telegram)
+            "total_customer_chats": self.chat_repo.count_customer_chats(tenant_id),
+            "subscribed_customer_chats": self.chat_repo.count_customer_chats(tenant_id, subscribed_only=True),
             "total_promotions": self.promotion_repo.count_by_tenant(tenant_id),
             "draft_promotions": self.promotion_repo.count_by_tenant(tenant_id, status=PromotionStatus.draft),
             "scheduled_promotions": self.promotion_repo.count_by_tenant(tenant_id, status=PromotionStatus.scheduled),

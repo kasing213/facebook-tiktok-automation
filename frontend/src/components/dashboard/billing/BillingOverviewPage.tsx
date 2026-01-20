@@ -15,8 +15,15 @@ const ComingSoonCard = styled.div`
 `
 
 const IconWrapper = styled.div`
-  font-size: 4rem;
+  display: flex;
+  justify-content: center;
   margin-bottom: 1.5rem;
+  color: #64748b;
+
+  svg {
+    width: 64px;
+    height: 64px;
+  }
 `
 
 const Title = styled.h1`
@@ -81,14 +88,20 @@ export function BillingOverviewPage() {
   return (
     <PageContainer>
       <ComingSoonCard>
-        <IconWrapper>💳</IconWrapper>
+        <IconWrapper>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+        </IconWrapper>
         <Title>Billing Coming Soon</Title>
         <Subtitle>
           We're working on bringing payment processing to Cambodia.
           Until then, enjoy all Pro features for free!
         </Subtitle>
         <BetaBadge>
-          <span>✓</span>
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
           All Features Free During Beta
         </BetaBadge>
 
