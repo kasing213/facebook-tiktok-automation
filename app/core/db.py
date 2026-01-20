@@ -9,6 +9,16 @@ from app.core.models import Tenant
 
 _settings = get_settings()
 
+
+def _get_psycopg3_url(url: str) -> str:
+    """Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver."""
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url
+
+
 # Enhanced PostgreSQL engine configuration for multi-tenant application
 # NOTE: Pool sizes are kept small because:
 # 1. Supabase pooler has connection limits (~25 for free tier)
@@ -16,7 +26,7 @@ _settings = get_settings()
 # 3. Railway instances can scale, each creating new pools
 # Using psycopg3 with Transaction mode (port 6543) for better connection handling
 engine = create_engine(
-    _settings.DATABASE_URL,
+    _get_psycopg3_url(_settings.DATABASE_URL),
     poolclass=QueuePool,
     pool_size=1,              # MINIMAL - Supabase pooler has strict limits
     max_overflow=2,           # Total max: 3 connections per instance

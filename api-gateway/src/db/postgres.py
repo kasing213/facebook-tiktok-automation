@@ -17,6 +17,15 @@ engine = None
 SessionLocal = None
 
 
+def _get_psycopg3_url(url: str) -> str:
+    """Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver."""
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url
+
+
 def init_postgres():
     """Initialize PostgreSQL connection."""
     global engine, SessionLocal
@@ -29,7 +38,7 @@ def init_postgres():
     # Main backend + API Gateway share the same database, must stay under pooler limits
     # Using psycopg3 with Transaction mode (port 6543) for better connection handling
     engine = create_engine(
-        settings.DATABASE_URL,
+        _get_psycopg3_url(settings.DATABASE_URL),
         pool_pre_ping=True,
         pool_size=1,              # MINIMAL - one connection per pool
         max_overflow=2,           # Total max: 3 connections per instance
