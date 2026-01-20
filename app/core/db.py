@@ -26,9 +26,6 @@ engine = create_engine(
     connect_args={
         "connect_timeout": 10,  # connection timeout in seconds
         "options": "-c timezone=utc",  # set timezone to UTC
-        # CRITICAL: Disable prepared statements for pgbouncer Transaction mode (port 6543)
-        # pgbouncer doesn't support prepared statements, causing "SSL connection closed unexpectedly"
-        "prepare_threshold": 0,
     },
     future=True,
     echo=False,  # Disable SQL logging in production (set to True for debugging)

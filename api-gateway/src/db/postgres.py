@@ -35,11 +35,6 @@ def init_postgres():
         max_overflow=2,           # Total max: 3 connections per instance
         pool_recycle=300,         # recycle connections every 5 min (aggressive)
         pool_timeout=10,          # fail fast if pool exhausted
-        connect_args={
-            # CRITICAL: Disable prepared statements for pgbouncer Transaction mode (port 6543)
-            # pgbouncer doesn't support prepared statements, causing "SSL connection closed unexpectedly"
-            "prepare_threshold": 0,
-        },
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
