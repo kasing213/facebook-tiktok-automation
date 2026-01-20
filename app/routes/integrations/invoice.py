@@ -706,6 +706,221 @@ async def generate_client_link_code(
 
 
 # ============================================================================
+# Batch Registration Codes
+# These allow merchants to generate QR codes that multiple clients can scan
+# to self-register with auto-generated IDs like "Client-00001"
+# ============================================================================
+
+class BatchCodeCreate(BaseModel):
+    """Batch code creation request."""
+    batch_name: Optional[str] = None
+    max_uses: Optional[int] = None
+    expires_days: Optional[int] = 30  # None = never expires
+
+
+class BatchCodeResponse(BaseModel):
+    """Batch code response."""
+    id: str
+    code: str
+    link: str
+    batch_name: Optional[str] = None
+    max_uses: Optional[int] = None
+    use_count: int = 0
+    is_active: bool = True
+    is_maxed: bool = False
+    expires_at: Optional[str] = None
+    created_at: str
+
+
+@router.post("/batch-codes")
+async def generate_batch_code(
+    data: BatchCodeCreate = BatchCodeCreate(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a batch registration code that can be used by multiple clients.
+
+    When clients scan this QR code, they are auto-registered with sequential
+    IDs like "Client-00001", "Client-00002", etc.
+
+    Args:
+        batch_name: Optional name for the batch (e.g., "Store Front QR")
+        max_uses: Maximum number of registrations (None = unlimited)
+        expires_days: Days until expiration (None = never expires)
+    """
+    import secrets
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Generate cryptographically secure token
+        code = secrets.token_urlsafe(32)
+
+        # Build expires_at based on expires_days
+        if data.expires_days:
+            expires_sql = f"NOW() + INTERVAL '{data.expires_days} days'"
+        else:
+            expires_sql = "NULL"
+
+        result = db.execute(
+            text(f"""
+                INSERT INTO invoice.client_link_code
+                    (tenant_id, merchant_id, customer_id, code, is_batch, batch_name, max_uses, expires_at)
+                VALUES (:tenant_id, :merchant_id, NULL, :code, TRUE, :batch_name, :max_uses, {expires_sql})
+                RETURNING id, code, batch_name, max_uses, use_count, expires_at, created_at
+            """),
+            {
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id),
+                "code": code,
+                "batch_name": data.batch_name,
+                "max_uses": data.max_uses
+            }
+        )
+        db.commit()
+        row = result.fetchone()
+
+        if row:
+            settings = get_settings()
+            bot_username = settings.TELEGRAM_BOT_USERNAME or "KS_automations_bot"
+            return {
+                "id": str(row.id),
+                "code": row.code,
+                "link": f"https://t.me/{bot_username}?start=batch_{row.code}",
+                "batch_name": row.batch_name,
+                "max_uses": row.max_uses,
+                "use_count": row.use_count,
+                "is_active": True,
+                "is_maxed": False,
+                "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+                "created_at": row.created_at.isoformat() if row.created_at else None
+            }
+
+        raise HTTPException(status_code=500, detail="Failed to create batch code")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error generating batch code: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate batch code: {str(e)}")
+
+
+@router.get("/batch-codes")
+async def list_batch_codes(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    List all batch registration codes for the current merchant.
+
+    Returns batch codes with usage statistics including:
+    - Number of uses
+    - Whether it's active (not expired)
+    - Whether it's maxed out (reached max_uses)
+    """
+    import logging
+    from datetime import datetime, timezone
+    logger = logging.getLogger(__name__)
+
+    try:
+        result = db.execute(
+            text("""
+                SELECT
+                    id, code, batch_name, max_uses, use_count,
+                    expires_at, created_at
+                FROM invoice.client_link_code
+                WHERE tenant_id = :tenant_id
+                  AND merchant_id = :merchant_id
+                  AND is_batch = TRUE
+                ORDER BY created_at DESC
+            """),
+            {
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id)
+            }
+        )
+        rows = result.fetchall()
+
+        settings = get_settings()
+        bot_username = settings.TELEGRAM_BOT_USERNAME or "KS_automations_bot"
+        now = datetime.now(timezone.utc)
+
+        batch_codes = []
+        for row in rows:
+            is_expired = row.expires_at is not None and row.expires_at.replace(tzinfo=timezone.utc) < now
+            is_maxed = row.max_uses is not None and row.use_count >= row.max_uses
+
+            batch_codes.append({
+                "id": str(row.id),
+                "code": row.code,
+                "link": f"https://t.me/{bot_username}?start=batch_{row.code}",
+                "batch_name": row.batch_name,
+                "max_uses": row.max_uses,
+                "use_count": row.use_count,
+                "is_active": not is_expired and not is_maxed,
+                "is_expired": is_expired,
+                "is_maxed": is_maxed,
+                "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+                "created_at": row.created_at.isoformat() if row.created_at else None
+            })
+
+        return {"batch_codes": batch_codes, "total": len(batch_codes)}
+
+    except Exception as e:
+        logger.error(f"Error listing batch codes: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list batch codes: {str(e)}")
+
+
+@router.delete("/batch-codes/{code_id}")
+async def delete_batch_code(
+    code_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a batch registration code.
+
+    This only deletes the code - clients already registered via this code
+    remain in the system.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        result = db.execute(
+            text("""
+                DELETE FROM invoice.client_link_code
+                WHERE id = :code_id
+                  AND tenant_id = :tenant_id
+                  AND merchant_id = :merchant_id
+                  AND is_batch = TRUE
+                RETURNING id
+            """),
+            {
+                "code_id": code_id,
+                "tenant_id": str(current_user.tenant_id),
+                "merchant_id": str(current_user.id)
+            }
+        )
+        deleted = result.fetchone()
+        db.commit()
+
+        if deleted:
+            return {"status": "deleted", "id": code_id}
+
+        raise HTTPException(status_code=404, detail="Batch code not found")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting batch code: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete batch code: {str(e)}")
+
+
+# ============================================================================
 # Telegram Invoice Notification Helper
 # ============================================================================
 

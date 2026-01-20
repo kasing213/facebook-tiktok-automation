@@ -213,6 +213,82 @@ async def handle_client_registration(
 
 
 # ============================================================================
+# Batch Registration Handler (via deep link - multiple clients can use)
+# ============================================================================
+
+async def handle_batch_registration(
+    message: types.Message,
+    code: str
+) -> bool:
+    """
+    Handle batch registration via deep link.
+
+    This allows multiple clients to register via a single QR code.
+    Each client gets an auto-generated ID like "Client-00001".
+
+    Args:
+        message: Telegram message
+        code: The batch code (without 'batch_' prefix)
+
+    Returns:
+        True if handled, False if code not found
+    """
+    telegram_id = str(message.from_user.id)
+    telegram_username = message.from_user.username
+
+    # Consume the batch code (creates new customer with auto-generated ID)
+    result = await client_linking_service.consume_batch_code(
+        code=code,
+        telegram_chat_id=telegram_id,
+        telegram_username=telegram_username
+    )
+
+    if result.get("success"):
+        customer = result.get("customer", {})
+        await message.answer(
+            f"<b>Welcome!</b>\n\n"
+            f"You've been registered as a client of <b>{result.get('merchant_name', 'your merchant')}</b>.\n\n"
+            f"<b>Your Client ID:</b> <code>{result.get('customer_name', customer.get('name', 'N/A'))}</code>\n\n"
+            f"<b>What happens next:</b>\n"
+            f"- You'll receive invoice notifications here\n"
+            f"- To pay, simply send a screenshot of your payment\n"
+            f"- We'll verify it and notify your merchant\n\n"
+            f"<i>Keep this ID for your records!</i>"
+        )
+        return True
+
+    error = result.get("error", "unknown")
+
+    if error == "already_registered":
+        await message.answer(
+            f"<b>Already Registered</b>\n\n"
+            f"You're already registered as <b>{result.get('customer_name', 'a client')}</b>.\n\n"
+            f"You can send a payment screenshot anytime to verify."
+        )
+        return True
+
+    if error == "max_uses_reached":
+        await message.answer(
+            "<b>Registration Closed</b>\n\n"
+            "This registration link has reached its maximum capacity.\n"
+            "Please contact the merchant for a new link."
+        )
+        return True
+
+    if error == "invalid_code":
+        # Return False to let caller show generic error
+        return False
+
+    # Other errors
+    await message.answer(
+        f"<b>Registration Failed</b>\n\n"
+        f"{result.get('message', 'An error occurred.')}\n\n"
+        f"Please try again or contact the merchant."
+    )
+    return True
+
+
+# ============================================================================
 # Client Payment Verification Flow
 # ============================================================================
 

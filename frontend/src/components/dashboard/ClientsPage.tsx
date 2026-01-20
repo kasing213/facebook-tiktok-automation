@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { QRCodeSVG } from 'qrcode.react'
 import { useTelegram } from '../../hooks/useTelegram'
-import { invoiceService } from '../../services/invoiceApi'
+import { invoiceService, BatchCodeResponse } from '../../services/invoiceApi'
 import { RegisteredClient, ClientLinkCodeResponse } from '../../types/invoice'
 import QRCodeModal from './clients/QRCodeModal'
+import BatchQRModal from './clients/BatchQRModal'
 
 // Styled Components
 const Container = styled.div`
@@ -45,6 +47,40 @@ const Subtitle = styled.p`
   margin: 0;
 `
 
+const HeaderButtons = styled.div`
+  display: flex;
+  gap: 0.75rem;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+`
+
+const BatchButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: #2a5298;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`
+
 const AddButton = styled.button`
   display: flex;
   align-items: center;
@@ -61,6 +97,11 @@ const AddButton = styled.button`
 
   &:hover {
     background: #059669;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `
 
@@ -437,6 +478,123 @@ const Spinner = styled.div`
   }
 `
 
+// Batch Codes Section
+const BatchCodesSection = styled.div`
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+`
+
+const BatchCodesHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+`
+
+const BatchCodesTitle = styled.h3`
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`
+
+const BatchCodesList = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+`
+
+const BatchCodeCard = styled.div`
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  gap: 1rem;
+`
+
+const BatchCodeQR = styled.div`
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`
+
+const BatchCodeInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+const BatchCodeName = styled.p`
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.25rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+const BatchCodeStats = styled.div`
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+`
+
+const BatchCodeStatus = styled.span<{ isActive: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background: ${props => props.isActive ? '#d1fae5' : '#fee2e2'};
+  color: ${props => props.isActive ? '#059669' : '#dc2626'};
+`
+
+const BatchCodeActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+`
+
+const SmallButton = styled.button`
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #e5e7eb;
+  color: #374151;
+
+  &:hover {
+    background: #d1d5db;
+  }
+`
+
+const DeleteButton = styled(SmallButton)`
+  background: transparent;
+  color: #dc2626;
+
+  &:hover {
+    background: #fee2e2;
+  }
+`
+
 // Main Component
 const ClientsPage: React.FC = () => {
   const navigate = useNavigate()
@@ -455,6 +613,12 @@ const ClientsPage: React.FC = () => {
   const [linkCode, setLinkCode] = useState<ClientLinkCodeResponse | null>(null)
   const [generatingCode, setGeneratingCode] = useState(false)
 
+  // Batch QR Modal state
+  const [batchModalOpen, setBatchModalOpen] = useState(false)
+  const [generatingBatchCode, setGeneratingBatchCode] = useState(false)
+  const [batchCodes, setBatchCodes] = useState<BatchCodeResponse[]>([])
+  const [loadingBatchCodes, setLoadingBatchCodes] = useState(false)
+
   // Fetch clients
   const fetchClients = useCallback(async () => {
     try {
@@ -468,9 +632,23 @@ const ClientsPage: React.FC = () => {
     }
   }, [])
 
+  // Fetch batch codes
+  const fetchBatchCodes = useCallback(async () => {
+    try {
+      setLoadingBatchCodes(true)
+      const response = await invoiceService.listBatchCodes()
+      setBatchCodes(response.batch_codes || [])
+    } catch (err: any) {
+      console.error('Failed to fetch batch codes:', err)
+    } finally {
+      setLoadingBatchCodes(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchClients()
-  }, [fetchClients])
+    fetchBatchCodes()
+  }, [fetchClients, fetchBatchCodes])
 
   // Calculate stats
   const stats = {
@@ -542,6 +720,36 @@ const ClientsPage: React.FC = () => {
     }
   }
 
+  // Handle batch code generation
+  const handleGenerateBatchCode = async (data: {
+    batch_name?: string
+    max_uses?: number | null
+    expires_days?: number | null
+  }): Promise<BatchCodeResponse> => {
+    setGeneratingBatchCode(true)
+    try {
+      const result = await invoiceService.generateBatchCode(data)
+      // Refresh batch codes list
+      await fetchBatchCodes()
+      return result
+    } finally {
+      setGeneratingBatchCode(false)
+    }
+  }
+
+  // Handle batch code deletion
+  const handleDeleteBatchCode = async (codeId: string) => {
+    if (!confirm('Delete this batch QR code? Clients already registered will not be affected.')) {
+      return
+    }
+    try {
+      await invoiceService.deleteBatchCode(codeId)
+      setBatchCodes(prev => prev.filter(c => c.id !== codeId))
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete batch code')
+    }
+  }
+
   // Check if Telegram is connected
   const isTelegramConnected = telegramStatus?.connected
 
@@ -552,12 +760,23 @@ const ClientsPage: React.FC = () => {
           <Title>{t('clients.title')}</Title>
           <Subtitle>{t('clients.subtitle')}</Subtitle>
         </TitleSection>
-        <AddButton disabled={!isTelegramConnected}>
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          {t('clients.addClient')}
-        </AddButton>
+        <HeaderButtons>
+          <BatchButton
+            onClick={() => setBatchModalOpen(true)}
+            disabled={!isTelegramConnected}
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+            </svg>
+            Batch QR
+          </BatchButton>
+          <AddButton disabled={!isTelegramConnected}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            {t('clients.addClient')}
+          </AddButton>
+        </HeaderButtons>
       </Header>
 
       {/* Telegram Warning Banner */}
@@ -604,6 +823,50 @@ const ClientsPage: React.FC = () => {
           <StatValue>{formatKHR(stats.totalReceivable)}</StatValue>
         </StatCard>
       </StatsGrid>
+
+      {/* Batch Codes Section */}
+      {batchCodes.length > 0 && (
+        <BatchCodesSection>
+          <BatchCodesHeader>
+            <BatchCodesTitle>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+              Batch Registration QR Codes
+            </BatchCodesTitle>
+          </BatchCodesHeader>
+          <BatchCodesList>
+            {batchCodes.map(code => (
+              <BatchCodeCard key={code.id}>
+                <BatchCodeQR>
+                  <QRCodeSVG value={code.link} size={60} level="L" />
+                </BatchCodeQR>
+                <BatchCodeInfo>
+                  <BatchCodeName>{code.batch_name || 'Default Batch'}</BatchCodeName>
+                  <BatchCodeStats>
+                    {code.use_count} / {code.max_uses ?? '∞'} registrations
+                  </BatchCodeStats>
+                  <BatchCodeStatus isActive={code.is_active}>
+                    {code.is_active ? 'Active' : code.is_maxed ? 'Maxed Out' : 'Expired'}
+                  </BatchCodeStatus>
+                  <BatchCodeActions>
+                    <SmallButton
+                      onClick={() => {
+                        navigator.clipboard.writeText(code.link)
+                      }}
+                    >
+                      Copy Link
+                    </SmallButton>
+                    <DeleteButton onClick={() => handleDeleteBatchCode(code.id)}>
+                      Delete
+                    </DeleteButton>
+                  </BatchCodeActions>
+                </BatchCodeInfo>
+              </BatchCodeCard>
+            ))}
+          </BatchCodesList>
+        </BatchCodesSection>
+      )}
 
       {/* Instructions Card */}
       {isTelegramConnected && (
@@ -754,6 +1017,14 @@ const ClientsPage: React.FC = () => {
         linkCode={linkCode}
         onRegenerate={handleRegenerateCode}
         isGenerating={generatingCode}
+      />
+
+      {/* Batch QR Modal */}
+      <BatchQRModal
+        isOpen={batchModalOpen}
+        onClose={() => setBatchModalOpen(false)}
+        onGenerate={handleGenerateBatchCode}
+        isGenerating={generatingBatchCode}
       />
 
       {/* Error Toast */}

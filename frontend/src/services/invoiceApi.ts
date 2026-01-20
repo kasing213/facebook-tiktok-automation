@@ -245,7 +245,69 @@ export const invoiceService = {
       console.error('Failed to send invoice to customer:', error)
       throw new Error(getErrorMessage(error, 'Failed to send invoice to customer'))
     }
+  },
+
+  // ========== Batch Registration Codes ==========
+
+  async generateBatchCode(data?: {
+    batch_name?: string
+    max_uses?: number | null
+    expires_days?: number | null
+  }): Promise<BatchCodeResponse> {
+    try {
+      const response = await api.post(`${BASE_PATH}/batch-codes`, data || {})
+      return response.data
+    } catch (error) {
+      console.error('Failed to generate batch code:', error)
+      throw new Error(getErrorMessage(error, 'Failed to generate batch registration code'))
+    }
+  },
+
+  async listBatchCodes(): Promise<BatchCodeListResponse> {
+    try {
+      const response = await api.get(`${BASE_PATH}/batch-codes`)
+      return response.data
+    } catch (error) {
+      console.error('Failed to list batch codes:', error)
+      throw new Error(getErrorMessage(error, 'Failed to fetch batch codes'))
+    }
+  },
+
+  async deleteBatchCode(codeId: string): Promise<{ status: string; id: string }> {
+    try {
+      const response = await api.delete(`${BASE_PATH}/batch-codes/${codeId}`)
+      return response.data
+    } catch (error) {
+      console.error('Failed to delete batch code:', error)
+      throw new Error(getErrorMessage(error, 'Failed to delete batch code'))
+    }
   }
+}
+
+// Batch Code Types
+export interface BatchCodeResponse {
+  id: string
+  code: string
+  link: string
+  batch_name?: string
+  max_uses?: number | null
+  use_count: number
+  is_active: boolean
+  is_expired?: boolean
+  is_maxed: boolean
+  expires_at?: string | null
+  created_at: string
+}
+
+export interface BatchCodeListResponse {
+  batch_codes: BatchCodeResponse[]
+  total: number
+}
+
+export interface BatchCodeCreate {
+  batch_name?: string
+  max_uses?: number | null
+  expires_days?: number | null
 }
 
 export default invoiceService

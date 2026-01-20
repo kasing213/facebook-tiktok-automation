@@ -6,7 +6,7 @@ from aiogram import Router, types
 from aiogram.filters import CommandStart, CommandObject
 
 from src.bot.services.linking import consume_link_code, get_user_by_telegram_id
-from src.bot.handlers.client import handle_client_registration
+from src.bot.handlers.client import handle_client_registration, handle_batch_registration
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -24,7 +24,15 @@ async def cmd_start_with_code(message: types.Message, command: CommandObject):
 
         logger.info(f"Link code received: {code} from user {message.from_user.id}")
 
-        # Check if this is a client registration link
+        # Check if this is a batch registration link (multiple clients can scan)
+        if code.startswith("batch_"):
+            batch_code = code[6:]  # Remove 'batch_' prefix
+            handled = await handle_batch_registration(message, batch_code)
+            if handled:
+                return
+            # If not handled (invalid code), fall through to show error
+
+        # Check if this is a client registration link (single client)
         if code.startswith("client_"):
             client_code = code[7:]  # Remove 'client_' prefix
             handled = await handle_client_registration(message, client_code)
