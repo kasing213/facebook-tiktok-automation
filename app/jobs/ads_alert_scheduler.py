@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.core.db import get_db
+from app.core.db import get_db_session
 from app.deps import get_logger
 from app.repositories.ads_alert import AdsAlertPromotionRepository, AdsAlertChatRepository
 from app.services.ads_alert_service import AdsAlertService
@@ -25,68 +25,68 @@ async def process_scheduled_promotions() -> dict:
     }
 
     try:
-        db = next(get_db())
-        promo_repo = AdsAlertPromotionRepository(db)
-        chat_repo = AdsAlertChatRepository(db)
+        with get_db_session() as db:
+            promo_repo = AdsAlertPromotionRepository(db)
+            chat_repo = AdsAlertChatRepository(db)
 
-        # Get all promotions due to be sent
-        due_promotions = promo_repo.get_due_promotions()
+            # Get all promotions due to be sent
+            due_promotions = promo_repo.get_due_promotions()
 
-        if not due_promotions:
-            log.debug("No scheduled promotions due")
-            return results
+            if not due_promotions:
+                log.debug("No scheduled promotions due")
+                return results
 
-        log.info(f"Found {len(due_promotions)} scheduled promotions due for sending")
+            log.info(f"Found {len(due_promotions)} scheduled promotions due for sending")
 
-        for promotion in due_promotions:
-            try:
-                results["processed"] += 1
+            for promotion in due_promotions:
+                try:
+                    results["processed"] += 1
 
-                # Get target chats
-                if promotion.target_type.value == "all":
-                    chats = chat_repo.get_by_tenant(
-                        promotion.tenant_id,
-                        subscribed_only=True,
-                        active_only=True
+                    # Get target chats
+                    if promotion.target_type.value == "all":
+                        chats = chat_repo.get_by_tenant(
+                            promotion.tenant_id,
+                            subscribed_only=True,
+                            active_only=True
+                        )
+                    else:
+                        # Get specific chats
+                        chats = []
+                        for chat_id in promotion.target_chat_ids or []:
+                            chat = chat_repo.get_by_id_and_tenant(chat_id, promotion.tenant_id)
+                            if chat and chat.subscribed and chat.is_active:
+                                chats.append(chat)
+
+                    if not chats:
+                        log.warning(f"Promotion {promotion.id}: No target chats found")
+                        promo_repo.update_by_tenant(
+                            promotion.id,
+                            promotion.tenant_id,
+                            status=PromotionStatus.cancelled
+                        )
+                        continue
+
+                    # Send the promotion
+                    service = AdsAlertService(db)
+                    result = await service.send_promotion(
+                        promotion_id=promotion.id,
+                        tenant_id=promotion.tenant_id
                     )
-                else:
-                    # Get specific chats
-                    chats = []
-                    for chat_id in promotion.target_chat_ids or []:
-                        chat = chat_repo.get_by_id_and_tenant(chat_id, promotion.tenant_id)
-                        if chat and chat.subscribed and chat.is_active:
-                            chats.append(chat)
 
-                if not chats:
-                    log.warning(f"Promotion {promotion.id}: No target chats found")
-                    promo_repo.update_by_tenant(
-                        promotion.id,
-                        promotion.tenant_id,
-                        status=PromotionStatus.cancelled
-                    )
-                    continue
+                    if result.get("sent", 0) > 0:
+                        results["success"] += 1
+                        log.info(
+                            f"Promotion {promotion.id} sent: "
+                            f"{result['sent']}/{result['total']} successful"
+                        )
+                    else:
+                        results["failed"] += 1
+                        log.warning(f"Promotion {promotion.id} failed: No messages sent")
 
-                # Send the promotion
-                service = AdsAlertService(db)
-                result = await service.send_promotion(
-                    promotion_id=promotion.id,
-                    tenant_id=promotion.tenant_id
-                )
-
-                if result.get("sent", 0) > 0:
-                    results["success"] += 1
-                    log.info(
-                        f"Promotion {promotion.id} sent: "
-                        f"{result['sent']}/{result['total']} successful"
-                    )
-                else:
+                except Exception as e:
                     results["failed"] += 1
-                    log.warning(f"Promotion {promotion.id} failed: No messages sent")
-
-            except Exception as e:
-                results["failed"] += 1
-                results["errors"].append(str(e))
-                log.error(f"Error processing promotion {promotion.id}: {e}")
+                    results["errors"].append(str(e))
+                    log.error(f"Error processing promotion {promotion.id}: {e}")
 
     except Exception as e:
         log.error(f"Error in process_scheduled_promotions: {e}")

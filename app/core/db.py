@@ -1,9 +1,10 @@
 # app/core/db.py
+import os
 from contextlib import contextmanager
 from typing import Generator, Optional
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import NullPool
 from app.core.config import get_settings
 from app.core.models import Tenant
 
@@ -11,37 +12,66 @@ _settings = get_settings()
 
 
 def _get_psycopg3_url(url: str) -> str:
-    """Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver."""
+    """
+    Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver.
+    Also adds prepare_threshold=0 to disable prepared statements for pgbouncer.
+    """
+    # First, fix the dialect
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+
+    # Add prepare_threshold=0 to URL query string (psycopg3 reads this from URL)
+    # This is CRITICAL for pgbouncer Transaction mode compatibility
+    if "?" in url:
+        if "prepare_threshold" not in url:
+            url += "&prepare_threshold=0"
+    else:
+        url += "?prepare_threshold=0"
+
     return url
 
 
-# Enhanced PostgreSQL engine configuration for multi-tenant application
-# NOTE: Pool sizes are kept small because:
-# 1. Supabase pooler has connection limits (~25 for free tier)
-# 2. Both main backend AND api-gateway share the same database
-# 3. Railway instances can scale, each creating new pools
-# Using psycopg3 with Transaction mode (port 6543) for better connection handling
+# PRODUCTION PostgreSQL engine configuration for pgbouncer TRANSACTION MODE
+#
+# KEY INSIGHT: With pgbouncer Transaction mode, let pgbouncer handle ALL pooling.
+# Using NullPool means SQLAlchemy doesn't maintain its own connection pool.
+# This ELIMINATES the "DuplicatePreparedStatement" errors because:
+# - No SQLAlchemy-level connection reuse
+# - No pool_pre_ping (which uses prepared statements)
+# - Each request gets a fresh connection from pgbouncer
+#
+# pgbouncer Transaction mode handles:
+# - Connection pooling (default_pool_size in pgbouncer config)
+# - Connection reuse between transactions
+# - Connection limits and queuing
+#
+# Architecture:
+# - SQLAlchemy: NullPool (no application-level pooling)
+# - pgbouncer: Handles all connection pooling
+# - Supabase Transaction pooler: Port 6543
 engine = create_engine(
     _get_psycopg3_url(_settings.DATABASE_URL),
-    poolclass=QueuePool,
-    pool_size=1,              # MINIMAL - Supabase pooler has strict limits
-    max_overflow=2,           # Total max: 3 connections per instance
-    pool_pre_ping=True,       # validate connections before use
-    pool_recycle=300,         # recycle connections every 5 min (aggressive)
-    pool_timeout=10,          # fail fast if pool exhausted (was 30)
+
+    # CRITICAL: Use NullPool for pgbouncer Transaction mode
+    # This prevents "DuplicatePreparedStatement" errors
+    poolclass=NullPool,
+
+    # Transaction mode isolation
+    isolation_level="AUTOCOMMIT",
+
     connect_args={
-        "connect_timeout": 10,  # connection timeout in seconds
-        "options": "-c timezone=utc",  # set timezone to UTC
-        # CRITICAL: Disable prepared statements for pgbouncer Transaction mode (port 6543)
-        # pgbouncer doesn't support prepared statements - this is a psycopg3 option
-        "prepare_threshold": 0,
+        "connect_timeout": 15,
+        "options": "-c timezone=utc -c default_transaction_isolation=read_committed",
+        "application_name": f"fastapi_main_{os.getpid()}",
+        "client_encoding": "utf8",
+        "autocommit": True,
     },
+
+    # Production settings
     future=True,
-    echo=False,  # Disable SQL logging in production (set to True for debugging)
+    echo=_settings.ENV == "dev",
 )
 
 SessionLocal = sessionmaker(
@@ -125,51 +155,139 @@ def init_db() -> None:
     """
     Initialize database connection and validate schema.
 
-    This should be called on application startup to ensure
-    database connectivity and run any necessary checks.
+    Production-grade initialization with NullPool for pgbouncer Transaction mode.
     """
+    import time
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Log connection configuration for debugging
+    db_host = _settings.DATABASE_URL.split('@')[1].split('/')[0] if '@' in _settings.DATABASE_URL else 'unknown'
+    is_transaction_mode = ':6543' in _settings.DATABASE_URL
+    mode = "Transaction" if is_transaction_mode else "Session"
+
+    print(f"[INIT] PostgreSQL Connection - Mode: {mode}, Host: {db_host}")
+    print(f"[INIT] Pool: NullPool (pgbouncer handles pooling)")
+    print(f"[INIT] Process PID: {os.getpid()}, App Name: fastapi_main_{os.getpid()}")
+
+    start_time = time.time()
+
     try:
         with engine.connect() as conn:
-            # Test basic connectivity
-            result = conn.execute(text("SELECT version()"))
-            version = result.fetchone()[0]
-            print(f"[OK] Connected to PostgreSQL: {version}")
+            # Log connection details
+            connect_time = time.time() - start_time
+            print(f"[CONN] Connected in {connect_time:.2f}s")
+
+            # Get detailed database info
+            result = conn.execute(text("SELECT version(), current_database(), current_user, inet_server_addr(), inet_server_port()"))
+            row = result.fetchone()
+            version, database, user, server_ip, server_port = row
+
+            print(f"[OK] PostgreSQL {version.split()[1]} | DB: {database} | User: {user}")
+            print(f"[OK] Server: {server_ip}:{server_port} | Mode: {mode}")
+
+            # Validate core schema with timing
+            schema_start = time.time()
 
             # Check if core tables exist
             result = conn.execute(text("""
-                SELECT table_name
+                SELECT table_name, table_schema
                 FROM information_schema.tables
-                WHERE table_schema = 'public'
-                AND table_name = 'tenant'
+                WHERE table_schema IN ('public', 'invoice', 'inventory', 'scriptclient', 'audit_sales', 'ads_alert')
+                ORDER BY table_schema, table_name
             """))
+            tables = result.fetchall()
 
-            if not result.fetchone():
-                print("[WARNING] Core tables not found. Run 'alembic upgrade head' to create schema.")
+            if not tables:
+                print("[WARNING] No tables found. Run 'alembic upgrade head' to create schema.")
             else:
-                # Check table count for basic validation
-                result = conn.execute(text("""
-                    SELECT COUNT(*) as table_count
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                """))
-                table_count = result.fetchone()[0]
-                print(f"[OK] Database schema validated. Found {table_count} tables.")
+                # Group by schema
+                schemas = {}
+                for table_name, schema_name in tables:
+                    if schema_name not in schemas:
+                        schemas[schema_name] = []
+                    schemas[schema_name].append(table_name)
+
+                # Log schema status
+                print(f"[SCHEMA] Found {len(tables)} tables across {len(schemas)} schemas:")
+                for schema_name, table_list in schemas.items():
+                    print(f"[SCHEMA]   {schema_name}: {len(table_list)} tables")
+
+                # Check for critical tables
+                has_tenant = any(t[0] == 'tenant' and t[1] == 'public' for t in tables)
+                has_user = any(t[0] == 'user' and t[1] == 'public' for t in tables)
+
+                if has_tenant and has_user:
+                    print("[OK] Core authentication tables found")
+                else:
+                    print("[WARNING] Missing core tables (tenant/user). Check alembic migration status.")
+
+            schema_time = time.time() - schema_start
+            print(f"[OK] Schema validation completed in {schema_time:.2f}s")
+
+            # Connection health test
+            health_start = time.time()
+            result = conn.execute(text("SELECT COUNT(*) FROM information_schema.schemata"))
+            schema_count = result.fetchone()[0]
+            health_time = time.time() - health_start
+            print(f"[HEALTH] Query test passed in {health_time:.3f}s | Schemas: {schema_count}")
+
+            total_time = time.time() - start_time
+            print(f"[SUCCESS] Database initialization completed in {total_time:.2f}s")
 
     except Exception as e:
-        # Avoid Unicode emojis on Windows console
-        print(f"[ERROR] Database initialization failed: {e}")
-        print(f"   Connection string: {_settings.database_url_safe}")
-        print("   Please ensure:")
-        print("   1. PostgreSQL is running")
-        print("   2. Database exists and is accessible")
-        print("   3. Database user exists with correct password")
-        print("   4. User has permission to access the database")
-        print("   5. pg_hba.conf allows password authentication for the database user")
+        error_type = type(e).__name__
+        error_details = str(e)
+
+        print(f"\n[FATAL] Database initialization failed")
+        print(f"[FATAL] Error: {error_type} - {error_details}")
+        print(f"[FATAL] Connection: {_settings.database_url_safe}")
+        print(f"[FATAL] Mode: {mode} | PID: {os.getpid()}")
+        print("\n[DEBUG] Troubleshooting steps:")
+        print("  1. Check Supabase dashboard for connection limits")
+        print("  2. Verify DATABASE_URL uses port 6543 (Transaction mode)")
+        print("  3. Check Railway logs for connection errors")
         raise
 
 def dispose_engine() -> None:
     """Clean shutdown of database connections"""
+    print(f"[SHUTDOWN] Disposing database engine (PID: {os.getpid()})")
     engine.dispose()
+
+
+def get_pool_status() -> dict:
+    """
+    Get current connection pool status for monitoring.
+
+    With NullPool, there's no application-level pooling - pgbouncer handles it.
+    """
+    return {
+        "pool_type": "NullPool",
+        "note": "pgbouncer handles connection pooling",
+        "status": "active",
+    }
+
+
+def log_connection_health() -> None:
+    """
+    Log connection health - simplified for NullPool.
+
+    With NullPool, pgbouncer handles all pooling so we just verify connectivity.
+    """
+    import logging
+    import time
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        start = time.time()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        latency = (time.time() - start) * 1000
+        logger.info(f"DB Health: OK (latency={latency:.1f}ms, pool=NullPool/pgbouncer)")
+    except Exception as e:
+        logger.error(f"DB Health: FAILED - {e}")
 
 # Tenant-aware query helpers
 class TenantQueryMixin:
