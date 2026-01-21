@@ -68,16 +68,9 @@ async def lifespan(app: FastAPI):
     log.info("🚀 FB/TikTok Automation API started (env=%s)", s.ENV)
     log_monitoring_snapshot(log, collect_monitoring_snapshot(s), context="startup")
 
-    # Seed mock invoice data if in mock mode
-    if s.INVOICE_MOCK_MODE:
-        from app.services import invoice_mock_service
-        result = invoice_mock_service.seed_sample_data()
-        if result.get("seeded"):
-            log.info(f"📋 [MOCK] Invoice API running in mock mode - seeded {result['customers']} customers, {result['invoices']} invoices")
-        else:
-            log.info("📋 [MOCK] Invoice API running in mock mode (data already exists)")
-        if not s.INVOICE_TIER_ENFORCEMENT:
-            log.info("📋 [MOCK] Tier enforcement DISABLED - all features available")
+    # NOTE: Mock seeding removed - using real PostgreSQL data
+    # To re-enable mock mode for local testing, set INVOICE_MOCK_MODE=True
+    # and ensure seed_sample_data() function signature is correct
 
     # Start background tasks
     token_refresh_task = None
