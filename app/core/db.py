@@ -62,8 +62,9 @@ engine = create_engine(
         "client_encoding": "utf8",
         "autocommit": True,
         # CRITICAL: Disable prepared statements for pgbouncer Transaction mode
-        # Must be int (not string) - URL params cause TypeError
-        "prepare_threshold": 0,
+        # prepare_threshold=None DISABLES prepared statements entirely
+        # prepare_threshold=0 means "prepare immediately" (WRONG - still creates prepared statements!)
+        "prepare_threshold": None,
     },
 
     # Production settings
