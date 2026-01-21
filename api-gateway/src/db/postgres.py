@@ -22,21 +22,15 @@ SessionLocal = None
 def _get_psycopg3_url(url: str) -> str:
     """
     Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver.
-    Also adds prepare_threshold=0 to disable prepared statements for pgbouncer.
+
+    NOTE: prepare_threshold is passed via connect_args, not URL.
+    URL params are read as strings, causing TypeError with psycopg3.
     """
-    # First, fix the dialect
+    # Fix the dialect for psycopg3
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
     elif url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql+psycopg://", 1)
-
-    # Add prepare_threshold=0 to URL query string (psycopg3 reads this from URL)
-    # This is CRITICAL for pgbouncer Transaction mode compatibility
-    if "?" in url:
-        if "prepare_threshold" not in url:
-            url += "&prepare_threshold=0"
-    else:
-        url += "?prepare_threshold=0"
 
     return url
 
@@ -73,6 +67,9 @@ def init_postgres():
             "application_name": f"api_gateway_{os.getpid()}",
             "client_encoding": "utf8",
             "autocommit": True,
+            # CRITICAL: Disable prepared statements for pgbouncer Transaction mode
+            # Must be int (not string) - URL params cause TypeError
+            "prepare_threshold": 0,
         },
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

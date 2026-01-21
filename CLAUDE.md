@@ -252,21 +252,17 @@ psycopg.errors.DuplicatePreparedStatement: prepared statement "_pg3_1" already e
 sqlalchemy.exc.ProgrammingError: (psycopg.errors.DuplicatePreparedStatement)
 ```
 
-**Cause:** psycopg3 ignores `prepare_threshold` in `connect_args`. The `pool_pre_ping` health check was also creating prepared statements, causing conflicts when pgbouncer reassigns connections.
+**Cause:** pgbouncer Transaction mode doesn't support prepared statements. The `pool_pre_ping` health check was also creating prepared statements, causing conflicts when pgbouncer reassigns connections.
 
-**Fix (Applied 2026-01-21):** Use `NullPool` instead of `QueuePool`. Let pgbouncer handle ALL connection pooling:
+**Fix (Applied 2026-01-21):** Use `NullPool` + `prepare_threshold=0` in **connect_args** (NOT URL):
 
 ```python
 from sqlalchemy.pool import NullPool
 
-# Add prepare_threshold=0 to URL (psycopg3 reads this from URL, not connect_args)
+# Convert dialect only - DO NOT add prepare_threshold to URL (it becomes string "0")
 def _get_psycopg3_url(url: str) -> str:
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if "?" in url:
-        url += "&prepare_threshold=0"
-    else:
-        url += "?prepare_threshold=0"
     return url
 
 engine = create_engine(
@@ -277,9 +273,15 @@ engine = create_engine(
         "connect_timeout": 15,
         "application_name": f"app_{os.getpid()}",
         "autocommit": True,
+        "prepare_threshold": 0,  # MUST be int, not string from URL
     },
 )
 ```
+
+**IMPORTANT:** Do NOT pass `prepare_threshold` via URL query string!
+- URL params are read as **strings** (`"0"`)
+- psycopg3 expects **integer** (`0`)
+- Causes: `TypeError: '>=' not supported between instances of 'int' and 'str'`
 
 **Why NullPool works:**
 - pgbouncer already handles connection pooling
