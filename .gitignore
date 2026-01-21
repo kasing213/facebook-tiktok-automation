@@ -64,3 +64,9 @@ frontend/e2e/.auth/
 frontend/playwright-report/
 frontend/test-results/
 .playwright-mcp/
+
+# Google OAuth credentials (contains sensitive tokens!)
+credentials.json
+gmail_token.txt
+token.json
+client_secret*.json
