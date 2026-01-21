@@ -88,6 +88,13 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: str = Field(default="KS Automation", description="From name in emails")
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = Field(default=24, description="Email verification token expiry in hours")
 
+    # Google OAuth for Gmail API (recommended for cloud environments like Railway)
+    # SMTP is blocked by most cloud providers, so Gmail API is the reliable alternative
+    # Run: python scripts/setup_gmail_oauth.py to get these values
+    GOOGLE_CLIENT_ID: str = Field(default="", description="Google OAuth Client ID for Gmail API")
+    GOOGLE_CLIENT_SECRET: SecretStr = Field(default=SecretStr(""), description="Google OAuth Client Secret")
+    GOOGLE_REFRESH_TOKEN: SecretStr = Field(default=SecretStr(""), description="Google OAuth Refresh Token for Gmail API")
+
     # API Gateway (for Telegram notifications)
     API_GATEWAY_URL: str = Field(default="", description="API Gateway base URL for internal service calls")
 
@@ -134,8 +141,14 @@ class Settings(BaseSettings):
     @classmethod
     def validate_database_url(cls, v: str) -> str:
         """Validate DATABASE_URL format"""
-        if not v.startswith(('postgresql://', 'postgresql+psycopg2://')):
-            raise ValueError('DATABASE_URL must be a valid PostgreSQL connection string')
+        valid_prefixes = (
+            'postgresql://',
+            'postgresql+psycopg://',      # psycopg3 format
+            'postgresql+psycopg2://',     # psycopg2 format (legacy)
+            'postgres://'                 # Heroku/Railway common format
+        )
+        if not v.startswith(valid_prefixes):
+            raise ValueError(f'DATABASE_URL must start with one of: {", ".join(valid_prefixes)}')
         return v
 
     @field_validator('FB_SCOPES', 'TIKTOK_SCOPES')

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import './i18n' // Initialize i18n
+import { ThemeProvider } from './contexts/ThemeContext'
 import HomePage from './components/HomePage'
 import LoginPageNew from './components/LoginPageNew'
 import RegisterPage from './components/RegisterPage'
@@ -83,8 +84,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   return (
-    <div className="App">
-      <Routes>
+    <ThemeProvider>
+      <div className="App">
+        <Routes>
         {/* Public routes */}
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPageNew />} />
@@ -134,8 +136,9 @@ function App() {
 
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </div>
+        </Routes>
+      </div>
+    </ThemeProvider>
   )
 }
 

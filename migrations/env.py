@@ -14,13 +14,23 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from app.core.models import Base
 from app.core.config import get_settings
 
+
+def _get_psycopg3_url(url: str) -> str:
+    """Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver."""
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    return url
+
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override the SQLAlchemy URL from environment
+# Override the SQLAlchemy URL from environment - use psycopg3 driver
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", _get_psycopg3_url(settings.DATABASE_URL))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

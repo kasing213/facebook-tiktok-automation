@@ -11,10 +11,11 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 
-# In-memory data stores (module-level singletons)
-_customers: Dict[str, Dict[str, Any]] = {}
-_invoices: Dict[str, Dict[str, Any]] = {}
-_invoice_counter: int = 1000
+# Tenant-aware in-memory data stores
+# Structure: {tenant_id: {entity_id: entity_data}}
+_customers: Dict[str, Dict[str, Dict[str, Any]]] = {}
+_invoices: Dict[str, Dict[str, Dict[str, Any]]] = {}
+_invoice_counters: Dict[str, int] = {}  # tenant_id -> counter
 
 
 def _generate_id() -> str:
@@ -27,17 +28,30 @@ def _now_iso() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
+def _ensure_tenant_data(tenant_id: str) -> None:
+    """Ensure tenant has initialized data structures."""
+    tenant_str = str(tenant_id)
+    if tenant_str not in _customers:
+        _customers[tenant_str] = {}
+    if tenant_str not in _invoices:
+        _invoices[tenant_str] = {}
+    if tenant_str not in _invoice_counters:
+        _invoice_counters[tenant_str] = 1000
+
+
 # ============================================================================
 # Customer Operations
 # ============================================================================
 
 def list_customers(
+    tenant_id: str,
     limit: int = 50,
     skip: int = 0,
     search: Optional[str] = None
 ) -> List[Dict]:
-    """List customers with optional search and pagination."""
-    customers = list(_customers.values())
+    """List customers with optional search and pagination (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
+    customers = list(_customers[str(tenant_id)].values())
 
     if search:
         search_lower = search.lower()
@@ -54,16 +68,19 @@ def list_customers(
     return customers[skip:skip + limit]
 
 
-def get_customer(customer_id: str) -> Optional[Dict]:
-    """Get a single customer by ID."""
-    return _customers.get(customer_id)
+def get_customer(tenant_id: str, customer_id: str) -> Optional[Dict]:
+    """Get a single customer by ID (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
+    return _customers[str(tenant_id)].get(customer_id)
 
 
-def create_customer(data: Dict) -> Dict:
-    """Create a new customer."""
+def create_customer(tenant_id: str, data: Dict) -> Dict:
+    """Create a new customer (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
     customer_id = _generate_id()
     customer = {
         "id": customer_id,
+        "tenant_id": str(tenant_id),
         "name": data["name"],
         "email": data.get("email"),
         "phone": data.get("phone"),
@@ -73,16 +90,18 @@ def create_customer(data: Dict) -> Dict:
         "created_at": _now_iso(),
         "updated_at": _now_iso()
     }
-    _customers[customer_id] = customer
+    _customers[str(tenant_id)][customer_id] = customer
     return customer
 
 
-def update_customer(customer_id: str, data: Dict) -> Optional[Dict]:
-    """Update an existing customer."""
-    if customer_id not in _customers:
+def update_customer(tenant_id: str, customer_id: str, data: Dict) -> Optional[Dict]:
+    """Update an existing customer (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
+    tenant_customers = _customers[str(tenant_id)]
+    if customer_id not in tenant_customers:
         return None
 
-    customer = _customers[customer_id]
+    customer = tenant_customers[customer_id]
     for key, value in data.items():
         if value is not None:
             customer[key] = value
@@ -91,10 +110,12 @@ def update_customer(customer_id: str, data: Dict) -> Optional[Dict]:
     return customer
 
 
-def delete_customer(customer_id: str) -> bool:
-    """Delete a customer."""
-    if customer_id in _customers:
-        del _customers[customer_id]
+def delete_customer(tenant_id: str, customer_id: str) -> bool:
+    """Delete a customer (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
+    tenant_customers = _customers[str(tenant_id)]
+    if customer_id in tenant_customers:
+        del tenant_customers[customer_id]
         return True
     return False
 
@@ -104,22 +125,25 @@ def delete_customer(customer_id: str) -> bool:
 # ============================================================================
 
 def list_invoices(
+    tenant_id: str,
     limit: int = 50,
     skip: int = 0,
     customer_id: Optional[str] = None,
     status: Optional[str] = None
 ) -> List[Dict]:
-    """List invoices with optional filtering and pagination."""
-    invoices = list(_invoices.values())
+    """List invoices with optional filtering and pagination (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
+    invoices = list(_invoices[str(tenant_id)].values())
 
     if customer_id:
         invoices = [i for i in invoices if i["customer_id"] == customer_id]
     if status:
         invoices = [i for i in invoices if i["status"] == status]
 
-    # Add customer info to each invoice
+    # Add customer info to each invoice (from same tenant)
+    tenant_customers = _customers[str(tenant_id)]
     for inv in invoices:
-        inv["customer"] = _customers.get(inv["customer_id"])
+        inv["customer"] = tenant_customers.get(inv["customer_id"])
 
     # Sort by created_at descending
     invoices.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -127,14 +151,17 @@ def list_invoices(
     return invoices[skip:skip + limit]
 
 
-def get_invoice(invoice_id: str) -> Optional[Dict]:
-    """Get a single invoice by ID with customer info."""
+def get_invoice(tenant_id: str, invoice_id: str) -> Optional[Dict]:
+    """Get a single invoice by ID with customer info (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
     # First check in-memory mock data
-    invoice = _invoices.get(invoice_id)
+    tenant_invoices = _invoices[str(tenant_id)]
+    invoice = tenant_invoices.get(invoice_id)
     if invoice:
-        # Return a copy with customer info
+        # Return a copy with customer info (from same tenant)
         invoice = invoice.copy()
-        invoice["customer"] = _customers.get(invoice["customer_id"])
+        tenant_customers = _customers[str(tenant_id)]
+        invoice["customer"] = tenant_customers.get(invoice["customer_id"])
         return invoice
 
     # Fallback to PostgreSQL database if not found in mock data
@@ -227,12 +254,13 @@ def get_invoice(invoice_id: str) -> Optional[Dict]:
     return None
 
 
-def create_invoice(data: Dict) -> Dict:
-    """Create a new invoice with auto-calculated totals."""
-    global _invoice_counter
+def create_invoice(tenant_id: str, data: Dict) -> Dict:
+    """Create a new invoice with auto-calculated totals (tenant-isolated)."""
+    _ensure_tenant_data(tenant_id)
+    tenant_str = str(tenant_id)
 
     invoice_id = _generate_id()
-    _invoice_counter += 1
+    _invoice_counters[tenant_str] += 1
 
     # Process items
     items = data.get("items", [])
@@ -289,11 +317,13 @@ def create_invoice(data: Dict) -> Dict:
         "updated_at": _now_iso()
     }
 
-    _invoices[invoice_id] = invoice
+    _invoices[tenant_str][invoice_id] = invoice
 
-    # Return with customer info
+    # Return with customer info (from same tenant)
     invoice = invoice.copy()
-    invoice["customer"] = _customers.get(invoice["customer_id"])
+    invoice["tenant_id"] = tenant_str
+    tenant_customers = _customers[tenant_str]
+    invoice["customer"] = tenant_customers.get(invoice["customer_id"])
     return invoice
 
 
@@ -883,12 +913,12 @@ def seed_sample_data():
 
 
 def clear_all_data():
-    """Clear all mock data (for testing reset)."""
-    global _customers, _invoices, _invoice_counter
+    """Clear all mock data (for testing reset) - all tenants."""
+    global _customers, _invoices, _invoice_counters
     _customers = {}
     _invoices = {}
-    _invoice_counter = 1000
-    return {"cleared": True}
+    _invoice_counters = {}
+    return {"cleared": True, "message": "All tenant mock data cleared"}
 
 
 def get_data_counts() -> Dict:

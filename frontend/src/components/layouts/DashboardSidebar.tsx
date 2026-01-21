@@ -3,21 +3,6 @@ import { Link, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 import { easings, reduceMotion } from '../../styles/animations'
 
-// Color constants
-const COLORS = {
-  primary: '#4a90e2',
-  primaryDark: '#2a5298',
-  primaryLight: '#e8f4fd',
-  primaryLightBorder: '#d1e7f8',
-  success: '#10b981',
-  textPrimary: '#1f2937',
-  textSecondary: '#6b7280',
-  textMuted: '#9ca3af',
-  border: '#e5e7eb',
-  borderLight: '#f3f4f6',
-  bgLight: '#f9fafb',
-}
-
 interface DashboardSidebarProps {
   mobile?: boolean
   isOpen?: boolean
@@ -27,12 +12,13 @@ interface DashboardSidebarProps {
 
 const SidebarContainer = styled.nav<{ $mobile?: boolean; $isOpen?: boolean }>`
   width: 250px;
-  background: white;
-  border-right: 1px solid ${COLORS.border};
+  background: ${props => props.theme.card};
+  border-right: 1px solid ${props => props.theme.border};
   height: calc(100vh - 60px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 
   ${props => props.$mobile && `
     position: fixed;
@@ -40,7 +26,7 @@ const SidebarContainer = styled.nav<{ $mobile?: boolean; $isOpen?: boolean }>`
     left: ${props.$isOpen ? '0' : '-250px'};
     z-index: 150;
     box-shadow: ${props.$isOpen ? '2px 0 8px rgba(0, 0, 0, 0.1)' : 'none'};
-    transition: left 0.3s ease;
+    transition: left 0.3s ease, background-color 0.3s ease;
   `}
 `
 
@@ -60,7 +46,7 @@ const Overlay = styled.div<{ $isOpen: boolean }>`
 // Branding header
 const BrandingHeader = styled.div`
   padding: 1.25rem 1rem;
-  border-bottom: 1px solid ${COLORS.borderLight};
+  border-bottom: 1px solid ${props => props.theme.borderLight};
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -69,7 +55,7 @@ const BrandingHeader = styled.div`
 const BrandLogo = styled.div`
   width: 36px;
   height: 36px;
-  background: ${COLORS.primary};
+  background: ${props => props.theme.accent};
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -82,7 +68,7 @@ const BrandLogo = styled.div`
 const BrandName = styled.span`
   font-weight: 600;
   font-size: 1rem;
-  color: ${COLORS.textPrimary};
+  color: ${props => props.theme.textPrimary};
 `
 
 // Navigation sections
@@ -102,7 +88,7 @@ const SectionLabel = styled.div`
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: ${COLORS.textMuted};
+  color: ${props => props.theme.textMuted};
 `
 
 const NavList = styled.ul`
@@ -125,8 +111,8 @@ const NavItem = styled(Link)<{ $active: boolean }>`
   transition: background 0.2s ${easings.easeOutCubic},
               color 0.2s ${easings.easeOutCubic},
               transform 0.15s ${easings.easeOutCubic};
-  color: ${props => props.$active ? COLORS.primary : COLORS.textSecondary};
-  background: ${props => props.$active ? COLORS.primaryLight : 'transparent'};
+  color: ${props => props.$active ? props.theme.accent : props.theme.textSecondary};
+  background: ${props => props.$active ? props.theme.accentLight : 'transparent'};
 
   /* Active indicator line */
   &::before {
@@ -137,14 +123,14 @@ const NavItem = styled(Link)<{ $active: boolean }>`
     transform: translateY(-50%) scaleY(${props => props.$active ? 1 : 0});
     width: 3px;
     height: 60%;
-    background: ${COLORS.primary};
+    background: ${props => props.theme.accent};
     border-radius: 0 2px 2px 0;
     transition: transform 0.2s ${easings.easeOutCubic};
   }
 
   &:hover {
-    background: ${props => props.$active ? COLORS.primaryLight : COLORS.bgLight};
-    color: ${props => props.$active ? COLORS.primary : COLORS.textPrimary};
+    background: ${props => props.$active ? props.theme.accentLight : props.theme.cardHover};
+    color: ${props => props.$active ? props.theme.accent : props.theme.textPrimary};
   }
 
   &:active {
@@ -171,8 +157,8 @@ const AccordionToggle = styled.button<{ $active: boolean; $expanded: boolean }>`
   width: calc(100% - 1rem);
   border: none;
   position: relative;
-  background: ${props => props.$active ? COLORS.primaryLight : 'transparent'};
-  color: ${props => props.$active ? COLORS.primary : COLORS.textSecondary};
+  background: ${props => props.$active ? props.theme.accentLight : 'transparent'};
+  color: ${props => props.$active ? props.theme.accent : props.theme.textSecondary};
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -190,14 +176,14 @@ const AccordionToggle = styled.button<{ $active: boolean; $expanded: boolean }>`
     transform: translateY(-50%) scaleY(${props => props.$active ? 1 : 0});
     width: 3px;
     height: 60%;
-    background: ${COLORS.primary};
+    background: ${props => props.theme.accent};
     border-radius: 0 2px 2px 0;
     transition: transform 0.2s ${easings.easeOutCubic};
   }
 
   &:hover {
-    background: ${props => props.$active ? COLORS.primaryLight : COLORS.bgLight};
-    color: ${props => props.$active ? COLORS.primary : COLORS.textPrimary};
+    background: ${props => props.$active ? props.theme.accentLight : props.theme.cardHover};
+    color: ${props => props.$active ? props.theme.accent : props.theme.textPrimary};
   }
 
   &:active {
@@ -218,7 +204,7 @@ const ChevronIcon = styled.span<{ $expanded: boolean }>`
   transition: transform 0.25s ${easings.easeOutCubic};
   transform: ${props => props.$expanded ? 'rotate(180deg)' : 'rotate(0)'};
   font-size: 0.625rem;
-  color: ${COLORS.textMuted};
+  color: ${props => props.theme.textMuted};
 `
 
 const SubMenu = styled.ul<{ $expanded: boolean }>`
@@ -247,12 +233,12 @@ const SubNavItem = styled(Link)<{ $active: boolean }>`
   transition: background 0.2s ${easings.easeOutCubic},
               color 0.2s ${easings.easeOutCubic},
               transform 0.15s ${easings.easeOutCubic};
-  color: ${props => props.$active ? COLORS.primary : COLORS.textSecondary};
-  background: ${props => props.$active ? COLORS.primaryLight : 'transparent'};
+  color: ${props => props.$active ? props.theme.accent : props.theme.textSecondary};
+  background: ${props => props.$active ? props.theme.accentLight : 'transparent'};
 
   &:hover {
-    background: ${props => props.$active ? COLORS.primaryLight : COLORS.bgLight};
-    color: ${props => props.$active ? COLORS.primary : COLORS.textPrimary};
+    background: ${props => props.$active ? props.theme.accentLight : props.theme.cardHover};
+    color: ${props => props.$active ? props.theme.accent : props.theme.textPrimary};
   }
 
   &:active {
@@ -266,8 +252,8 @@ const SubNavItem = styled(Link)<{ $active: boolean }>`
 const SubscriptionCard = styled.div`
   margin: 0.5rem;
   padding: 0.875rem 1rem;
-  background: ${COLORS.bgLight};
-  border: 1px solid ${COLORS.border};
+  background: ${props => props.theme.cardHover};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 10px;
 `
 
@@ -281,7 +267,7 @@ const SubscriptionHeader = styled.div`
 const SubscriptionPlan = styled.span`
   font-size: 0.875rem;
   font-weight: 600;
-  color: ${COLORS.textPrimary};
+  color: ${props => props.theme.textPrimary};
 `
 
 const SubscriptionBadge = styled.span`
@@ -289,13 +275,13 @@ const SubscriptionBadge = styled.span`
   font-weight: 600;
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
-  background: rgba(16, 185, 129, 0.1);
-  color: ${COLORS.success};
+  background: ${props => props.theme.successLight};
+  color: ${props => props.theme.success};
 `
 
 const SubscriptionDate = styled.div`
   font-size: 0.75rem;
-  color: ${COLORS.textMuted};
+  color: ${props => props.theme.textMuted};
 `
 
 // Icons as SVG components

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { useTenants } from '../../hooks/useAuth'
 import { authService } from '../../services/api'
+import { useTheme } from '../../contexts/ThemeContext'
 import LanguageSwitcher from './LanguageSwitcher'
 
 interface DashboardHeaderProps {
@@ -16,8 +17,9 @@ const HeaderContainer = styled.header`
   justify-content: space-between;
   height: 60px;
   padding: 0 2rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border-bottom: 1px solid ${props => props.theme.border};
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 
   @media (max-width: 768px) {
     padding: 0 1rem;
@@ -36,12 +38,12 @@ const HamburgerButton = styled.button`
   border: none;
   cursor: pointer;
   padding: 0.5rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   width: 32px;
   height: 32px;
 
   &:hover {
-    color: #4a90e2;
+    color: ${props => props.theme.accent};
   }
 
   @media (max-width: 768px) {
@@ -64,7 +66,7 @@ const Logo = styled.div`
   font-family: 'Roboto', sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
-  background: linear-gradient(180deg, #4a90e2 0%, #2a5298 100%);
+  background: linear-gradient(180deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -74,8 +76,9 @@ const Logo = styled.div`
 const PageTitle = styled.h1`
   font-size: 1.125rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
+  transition: color 0.3s ease;
 
   @media (max-width: 480px) {
     font-size: 1rem;
@@ -101,18 +104,18 @@ const WorkspaceButton = styled.button`
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    border-color: #4a90e2;
-    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.1);
+    border-color: ${props => props.theme.accent};
+    box-shadow: 0 2px 8px ${props => props.theme.shadowColor};
   }
 
   @media (max-width: 480px) {
@@ -125,10 +128,10 @@ const Dropdown = styled.div<{ isOpen: boolean }>`
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 25px ${props => props.theme.shadowColor};
   min-width: 200px;
   opacity: ${props => props.isOpen ? 1 : 0};
   visibility: ${props => props.isOpen ? 'visible' : 'hidden'};
@@ -145,13 +148,13 @@ const DropdownItem = styled.button`
   background: none;
   border: none;
   font-size: 0.875rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   cursor: pointer;
   text-align: left;
   transition: background 0.2s ease;
 
   &:hover {
-    background: #f3f4f6;
+    background: ${props => props.theme.cardHover};
   }
 
   &:first-child {
@@ -167,7 +170,7 @@ const UserAvatar = styled.div`
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+  background: linear-gradient(135deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,14 +181,39 @@ const UserAvatar = styled.div`
   transition: all 0.2s ease;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
   }
 `
 
 const Divider = styled.div`
   height: 1px;
-  background: #e5e7eb;
+  background: ${props => props.theme.border};
   margin: 0.25rem 0;
+`
+
+const ThemeToggle = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid ${props => props.theme.border};
+  background: ${props => props.theme.card};
+  color: ${props => props.theme.textSecondary};
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: ${props => props.theme.accent};
+    color: ${props => props.theme.accent};
+    background: ${props => props.theme.accentLight};
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
 `
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
@@ -193,6 +221,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
   const location = useLocation()
   const { t } = useTranslation()
   const { tenants } = useTenants()
+  const { mode, toggleTheme } = useTheme()
   const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const workspaceRef = useRef<HTMLDivElement>(null)
@@ -259,6 +288,18 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
       </LeftSection>
 
       <RightSection>
+        <ThemeToggle onClick={toggleTheme} title={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+          {mode === 'dark' ? (
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          ) : (
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          )}
+        </ThemeToggle>
+
         <LanguageSwitcher />
 
         <WorkspaceSelector ref={workspaceRef}>

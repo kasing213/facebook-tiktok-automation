@@ -55,21 +55,23 @@ class AutomationScheduler:
     async def check_and_execute_automations(self):
         """Check for due automations and execute them"""
         try:
+            # Create a fresh session for this check to avoid prepared statement conflicts
             with get_db_session() as db:
                 automation_service = AutomationService(db)
 
                 # Get all automations that are due to run
                 due_automations = automation_service.get_due_automations()
 
-                if not due_automations:
-                    self.logger.debug("No automations due for execution")
-                    return
+            if not due_automations:
+                self.logger.debug("No automations due for execution")
+                return
 
-                self.logger.info(f"Found {len(due_automations)} automation(s) due for execution")
+            self.logger.info(f"Found {len(due_automations)} automation(s) due for execution")
 
-                # Execute each automation
-                for automation in due_automations:
-                    await self.execute_automation_safe(automation, db)
+            # Execute each automation with a fresh session
+            for automation in due_automations:
+                with get_db_session() as exec_db:
+                    await self.execute_automation_safe(automation, exec_db)
 
         except Exception as e:
             self.logger.error(f"Error checking due automations: {e}", exc_info=True)

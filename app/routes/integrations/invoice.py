@@ -242,7 +242,7 @@ async def list_customers(
 ):
     """List all customers with optional search and pagination."""
     if is_mock_mode():
-        return mock_svc.list_customers(limit=limit, skip=skip, search=search)
+        return mock_svc.list_customers(str(current_user.tenant_id), limit=limit, skip=skip, search=search)
 
     params = {"limit": limit, "skip": skip}
     if search:
@@ -257,7 +257,7 @@ async def create_customer(
 ):
     """Create a new customer."""
     if is_mock_mode():
-        return mock_svc.create_customer(data.model_dump(exclude_none=True))
+        return mock_svc.create_customer(str(current_user.tenant_id), data.model_dump(exclude_none=True))
 
     return await proxy_request("POST", "/api/customers", json_data=data.model_dump(exclude_none=True))
 
@@ -269,7 +269,7 @@ async def get_customer(
 ):
     """Get a specific customer by ID."""
     if is_mock_mode():
-        customer = mock_svc.get_customer(customer_id)
+        customer = mock_svc.get_customer(str(current_user.tenant_id), customer_id)
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
         return customer
@@ -285,7 +285,7 @@ async def update_customer(
 ):
     """Update an existing customer."""
     if is_mock_mode():
-        customer = mock_svc.update_customer(customer_id, data.model_dump(exclude_none=True))
+        customer = mock_svc.update_customer(str(current_user.tenant_id), customer_id, data.model_dump(exclude_none=True))
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
         return customer
@@ -300,7 +300,7 @@ async def delete_customer(
 ):
     """Delete a customer."""
     if is_mock_mode():
-        if not mock_svc.delete_customer(customer_id):
+        if not mock_svc.delete_customer(str(current_user.tenant_id), customer_id):
             raise HTTPException(status_code=404, detail="Customer not found")
         return {"status": "deleted", "id": customer_id}
 
@@ -832,17 +832,16 @@ async def generate_batch_code(
         # Generate cryptographically secure token
         code = secrets.token_urlsafe(32)
 
-        # Build expires_at based on expires_days
-        if data.expires_days:
-            expires_sql = f"NOW() + INTERVAL '{data.expires_days} days'"
-        else:
-            expires_sql = "NULL"
-
+        # Use parameterized query to prevent SQL injection
         result = db.execute(
-            text(f"""
+            text("""
                 INSERT INTO invoice.client_link_code
                     (tenant_id, merchant_id, customer_id, code, is_batch, batch_name, max_uses, expires_at)
-                VALUES (:tenant_id, :merchant_id, NULL, :code, TRUE, :batch_name, :max_uses, {expires_sql})
+                VALUES (:tenant_id, :merchant_id, NULL, :code, TRUE, :batch_name, :max_uses,
+                        CASE WHEN :expires_days IS NOT NULL
+                             THEN NOW() + INTERVAL :expires_days || ' days'
+                             ELSE NULL
+                        END)
                 RETURNING id, code, batch_name, max_uses, use_count, expires_at, created_at
             """),
             {
@@ -850,7 +849,8 @@ async def generate_batch_code(
                 "merchant_id": str(current_user.id),
                 "code": code,
                 "batch_name": data.batch_name,
-                "max_uses": data.max_uses
+                "max_uses": data.max_uses,
+                "expires_days": data.expires_days  # Now safely parameterized
             }
         )
         db.commit()
@@ -1261,6 +1261,7 @@ async def list_invoices(
     try:
         if is_mock_mode():
             mock_invoices = mock_svc.list_invoices(
+                str(current_user.tenant_id),
                 limit=limit, skip=skip, customer_id=customer_id, status=status
             )
             if mock_invoices:
@@ -1426,7 +1427,7 @@ async def create_invoice(
         # Not a registered client - use mock or external API
         if is_mock_mode():
             # Validate customer exists in mock
-            if not mock_svc.get_customer(data.customer_id):
+            if not mock_svc.get_customer(str(current_user.tenant_id), data.customer_id):
                 raise HTTPException(status_code=400, detail="Customer not found")
 
             invoice_data = data.model_dump(exclude_none=True)
@@ -1435,7 +1436,7 @@ async def create_invoice(
                     item.model_dump() if hasattr(item, 'model_dump') else item
                     for item in invoice_data["items"]
                 ]
-            invoice = mock_svc.create_invoice(invoice_data)
+            invoice = mock_svc.create_invoice(str(current_user.tenant_id), invoice_data)
         else:
             invoice = await proxy_request("POST", "/api/invoices", json_data=data.model_dump(exclude_none=True))
 
@@ -1602,7 +1603,7 @@ async def get_invoice(
 
     # Fall back to mock/external
     if is_mock_mode():
-        invoice = mock_svc.get_invoice(invoice_id)
+        invoice = mock_svc.get_invoice(str(current_user.tenant_id), invoice_id)
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
         return invoice
@@ -1837,7 +1838,7 @@ async def upload_invoice_screenshot(
 
     # Get the invoice to build expected payment
     if is_mock_mode():
-        invoice = mock_svc.get_invoice(invoice_id)
+        invoice = mock_svc.get_invoice(str(current_user.tenant_id), invoice_id)
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
     else:

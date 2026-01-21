@@ -20,8 +20,8 @@ class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     sku: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
-    unit_price: int = Field(..., ge=0)  # Store in smallest currency unit
-    cost_price: Optional[int] = Field(None, ge=0)
+    unit_price: float = Field(..., ge=0)  # Supports decimal prices like 49.99
+    cost_price: Optional[float] = Field(None, ge=0)
     currency: str = Field("KHR", max_length=3)
     low_stock_threshold: Optional[int] = Field(10, ge=0)
     track_stock: bool = True
@@ -35,8 +35,8 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     sku: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
-    unit_price: Optional[int] = Field(None, ge=0)
-    cost_price: Optional[int] = Field(None, ge=0)
+    unit_price: Optional[float] = Field(None, ge=0)
+    cost_price: Optional[float] = Field(None, ge=0)
     currency: Optional[str] = Field(None, max_length=3)
     low_stock_threshold: Optional[int] = Field(None, ge=0)
     track_stock: Optional[bool] = None

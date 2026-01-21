@@ -1,8 +1,12 @@
 # app/services/email_service.py
 """
 Enhanced email service for sending verification emails.
-Uses SMTP with Jinja2 templates and improved security.
-Falls back to console logging when SMTP is not configured (dev mode).
+
+Supports two methods:
+1. Gmail API with OAuth 2.0 (RECOMMENDED for cloud environments like Railway)
+2. SMTP (fallback, often blocked by cloud providers)
+
+Priority: Gmail API > SMTP > Console logging (dev mode)
 """
 import smtplib
 from email.mime.text import MIMEText
@@ -17,6 +21,31 @@ from app.core.config import get_settings
 from app.core.models import User
 
 logger = logging.getLogger(__name__)
+
+# Gmail API service - disabled until credentials are configured
+# To enable: Set up Google OAuth credentials and change GMAIL_API_DISABLED to False
+GMAIL_API_DISABLED = True  # TODO: Set to False when you have Google credentials
+
+if GMAIL_API_DISABLED:
+    GMAIL_API_AVAILABLE = False
+    logger.info("Gmail API disabled - set GMAIL_API_DISABLED=False to enable when credentials ready")
+else:
+    # Try to import Gmail API service (optional dependency)
+    try:
+        from app.services.gmail_api_service import GmailAPIService, get_gmail_service
+        # Check if credentials are available
+        settings = get_settings()
+        if (settings.GOOGLE_CLIENT_ID and
+            settings.GOOGLE_CLIENT_SECRET and
+            settings.GOOGLE_REFRESH_TOKEN):
+            GMAIL_API_AVAILABLE = True
+            logger.info("Gmail API enabled with credentials")
+        else:
+            GMAIL_API_AVAILABLE = False
+            logger.info("Gmail API disabled - missing Google OAuth credentials")
+    except ImportError as e:
+        GMAIL_API_AVAILABLE = False
+        logger.info(f"Gmail API not available (missing dependencies): {e}")
 
 
 class EmailService:
@@ -110,43 +139,62 @@ class EmailService:
             return False
 
     def _send_email(self, to_email: str, subject: str, html_content: str, username: str) -> bool:
-        """Internal method to send email via SMTP or log to console"""
-        # Check if SMTP is configured
-        if not self.settings.SMTP_HOST or not self.settings.SMTP_USER:
+        """Internal method to send email via Gmail API, SMTP, or log to console"""
+
+        # Priority 1: Try Gmail API (works on cloud providers like Railway)
+        if GMAIL_API_AVAILABLE:
+            gmail_service = get_gmail_service()
+            if gmail_service.is_configured():
+                logger.info(f"Attempting to send email via Gmail API to {to_email}")
+                result = gmail_service.send_email(
+                    to_email=to_email,
+                    subject=subject,
+                    html_content=html_content,
+                    from_name=self.settings.SMTP_FROM_NAME
+                )
+                if result:
+                    return True
+                logger.warning(f"Gmail API failed for {to_email}, trying SMTP fallback...")
+
+        # Priority 2: Try SMTP (may be blocked on cloud providers)
+        if self.settings.SMTP_HOST and self.settings.SMTP_USER:
+            logger.info(f"Attempting to send email via SMTP to {to_email}")
+            try:
+                # Create message
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = subject
+                msg['From'] = f"{self.settings.SMTP_FROM_NAME} <{self.settings.SMTP_FROM_EMAIL}>"
+                msg['To'] = to_email
+
+                # Add HTML content
+                msg.attach(MIMEText(html_content, 'html'))
+
+                # Send email
+                with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT, timeout=30) as server:
+                    server.starttls()
+                    server.login(self.settings.SMTP_USER, self.settings.SMTP_PASSWORD.get_secret_value())
+                    server.send_message(msg)
+
+                logger.info(f"Email sent via SMTP to {to_email}: {subject}")
+                return True
+
+            except smtplib.SMTPAuthenticationError as e:
+                logger.error(f"SMTP Authentication failed for {to_email}: {e}. Check SMTP_USER and SMTP_PASSWORD")
+            except smtplib.SMTPConnectError as e:
+                logger.error(f"SMTP Connection failed for {to_email}: {e}. Gmail may be blocking connections from this IP")
+            except smtplib.SMTPException as e:
+                logger.error(f"SMTP Error for {to_email}: {type(e).__name__}: {e}")
+            except Exception as e:
+                logger.error(f"Failed to send email via SMTP to {to_email}: {type(e).__name__}: {e}")
+
+        # Priority 3: Dev mode - log to console
+        if not self.settings.SMTP_HOST and not (GMAIL_API_AVAILABLE and get_gmail_service().is_configured()):
             self._log_email_to_console(to_email, subject, html_content)
             return True  # Return True in dev mode so the flow continues
 
-        try:
-            # Create message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = f"{self.settings.SMTP_FROM_NAME} <{self.settings.SMTP_FROM_EMAIL}>"
-            msg['To'] = to_email
-
-            # Add HTML content
-            msg.attach(MIMEText(html_content, 'html'))
-
-            # Send email
-            with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT, timeout=30) as server:
-                server.starttls()
-                server.login(self.settings.SMTP_USER, self.settings.SMTP_PASSWORD.get_secret_value())
-                server.send_message(msg)
-
-            logger.info(f"Email sent to {to_email}: {subject}")
-            return True
-
-        except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"SMTP Authentication failed for {to_email}: {e}. Check SMTP_USER and SMTP_PASSWORD")
-            return False
-        except smtplib.SMTPConnectError as e:
-            logger.error(f"SMTP Connection failed for {to_email}: {e}. Gmail may be blocking connections from this IP")
-            return False
-        except smtplib.SMTPException as e:
-            logger.error(f"SMTP Error for {to_email}: {type(e).__name__}: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {type(e).__name__}: {e}")
-            return False
+        # All methods failed
+        logger.error(f"All email methods failed for {to_email}")
+        return False
 
     def _log_email_to_console(self, to_email: str, subject: str, html_content: str) -> None:
         """Log email to console when SMTP is not configured (development)"""
@@ -295,7 +343,13 @@ class EmailService:
         """
 
     def is_configured(self) -> bool:
-        """Check if email service is properly configured"""
+        """Check if email service is properly configured (Gmail API or SMTP)"""
+        # Check Gmail API first
+        if GMAIL_API_AVAILABLE:
+            gmail_service = get_gmail_service()
+            if gmail_service.is_configured():
+                return True
+        # Fall back to SMTP check
         return bool(self.settings.SMTP_HOST and self.settings.SMTP_USER)
 
 
@@ -303,6 +357,8 @@ class EmailService:
 def send_verification_email(to_email: str, verification_url: str, username: str, verification_token: str = None) -> bool:
     """
     Send email verification email.
+
+    Priority: Gmail API > SMTP > Dev mode (console logging)
 
     Args:
         to_email: Recipient email address
@@ -316,39 +372,44 @@ def send_verification_email(to_email: str, verification_url: str, username: str,
     # Extract token from URL if not provided
     if not verification_token and "token=" in verification_url:
         verification_token = verification_url.split("token=")[-1].split("&")[0]
+
     settings = get_settings()
 
-    # Check if SMTP is configured
-    if not settings.SMTP_HOST or not settings.SMTP_USER:
-        logger.warning("SMTP not configured - email verification in dev mode")
-        # In development, log the verification URL instead
-        logger.info(f"[DEV MODE] Verification URL for {to_email}: {verification_url}")
-        print(f"\n{'='*60}")
-        print(f"EMAIL VERIFICATION (Dev Mode - SMTP not configured)")
-        print(f"{'='*60}")
-        print(f"To: {to_email}")
-        print(f"Username: {username}")
-        print(f"Verification URL: {verification_url}")
-        print(f"{'='*60}\n")
-        return True  # Return True in dev mode so the flow continues
+    # Priority 1: Try Gmail API (works on cloud providers like Railway)
+    if GMAIL_API_AVAILABLE:
+        gmail_service = get_gmail_service()
+        if gmail_service.is_configured():
+            logger.info(f"Sending verification email via Gmail API to {to_email}")
+            result = gmail_service.send_verification_email(
+                to_email=to_email,
+                verification_url=verification_url,
+                username=username,
+                verification_token=verification_token
+            )
+            if result:
+                return True
+            logger.warning(f"Gmail API failed for {to_email}, trying SMTP fallback...")
 
-    try:
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = 'Verify Your Email Address - KS Automation'
-        msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
-        msg['To'] = to_email
+    # Priority 2: Try SMTP (may be blocked on cloud providers)
+    if settings.SMTP_HOST and settings.SMTP_USER:
+        logger.info(f"Sending verification email via SMTP to {to_email}")
+        try:
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = 'Verify Your Email Address - KS Automation'
+            msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+            msg['To'] = to_email
 
-        # Plain text version
-        token_text = ""
-        if verification_token:
-            token_text = f"""
+            # Plain text version
+            token_text = ""
+            if verification_token:
+                token_text = f"""
 Or copy and paste this verification code:
 
 {verification_token}
 
 """
-        text_content = f"""
+            text_content = f"""
 Hello {username},
 
 Please verify your email address by clicking the link below:
@@ -363,10 +424,10 @@ Best regards,
 The {settings.SMTP_FROM_NAME} Team
 """
 
-        # HTML version
-        token_section = ""
-        if verification_token:
-            token_section = f"""
+            # HTML version
+            token_section = ""
+            if verification_token:
+                token_section = f"""
             <div style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
                 <p style="margin: 0 0 10px 0; color: #166534; font-weight: 600; font-size: 14px;">Your Verification Code:</p>
                 <div style="background: #ffffff; border: 1px dashed #10b981; border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; font-size: 14px; letter-spacing: 1px; word-break: break-all; color: #1f2937;">
@@ -376,7 +437,7 @@ The {settings.SMTP_FROM_NAME} Team
             </div>
             """
 
-        html_content = f"""
+            html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -387,7 +448,6 @@ The {settings.SMTP_FROM_NAME} Team
         .header h1 {{ margin: 0; font-size: 24px; font-weight: 600; }}
         .content {{ background: #ffffff; padding: 40px 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; }}
         .button {{ display: inline-block; background: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; }}
-        .button:hover {{ background: #059669; }}
         .link-box {{ background: #f3f4f6; padding: 12px; border-radius: 6px; font-size: 13px; word-break: break-all; color: #6b7280; margin-top: 20px; }}
         .footer {{ text-align: center; margin-top: 30px; color: #9ca3af; font-size: 12px; }}
         .expire-notice {{ background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 12px; margin: 20px 0; font-size: 14px; color: #92400e; }}
@@ -429,27 +489,44 @@ The {settings.SMTP_FROM_NAME} Team
 </html>
 """
 
-        msg.attach(MIMEText(text_content, 'plain'))
-        msg.attach(MIMEText(html_content, 'html'))
+            msg.attach(MIMEText(text_content, 'plain'))
+            msg.attach(MIMEText(html_content, 'html'))
 
-        # Send email
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
-            server.starttls()
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD.get_secret_value())
-            server.send_message(msg)
+            # Send email via SMTP
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
+                server.starttls()
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD.get_secret_value())
+                server.send_message(msg)
 
-        logger.info(f"Verification email sent to {to_email}")
-        return True
+            logger.info(f"Verification email sent via SMTP to {to_email}")
+            return True
 
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"SMTP Authentication failed for {to_email}: {e}. Check SMTP_USER and SMTP_PASSWORD (use Gmail App Password)")
-        return False
-    except smtplib.SMTPConnectError as e:
-        logger.error(f"SMTP Connection failed for {to_email}: {e}. Gmail may be blocking connections from this IP (common for cloud providers)")
-        return False
-    except smtplib.SMTPException as e:
-        logger.error(f"SMTP Error for {to_email}: {type(e).__name__}: {e}")
-        return False
-    except Exception as e:
-        logger.error(f"Failed to send verification email to {to_email}: {type(e).__name__}: {e}")
-        return False
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"SMTP Authentication failed for {to_email}: {e}. Check SMTP_USER and SMTP_PASSWORD")
+        except smtplib.SMTPConnectError as e:
+            logger.error(f"SMTP Connection failed for {to_email}: {e}. Gmail may block cloud provider IPs")
+        except smtplib.SMTPException as e:
+            logger.error(f"SMTP Error for {to_email}: {type(e).__name__}: {e}")
+        except Exception as e:
+            logger.error(f"SMTP failed for {to_email}: {type(e).__name__}: {e}")
+
+    # Priority 3: Dev mode - log to console
+    gmail_configured = GMAIL_API_AVAILABLE and get_gmail_service().is_configured()
+    smtp_configured = settings.SMTP_HOST and settings.SMTP_USER
+
+    if not gmail_configured and not smtp_configured:
+        logger.warning("No email service configured - using dev mode")
+        print(f"\n{'='*60}")
+        print(f"EMAIL VERIFICATION (Dev Mode)")
+        print(f"{'='*60}")
+        print(f"To: {to_email}")
+        print(f"Username: {username}")
+        print(f"Verification URL: {verification_url}")
+        if verification_token:
+            print(f"Token: {verification_token}")
+        print(f"{'='*60}\n")
+        return True  # Return True in dev mode
+
+    # All configured methods failed
+    logger.error(f"All email methods failed for {to_email}")
+    return False

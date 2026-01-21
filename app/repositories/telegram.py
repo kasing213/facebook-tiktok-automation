@@ -55,26 +55,61 @@ class TelegramRepository(BaseRepository[TelegramLinkCode]):
         """
         Mark code as used and link Telegram account to user.
         Returns the updated User if successful, None otherwise.
+
+        Handles the case where Telegram ID is already linked to another user
+        by unlinking it from the previous user first.
         """
+        from sqlalchemy.exc import IntegrityError
+
         link_code = self.get_valid_code(code)
         if not link_code:
             return None
 
-        # Mark code as used
-        now = datetime.now(timezone.utc)
-        link_code.used_at = now
-        link_code.telegram_user_id = telegram_user_id
-
-        # Update user with Telegram info
+        # Get the target user
         user = self.db.query(User).filter(User.id == link_code.user_id).first()
-        if user:
+        if not user:
+            return None
+
+        try:
+            # Check if this Telegram ID is already linked to another user in this tenant
+            existing_user = self.db.query(User).filter(
+                User.telegram_user_id == telegram_user_id,
+                User.tenant_id == user.tenant_id,
+                User.id != user.id  # Exclude current user
+            ).first()
+
+            if existing_user:
+                # Unlink from previous user first
+                existing_user.telegram_user_id = None
+                existing_user.telegram_username = None
+                existing_user.telegram_linked_at = None
+                self.db.flush()
+
+            # Mark code as used
+            now = datetime.now(timezone.utc)
+            link_code.used_at = now
+            link_code.telegram_user_id = telegram_user_id
+
+            # Link to new user
             user.telegram_user_id = telegram_user_id
             user.telegram_username = telegram_username
             user.telegram_linked_at = now
+
             self.db.flush()
             self.db.refresh(user)
 
-        return user
+            return user
+
+        except IntegrityError as e:
+            # Handle any remaining constraint violations
+            self.db.rollback()
+
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Telegram linking constraint violation: {e}")
+
+            return None
 
     def get_user_telegram_status(self, user_id: UUID) -> Dict[str, Any]:
         """Get Telegram connection status for a user"""

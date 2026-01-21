@@ -640,6 +640,8 @@ class VerifyEmailRequest(BaseModel):
 class SendVerificationEmailResponse(BaseModel):
     """Response for send verification email"""
     message: str
+    email_sent: bool = True
+    verification_token: Optional[str] = None  # Only included if email fails, for manual verification
 
 
 # Email Verification Endpoints

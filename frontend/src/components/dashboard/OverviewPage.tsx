@@ -9,26 +9,6 @@ import facebookLogo from '../../assets/images/social/facebook-logo.png'
 import tiktokLogo from '../../assets/images/social/tiktok-logo.png'
 import telegramLogo from '../../assets/images/social/telegram-logo.png'
 
-// Color constants (blue theme)
-const COLORS = {
-  primary: '#4a90e2',
-  primaryDark: '#2a5298',
-  primaryLight: '#e8f4fd',
-  primaryLightBorder: '#d1e7f8',
-  success: '#10b981',
-  successLight: '#d1fae5',
-  warning: '#f59e0b',
-  warningLight: '#fef3c7',
-  error: '#ef4444',
-  errorLight: '#fee2e2',
-  textPrimary: '#1f2937',
-  textSecondary: '#6b7280',
-  textMuted: '#9ca3af',
-  border: '#e5e7eb',
-  borderLight: '#f3f4f6',
-  bgLight: '#f9fafb',
-}
-
 const Container = styled.div`
   max-width: 1200px;
   margin: 0 auto;
@@ -51,19 +31,21 @@ const StatsGrid = styled.div`
 `
 
 const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 0.75rem;
-  border: 1px solid ${COLORS.border};
+  border: 1px solid ${props => props.theme.border};
   padding: 1.25rem;
   opacity: ${props => props.$isVisible ? 1 : 0};
   transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
   transition: opacity 0.5s ${easings.easeOutCubic},
               transform 0.5s ${easings.easeOutCubic},
-              box-shadow 0.2s ease;
+              box-shadow 0.2s ease,
+              background-color 0.3s ease,
+              border-color 0.3s ease;
   transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
     transform: ${props => props.$isVisible ? 'translateY(-2px)' : 'translateY(20px)'};
   }
 
@@ -79,7 +61,7 @@ const StatHeader = styled.div`
 
 const StatLabel = styled.span`
   font-size: 0.875rem;
-  color: ${COLORS.textSecondary};
+  color: ${props => props.theme.textSecondary};
 `
 
 const StatBadge = styled.span<{ $variant?: 'success' | 'warning' | 'info' }>`
@@ -92,18 +74,18 @@ const StatBadge = styled.span<{ $variant?: 'success' | 'warning' | 'info' }>`
     switch (props.$variant) {
       case 'success':
         return `
-          background: ${COLORS.successLight};
-          color: ${COLORS.success};
+          background: ${props.theme.successLight};
+          color: ${props.theme.success};
         `
       case 'warning':
         return `
-          background: ${COLORS.warningLight};
-          color: ${COLORS.warning};
+          background: ${props.theme.warningLight};
+          color: ${props.theme.warning};
         `
       default:
         return `
-          background: ${COLORS.primaryLight};
-          color: ${COLORS.primaryDark};
+          background: ${props.theme.accentLight};
+          color: ${props.theme.accentDark};
         `
     }
   }}
@@ -112,23 +94,23 @@ const StatBadge = styled.span<{ $variant?: 'success' | 'warning' | 'info' }>`
 const StatValue = styled.p`
   font-size: 1.5rem;
   font-weight: 600;
-  color: ${COLORS.textPrimary};
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
 const StatSubtext = styled.p`
   font-size: 0.75rem;
-  color: ${COLORS.textMuted};
+  color: ${props => props.theme.textMuted};
   margin: 0.25rem 0 0 0;
 `
 
 const StatPlatforms = styled.p`
   font-size: 0.75rem;
-  color: ${COLORS.textMuted};
+  color: ${props => props.theme.textMuted};
   margin: 0.25rem 0 0 0;
 
   .fb {
-    color: ${COLORS.primary};
+    color: ${props => props.theme.accent};
   }
 `
 
@@ -145,15 +127,16 @@ const TwoColumnGrid = styled.div`
 
 // Activity Feed
 const ActivityCard = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 0.75rem;
-  border: 1px solid ${COLORS.border};
+  border: 1px solid ${props => props.theme.border};
   overflow: hidden;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 `
 
 const CardHeader = styled.div`
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid ${COLORS.borderLight};
+  border-bottom: 1px solid ${props => props.theme.borderLight};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -162,18 +145,18 @@ const CardHeader = styled.div`
 const CardTitle = styled.h3`
   font-size: 1rem;
   font-weight: 500;
-  color: ${COLORS.textPrimary};
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
 const ViewAllLink = styled.a`
   font-size: 0.875rem;
-  color: ${COLORS.primary};
+  color: ${props => props.theme.accent};
   text-decoration: none;
   cursor: pointer;
 
   &:hover {
-    color: ${COLORS.primaryDark};
+    color: ${props => props.theme.accentDark};
   }
 `
 
@@ -184,7 +167,7 @@ const ActivityItem = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   display: flex;
   align-items: center;
   gap: 1rem;
-  border-bottom: 1px solid ${COLORS.borderLight};
+  border-bottom: 1px solid ${props => props.theme.borderLight};
   opacity: ${props => props.$isVisible ? 1 : 0};
   transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(-15px)'};
   transition: opacity 0.4s ${easings.easeOutCubic},
@@ -193,7 +176,7 @@ const ActivityItem = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
-    background: ${COLORS.bgLight};
+    background: ${props => props.theme.cardHover};
   }
 
   &:last-child {
@@ -216,18 +199,18 @@ const ActivityIcon = styled.div<{ $variant: 'success' | 'warning' | 'info' }>`
     switch (props.$variant) {
       case 'success':
         return `
-          background: ${COLORS.successLight};
-          color: ${COLORS.success};
+          background: ${props.theme.successLight};
+          color: ${props.theme.success};
         `
       case 'warning':
         return `
-          background: ${COLORS.warningLight};
-          color: ${COLORS.warning};
+          background: ${props.theme.warningLight};
+          color: ${props.theme.warning};
         `
       default:
         return `
-          background: ${COLORS.primaryLight};
-          color: ${COLORS.primary};
+          background: ${props.theme.accentLight};
+          color: ${props.theme.accent};
         `
     }
   }}
@@ -240,7 +223,7 @@ const ActivityContent = styled.div`
 
 const ActivityTitle = styled.p`
   font-size: 0.875rem;
-  color: ${COLORS.textPrimary};
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
@@ -249,16 +232,16 @@ const ActivityMeta = styled.p<{ $variant?: 'success' | 'warning' }>`
   margin: 0;
   color: ${props => {
     switch (props.$variant) {
-      case 'success': return COLORS.success
-      case 'warning': return COLORS.warning
-      default: return COLORS.textMuted
+      case 'success': return props.theme.success
+      case 'warning': return props.theme.warning
+      default: return props.theme.textMuted
     }
   }};
 `
 
 const ActivityTime = styled.span`
   font-size: 0.75rem;
-  color: ${COLORS.textMuted};
+  color: ${props => props.theme.textMuted};
   flex-shrink: 0;
 `
 
@@ -271,9 +254,10 @@ const RightColumn = styled.div`
 
 // Connected Platforms
 const PlatformCard = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 0.75rem;
-  border: 1px solid ${COLORS.border};
+  border: 1px solid ${props => props.theme.border};
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 `
 
 const PlatformList = styled.div`
@@ -288,7 +272,7 @@ const PlatformItem = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem;
-  background: ${COLORS.bgLight};
+  background: ${props => props.theme.cardHover};
   border-radius: 0.5rem;
   opacity: ${props => props.$isVisible ? 1 : 0};
   transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(10px)'};
@@ -315,13 +299,13 @@ const PlatformIcon = styled.img`
 const PlatformName = styled.p`
   font-size: 0.875rem;
   font-weight: 500;
-  color: ${COLORS.textPrimary};
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
 const PlatformDetail = styled.p`
   font-size: 0.75rem;
-  color: ${COLORS.textSecondary};
+  color: ${props => props.theme.textSecondary};
   margin: 0;
 `
 
@@ -329,32 +313,33 @@ const StatusDot = styled.span`
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 9999px;
-  background: ${COLORS.success};
+  background: ${props => props.theme.success};
 `
 
 const ManageButton = styled.a`
   display: block;
   text-align: center;
   font-size: 0.875rem;
-  color: ${COLORS.primary};
+  color: ${props => props.theme.accent};
   padding: 0.5rem;
   margin: 0 1rem 1rem;
-  border: 1px solid ${COLORS.primaryLightBorder};
+  border: 1px solid ${props => props.theme.accentLightBorder};
   border-radius: 0.5rem;
   text-decoration: none;
   cursor: pointer;
   transition: all 0.2s;
 
   &:hover {
-    background: ${COLORS.primaryLight};
+    background: ${props => props.theme.accentLight};
   }
 `
 
 // Quick Actions
 const QuickActionsCard = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 0.75rem;
-  border: 1px solid ${COLORS.border};
+  border: 1px solid ${props => props.theme.border};
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 `
 
 const QuickActionsList = styled.div`
@@ -371,7 +356,7 @@ const QuickActionItem = styled.a`
   padding: 0.75rem;
   border-radius: 0.5rem;
   text-decoration: none;
-  color: ${COLORS.textSecondary};
+  color: ${props => props.theme.textSecondary};
   font-size: 0.875rem;
   cursor: pointer;
   transition: background 0.2s ease,
@@ -379,8 +364,8 @@ const QuickActionItem = styled.a`
               transform 0.2s ${easings.easeOutCubic};
 
   &:hover {
-    background: ${COLORS.bgLight};
-    color: ${COLORS.textPrimary};
+    background: ${props => props.theme.cardHover};
+    color: ${props => props.theme.textPrimary};
     transform: translateX(4px);
   }
 
@@ -403,18 +388,18 @@ const QuickActionIcon = styled.div<{ $color: 'blue' | 'green' | 'amber' }>`
     switch (props.$color) {
       case 'green':
         return `
-          background: ${COLORS.successLight};
-          color: ${COLORS.success};
+          background: ${props.theme.successLight};
+          color: ${props.theme.success};
         `
       case 'amber':
         return `
-          background: ${COLORS.warningLight};
-          color: ${COLORS.warning};
+          background: ${props.theme.warningLight};
+          color: ${props.theme.warning};
         `
       default:
         return `
-          background: ${COLORS.primaryLight};
-          color: ${COLORS.primary};
+          background: ${props.theme.accentLight};
+          color: ${props.theme.accent};
         `
     }
   }}

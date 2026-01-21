@@ -2,11 +2,13 @@
 """PostgreSQL database connection for API Gateway."""
 
 import logging
+import os
 from contextlib import contextmanager
 from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from src.config import settings
 
@@ -18,39 +20,63 @@ SessionLocal = None
 
 
 def _get_psycopg3_url(url: str) -> str:
-    """Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver."""
+    """
+    Convert postgresql:// to postgresql+psycopg:// for psycopg3 driver.
+    Also adds prepare_threshold=0 to disable prepared statements for pgbouncer.
+    """
+    # First, fix the dialect
     if url.startswith("postgresql://"):
-        return url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+psycopg://", 1)
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
+
+    # Add prepare_threshold=0 to URL query string (psycopg3 reads this from URL)
+    # This is CRITICAL for pgbouncer Transaction mode compatibility
+    if "?" in url:
+        if "prepare_threshold" not in url:
+            url += "&prepare_threshold=0"
+    else:
+        url += "?prepare_threshold=0"
+
     return url
 
 
 def init_postgres():
-    """Initialize PostgreSQL connection."""
+    """Initialize PostgreSQL connection with NullPool for pgbouncer Transaction mode."""
     global engine, SessionLocal
 
     if not settings.DATABASE_URL:
         logger.warning("DATABASE_URL not set - PostgreSQL disabled")
         return
 
-    # NOTE: Pool sizes kept MINIMAL for Supabase pooler compatibility
-    # Main backend + API Gateway share the same database, must stay under pooler limits
-    # Using psycopg3 with Transaction mode (port 6543) for better connection handling
+    # PRODUCTION configuration for pgbouncer TRANSACTION MODE
+    #
+    # KEY INSIGHT: With pgbouncer Transaction mode, let pgbouncer handle ALL pooling.
+    # Using NullPool means SQLAlchemy doesn't maintain its own connection pool.
+    # This ELIMINATES the "DuplicatePreparedStatement" errors because:
+    # - No SQLAlchemy-level connection reuse
+    # - No pool_pre_ping (which uses prepared statements)
+    # - Each request gets a fresh connection from pgbouncer
     engine = create_engine(
         _get_psycopg3_url(settings.DATABASE_URL),
-        pool_pre_ping=True,
-        pool_size=1,              # MINIMAL - one connection per pool
-        max_overflow=2,           # Total max: 3 connections per instance
-        pool_recycle=300,         # recycle connections every 5 min (aggressive)
-        pool_timeout=10,          # fail fast if pool exhausted
+
+        # CRITICAL: Use NullPool for pgbouncer Transaction mode
+        # This prevents "DuplicatePreparedStatement" errors
+        poolclass=NullPool,
+
+        # Transaction mode isolation
+        isolation_level="AUTOCOMMIT",
+
         connect_args={
-            # CRITICAL: Disable prepared statements for pgbouncer Transaction mode (port 6543)
-            # pgbouncer doesn't support prepared statements - this is a psycopg3 option
-            "prepare_threshold": 0,
+            "connect_timeout": 15,
+            "options": "-c timezone=utc -c default_transaction_isolation=read_committed",
+            "application_name": f"api_gateway_{os.getpid()}",
+            "client_encoding": "utf8",
+            "autocommit": True,
         },
     )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    logger.info(f"PostgreSQL initialized with NullPool (PID: {os.getpid()})")
 
 
 def close_postgres():

@@ -289,6 +289,157 @@ async def handle_batch_registration(
 
 
 # ============================================================================
+# Ads Alert Subscription Commands (for customers)
+# ============================================================================
+
+@router.message(Command("subscribe_ads"))
+async def cmd_subscribe_ads(message: types.Message):
+    """Handle /subscribe_ads command - customer subscribes to promotional broadcasts."""
+    telegram_id = str(message.from_user.id)
+
+    # Check if registered customer
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+    if not customer:
+        await message.answer(
+            "You need to register first before managing ads preferences.\n"
+            "Please contact your merchant for a registration link."
+        )
+        return
+
+    # Check current subscription status
+    status = await client_linking_service.get_ads_alert_subscription_status(telegram_id)
+
+    if not status:
+        # Not registered in ads_alert yet - this shouldn't happen with auto-registration
+        # but handle it gracefully by trying to register them
+        ads_result = await client_linking_service.register_customer_in_ads_alert(
+            tenant_id=customer.get("tenant_id"),
+            customer_id=customer.get("id"),
+            telegram_chat_id=telegram_id,
+            customer_name=customer.get("name")
+        )
+        if ads_result:
+            await message.answer(
+                "<b>Subscribed!</b>\n\n"
+                "You are now subscribed to promotional messages from your merchant.\n"
+                "Use /unsubscribe_ads to stop receiving promotions."
+            )
+        else:
+            await message.answer(
+                "Sorry, there was an error subscribing. Please try again later."
+            )
+        return
+
+    if status.get("subscribed"):
+        await message.answer(
+            "<b>Already Subscribed</b>\n\n"
+            "You're already subscribed to promotional messages.\n"
+            "Use /unsubscribe_ads if you want to stop receiving promotions."
+        )
+        return
+
+    # Subscribe the customer
+    success = await client_linking_service.update_ads_alert_subscription(telegram_id, subscribed=True)
+
+    if success:
+        await message.answer(
+            "<b>Subscribed!</b>\n\n"
+            "You will now receive promotional messages from your merchant.\n"
+            "Use /unsubscribe_ads to stop receiving promotions."
+        )
+    else:
+        await message.answer(
+            "Sorry, there was an error subscribing. Please try again later."
+        )
+
+
+@router.message(Command("unsubscribe_ads"))
+async def cmd_unsubscribe_ads(message: types.Message):
+    """Handle /unsubscribe_ads command - customer unsubscribes from promotional broadcasts."""
+    telegram_id = str(message.from_user.id)
+
+    # Check if registered customer
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+    if not customer:
+        await message.answer(
+            "You need to register first before managing ads preferences.\n"
+            "Please contact your merchant for a registration link."
+        )
+        return
+
+    # Check current subscription status
+    status = await client_linking_service.get_ads_alert_subscription_status(telegram_id)
+
+    if not status:
+        await message.answer(
+            "You are not registered for promotional messages.\n"
+            "There's nothing to unsubscribe from."
+        )
+        return
+
+    if not status.get("subscribed"):
+        await message.answer(
+            "<b>Already Unsubscribed</b>\n\n"
+            "You're not receiving promotional messages.\n"
+            "Use /subscribe_ads if you want to receive promotions again."
+        )
+        return
+
+    # Unsubscribe the customer
+    success = await client_linking_service.update_ads_alert_subscription(telegram_id, subscribed=False)
+
+    if success:
+        await message.answer(
+            "<b>Unsubscribed</b>\n\n"
+            "You will no longer receive promotional messages from your merchant.\n"
+            "You will still receive invoice notifications.\n\n"
+            "Use /subscribe_ads to start receiving promotions again."
+        )
+    else:
+        await message.answer(
+            "Sorry, there was an error unsubscribing. Please try again later."
+        )
+
+
+@router.message(Command("ads_status"))
+async def cmd_ads_status(message: types.Message):
+    """Handle /ads_status command - check promotional message subscription status."""
+    telegram_id = str(message.from_user.id)
+
+    # Check if registered customer
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+    if not customer:
+        await message.answer(
+            "You need to register first to check ads status.\n"
+            "Please contact your merchant for a registration link."
+        )
+        return
+
+    # Get subscription status
+    status = await client_linking_service.get_ads_alert_subscription_status(telegram_id)
+
+    if not status:
+        await message.answer(
+            "<b>Ads Subscription Status</b>\n\n"
+            "Status: <b>Not Registered</b>\n\n"
+            "You are not registered for promotional messages.\n"
+            "Use /subscribe_ads to start receiving promotions."
+        )
+        return
+
+    subscribed = status.get("subscribed", False)
+    status_text = "Subscribed" if subscribed else "Unsubscribed"
+    status_icon = "[OK]" if subscribed else "[X]"
+
+    await message.answer(
+        f"<b>Ads Subscription Status</b>\n\n"
+        f"Status: {status_icon} <b>{status_text}</b>\n\n"
+        f"{'You will receive promotional messages from your merchant.' if subscribed else 'You will NOT receive promotional messages.'}\n\n"
+        f"{'Use /unsubscribe_ads to stop' if subscribed else 'Use /subscribe_ads to start'} receiving promotions."
+    )
+
+
+# ============================================================================
 # Client Payment Verification Flow
 # ============================================================================
 

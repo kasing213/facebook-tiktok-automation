@@ -12,7 +12,8 @@ const LayoutGrid = styled.div`
   grid-template-columns: 250px 1fr;
   grid-template-rows: 60px 1fr;
   min-height: 100vh;
-  background: #f8f9fa;
+  background: ${props => props.theme.backgroundSecondary};
+  transition: background-color 0.3s ease;
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
