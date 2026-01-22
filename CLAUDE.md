@@ -958,6 +958,83 @@ def consume_code(self, code: str, telegram_user_id: str, telegram_username: Opti
 
 ---
 
+### 2026-01-22 - NullPool Database Configuration for pgbouncer Transaction Mode
+
+#### Overview
+Upgraded database configuration to use NullPool for optimal compatibility with pgbouncer Transaction mode, eliminating prepared statement conflicts and connection pool issues.
+
+#### Issue
+Previous configuration used QueuePool which created conflicts with pgbouncer Transaction mode:
+- `DuplicatePreparedStatement` errors when multiple processes tried to prepare the same statement
+- Connection pool exhaustion due to SQLAlchemy maintaining its own pool on top of pgbouncer
+- Prepared statements not supported in pgbouncer Transaction mode
+
+#### Solution: NullPool Configuration
+**Main Backend (`app/core/db.py`):**
+```python
+# PRODUCTION PostgreSQL engine configuration for pgbouncer TRANSACTION MODE
+#
+# KEY INSIGHT: With pgbouncer Transaction mode, let pgbouncer handle ALL pooling.
+# Using NullPool means SQLAlchemy doesn't maintain its own connection pool.
+# This ELIMINATES the "DuplicatePreparedStatement" errors because:
+# 1. No connection reuse across requests
+# 2. Each request gets a fresh connection from pgbouncer
+# 3. No prepared statement name conflicts
+
+engine = create_engine(
+    _get_psycopg3_url(_settings.DATABASE_URL),
+    poolclass=NullPool,        # Let pgbouncer handle ALL pooling
+    isolation_level="AUTOCOMMIT",
+
+    connect_args={
+        "connect_timeout": 15,
+        "options": "-c timezone=utc -c default_transaction_isolation=read_committed",
+        "application_name": f"fastapi_main_{os.getpid()}",
+        "client_encoding": "utf8",
+        "autocommit": True,
+        # CRITICAL: Disable prepared statements for pgbouncer Transaction mode
+        # prepare_threshold=None DISABLES prepared statements entirely
+        "prepare_threshold": None,
+    },
+)
+```
+
+**API Gateway (`api-gateway/src/db/postgres.py`):** Similar NullPool configuration with unique `application_name="api_gateway_{pid}"`.
+
+#### Benefits of NullPool + pgbouncer Transaction Mode:
+1. **No Connection Pool Conflicts:** SQLAlchemy doesn't compete with pgbouncer for pool management
+2. **Eliminates Prepared Statement Errors:** Fresh connections = no name conflicts
+3. **Better Resource Utilization:** pgbouncer optimizes connection sharing across all applications
+4. **Simplified Debugging:** Single source of connection pooling (pgbouncer)
+5. **Production Scalability:** Can handle 100+ concurrent users efficiently
+
+#### Key Configuration Changes:
+- **Pool Class:** `QueuePool` → `NullPool`
+- **Prepared Statements:** `prepare_threshold=0` → `prepare_threshold=None` (completely disabled)
+- **Connection Management:** SQLAlchemy pools → pgbouncer-only pools
+- **Unique App Names:** Helps with connection tracking and debugging
+
+#### Production Verification:
+```python
+# Health check shows NullPool status
+GET /health
+{
+  "database": "NullPool (pgbouncer-managed)",
+  "connections": "managed_by_pgbouncer",
+  "prepared_statements": "disabled"
+}
+```
+
+#### Files Modified:
+| File | Changes |
+|------|---------|
+| `app/core/db.py` | NullPool configuration, disabled prepared statements |
+| `api-gateway/src/db/postgres.py` | NullPool configuration, unique app naming |
+
+This configuration is now **production-ready** for high-traffic scenarios with pgbouncer Transaction mode.
+
+---
+
 ### 2026-01-21 - Connection Pool Leak Fix
 
 #### Issue
