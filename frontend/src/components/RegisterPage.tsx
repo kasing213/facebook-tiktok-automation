@@ -13,7 +13,7 @@ import {
 } from '../styles/animations'
 
 // Modern register page based on Figma design
-// Colors: Light blue (#91DDFF to #769EAD gradient), White background
+// Supports light and dark mode via ThemeContext
 // Font: Roboto
 
 const PageContainer = styled.div`
@@ -21,10 +21,11 @@ const PageContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
+  background: ${props => props.theme.background};
   padding: 2rem;
   position: relative;
   overflow: hidden;
+  transition: background-color 0.3s ease;
 `
 
 const DecorativeShape1 = styled.div`
@@ -33,12 +34,13 @@ const DecorativeShape1 = styled.div`
   right: -100px;
   width: 340px;
   height: 245px;
-  background: #4a90e2;
+  background: ${props => props.theme.accent};
   border-radius: 26px;
   transform: rotate(-15deg);
-  box-shadow: 4px -2px 4px rgba(0, 0, 0, 0.13);
+  box-shadow: 4px -2px 4px ${props => props.theme.shadowColor};
   animation: ${fadeIn} 0.8s ${easings.easeOutCubic} 0.2s both;
   opacity: 0.8;
+  transition: background-color 0.3s ease;
   ${reduceMotion}
 `
 
@@ -48,17 +50,18 @@ const DecorativeShape2 = styled.div`
   right: -150px;
   width: 320px;
   height: 239px;
-  background: #2a5298;
+  background: ${props => props.theme.accentDark};
   border-radius: 26px;
   transform: rotate(-15deg);
-  box-shadow: 4px -2px 4px rgba(0, 0, 0, 0.13);
+  box-shadow: 4px -2px 4px ${props => props.theme.shadowColor};
   animation: ${fadeIn} 0.8s ${easings.easeOutCubic} both;
   opacity: 0.9;
+  transition: background-color 0.3s ease;
   ${reduceMotion}
 `
 
 const RegisterCard = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 0;
   padding: 2rem 2.5rem 3rem;
   width: 100%;
@@ -66,6 +69,7 @@ const RegisterCard = styled.div`
   position: relative;
   z-index: 1;
   animation: ${fadeInUp} 0.6s ${easings.easeOutCubic} both;
+  transition: background-color 0.3s ease;
   ${reduceMotion}
 
   @media (max-width: 480px) {
@@ -77,20 +81,22 @@ const Title = styled.h2`
   font-family: 'Roboto', sans-serif;
   font-weight: 700;
   font-size: 24px;
-  color: #000000;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 0.5rem 0;
   text-align: center;
   line-height: 28px;
+  transition: color 0.3s ease;
 `
 
 const Subtitle = styled.p`
   font-family: 'Roboto', sans-serif;
   font-weight: 400;
   font-size: 14px;
-  color: #515151;
+  color: ${props => props.theme.textSecondary};
   margin: 0 0 2.5rem 0;
   text-align: center;
   line-height: 28px;
+  transition: color 0.3s ease;
 `
 
 const Form = styled.form`
@@ -109,26 +115,27 @@ const Input = styled.input`
   width: 100%;
   height: 61px;
   padding: 0 1rem 0 3rem;
-  background: #F3F3F3;
+  background: ${props => props.theme.backgroundTertiary};
   border: 2px solid transparent;
   border-radius: 5px;
   font-family: 'Roboto', sans-serif;
   font-size: 14px;
-  color: #515151;
+  color: ${props => props.theme.textPrimary};
   box-sizing: border-box;
   transition: background-color 0.2s ease,
               border-color 0.2s ease,
-              box-shadow 0.2s ease;
+              box-shadow 0.2s ease,
+              color 0.2s ease;
 
   &::placeholder {
-    color: #515151;
+    color: ${props => props.theme.textSecondary};
   }
 
   &:focus {
     outline: none;
-    background: #EBEBEB;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    background: ${props => props.theme.backgroundSecondary};
+    border-color: ${props => props.theme.accent};
+    box-shadow: 0 0 0 3px ${props => props.theme.accentLight};
   }
 
   ${reduceMotion}
@@ -143,19 +150,21 @@ const InputWithIcon = styled.div`
 const InputIcon = styled.div`
   position: absolute;
   left: 20px;
-  color: #515151;
+  color: ${props => props.theme.textSecondary};
   font-size: 14px;
   pointer-events: none;
   display: flex;
   align-items: center;
   height: 100%;
+  transition: color 0.3s ease;
 
   svg {
     width: 16px;
     height: 16px;
-    stroke: #515151;
+    stroke: ${props => props.theme.textSecondary};
     fill: none;
     stroke-width: 1.3px;
+    transition: stroke 0.3s ease;
   }
 `
 
@@ -169,23 +178,24 @@ const RegisterButton = styled.button`
   font-weight: 700;
   font-size: 16px;
   color: #FFFFFF;
-  background: linear-gradient(180deg, #4a90e2 0%, #2a5298 100%);
+  background: linear-gradient(180deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
   cursor: pointer;
-  box-shadow: 0px 5px 7px rgba(0, 0, 0, 0.19);
+  box-shadow: 0px 5px 7px ${props => props.theme.shadowColor};
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ${easings.easeOutCubic},
-              box-shadow 0.2s ${easings.easeOutCubic};
+              box-shadow 0.2s ${easings.easeOutCubic},
+              background 0.3s ease;
 
   &:hover:not(:disabled) {
     transform: translateY(-2px) scale(1.02);
-    box-shadow: 0px 8px 16px rgba(74, 144, 226, 0.35);
+    box-shadow: 0px 8px 16px ${props => props.theme.shadowColor};
   }
 
   &:active:not(:disabled) {
     transform: translateY(0) scale(0.98);
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0px 4px 8px ${props => props.theme.shadowColor};
   }
 
   &:disabled {
@@ -204,17 +214,19 @@ const SignInSection = styled.div`
   span {
     font-family: 'Roboto', sans-serif;
     font-size: 16px;
-    color: #000000;
+    color: ${props => props.theme.textPrimary};
+    transition: color 0.3s ease;
   }
 
   a {
     font-family: 'Roboto', sans-serif;
     font-weight: 700;
     font-size: 16px;
-    color: #000000;
+    color: ${props => props.theme.accent};
     text-decoration: none;
     margin-left: 0.5rem;
     cursor: pointer;
+    transition: color 0.3s ease;
 
     &:hover {
       text-decoration: underline;
@@ -223,26 +235,28 @@ const SignInSection = styled.div`
 `
 
 const ErrorMessage = styled.div`
-  background: #fee;
-  color: #c33;
+  background: ${props => props.theme.errorLight};
+  color: ${props => props.theme.error};
   padding: 0.75rem 1rem;
   border-radius: 5px;
   font-size: 0.9rem;
   margin-bottom: 1rem;
-  border-left: 3px solid #c33;
+  border-left: 3px solid ${props => props.theme.error};
   animation: ${shake} 0.4s ease, ${fadeInDown} 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
   ${reduceMotion}
 `
 
 const SuccessMessage = styled.div`
-  background: #efe;
-  color: #3c3;
+  background: ${props => props.theme.successLight};
+  color: ${props => props.theme.success};
   padding: 0.75rem 1rem;
   border-radius: 5px;
   font-size: 0.9rem;
   margin-bottom: 1rem;
-  border-left: 3px solid #3c3;
+  border-left: 3px solid ${props => props.theme.success};
   animation: ${fadeInDown} 0.3s ${easings.easeOutCubic};
+  transition: background-color 0.3s ease, color 0.3s ease;
   ${reduceMotion}
 `
 

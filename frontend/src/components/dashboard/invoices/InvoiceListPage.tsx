@@ -5,6 +5,8 @@ import { useInvoices } from '../../../hooks/useInvoices'
 import { useSubscription } from '../../../hooks/useSubscription'
 import { InvoiceTable } from '../../invoice'
 import { Invoice, InvoiceStatus } from '../../../types/invoice'
+import { easings, reduceMotion } from '../../../styles/animations'
+import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -23,7 +25,7 @@ const Header = styled.div`
 const Title = styled.h1`
   font-size: 2rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
@@ -41,21 +43,21 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   transition: all 0.2s ease;
 
   ${props => props.$variant === 'primary' ? `
-    background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+    background: linear-gradient(135deg, ${props.theme.accent} 0%, ${props.theme.accentDark} 100%);
     color: white;
     border: none;
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+      box-shadow: 0 2px 8px ${props.theme.shadowColor};
     }
   ` : `
-    background: white;
-    color: #6b7280;
-    border: 1px solid #e5e7eb;
+    background: ${props.theme.card};
+    color: ${props.theme.textSecondary};
+    border: 1px solid ${props.theme.border};
 
     &:hover {
-      background: #f9fafb;
+      background: ${props.theme.cardHover};
     }
   `}
 `
@@ -67,17 +69,30 @@ const StatsGrid = styled.div`
   margin-bottom: 1.5rem;
 `
 
-const StatCard = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
+const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 1.25rem;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  &:hover {
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
+  }
+
+  ${reduceMotion}
 `
 
 const StatLabel = styled.div`
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.5rem;
@@ -86,12 +101,12 @@ const StatLabel = styled.div`
 const StatValue = styled.div<{ $color?: string }>`
   font-size: 1.5rem;
   font-weight: 700;
-  color: ${props => props.$color || '#1f2937'};
+  color: ${props => props.$color || props.theme.textPrimary};
 `
 
 const FilterToolbar = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 1rem 1.5rem;
   margin-bottom: 1.5rem;
@@ -112,7 +127,7 @@ const SearchIcon = styled.span`
   left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -126,24 +141,29 @@ const SearchIcon = styled.span`
 const SearchInput = styled.input`
   width: 100%;
   padding: 0.625rem 1rem 0.625rem 2.5rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   font-size: 0.9375rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
+  background: ${props => props.theme.card};
 
   &:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: ${props => props.theme.accent};
+  }
+
+  &::placeholder {
+    color: ${props => props.theme.textMuted};
   }
 `
 
 const FilterSelect = styled.select`
   padding: 0.625rem 2.5rem 0.625rem 1rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   font-size: 0.9375rem;
-  color: #1f2937;
-  background: white;
+  color: ${props => props.theme.textPrimary};
+  background: ${props => props.theme.card};
   cursor: pointer;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M10.293 3.293L6 7.586 1.707 3.293A1 1 0 00.293 4.707l5 5a1 1 0 001.414 0l5-5a1 1 0 10-1.414-1.414z'/%3E%3C/svg%3E");
@@ -152,28 +172,28 @@ const FilterSelect = styled.select`
 
   &:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: ${props => props.theme.accent};
   }
 `
 
 const TableSection = styled.section`
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 1.5rem;
 `
 
 const ErrorMessage = styled.div`
-  background: #f8d7da;
-  color: #721c24;
+  background: ${props => props.theme.errorLight};
+  color: ${props => props.theme.error};
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
 `
 
 const SuccessMessage = styled.div`
-  background: #d4edda;
-  color: #155724;
+  background: ${props => props.theme.successLight};
+  color: ${props => props.theme.success};
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
@@ -188,7 +208,7 @@ const ConfirmModal = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: ${props => props.theme.overlay};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -196,7 +216,7 @@ const ConfirmModal = styled.div`
 `
 
 const ModalContent = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 12px;
   padding: 2rem;
   max-width: 400px;
@@ -204,11 +224,11 @@ const ModalContent = styled.div`
 
   h3 {
     margin: 0 0 1rem 0;
-    color: #1f2937;
+    color: ${props => props.theme.textPrimary};
   }
 
   p {
-    color: #6b7280;
+    color: ${props => props.theme.textSecondary};
     margin-bottom: 1.5rem;
   }
 `
@@ -236,6 +256,9 @@ const InvoiceListPage: React.FC = () => {
     clearError
   } = useInvoices()
   const { canAccessExport } = useSubscription()
+
+  // Animation state for stat cards
+  const statsVisible = useStaggeredAnimation(4, 100)
 
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -362,19 +385,19 @@ const InvoiceListPage: React.FC = () => {
       )}
 
       <StatsGrid>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[0]} $delay={0}>
           <StatLabel>Total Invoices</StatLabel>
           <StatValue>{stats?.total_invoices || invoices.length}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[1]} $delay={100}>
           <StatLabel>Total Revenue</StatLabel>
           <StatValue $color="#28a745">{formatCurrency(stats?.total_revenue || 0)}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[2]} $delay={200}>
           <StatLabel>Pending Amount</StatLabel>
           <StatValue $color="#ffc107">{formatCurrency(stats?.pending_amount || 0)}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[3]} $delay={300}>
           <StatLabel>Overdue</StatLabel>
           <StatValue $color="#dc3545">{stats?.overdue_count || 0}</StatValue>
         </StatCard>

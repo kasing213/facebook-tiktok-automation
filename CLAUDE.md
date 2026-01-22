@@ -792,6 +792,131 @@ After fixing mock service isolation and implementing usage limits:
 
 ## Change Log
 
+### 2026-01-22 - Frontend UI Enhancements (Dark Mode & Animations)
+
+#### Overview
+Comprehensive frontend UI update adding dark mode support across all public pages and staggered entrance animations to dashboard pages for a polished user experience.
+
+#### 1. Dark Mode Support - Public Pages
+
+**Files Modified:**
+- `frontend/src/components/HomePage.tsx` - Full dark mode with theme toggle
+- `frontend/src/components/LoginPageNew.tsx` - Dark mode support
+- `frontend/src/components/RegisterPage.tsx` - Dark mode support
+- `frontend/src/styles/theme.ts` - Added `mode` property to ThemeColors
+
+**HomePage Dark Mode Implementation:**
+- Added `useTheme` hook for mode detection and toggle
+- Replaced all hardcoded colors with `props.theme.*` values
+- Added theme toggle button in both desktop nav and mobile menu
+- Smooth 0.3s transitions between themes
+
+**Login/Register Pages:**
+- Background, card, input fields use theme colors
+- Decorative shapes use `theme.accent` and `theme.accentDark`
+- Error/success messages use `theme.error`/`theme.success` colors
+- All text colors reference theme values
+
+**Theme Configuration Update:**
+```typescript
+// Added mode identifier to ThemeColors interface
+export interface ThemeColors {
+  mode: ThemeMode  // 'light' | 'dark'
+  // ...existing properties
+}
+
+export const lightTheme: ThemeColors = {
+  mode: 'light',
+  // Light mode: Blue accent (#4a90e2)
+}
+
+export const darkTheme: ThemeColors = {
+  mode: 'dark',
+  // Dark mode: Supabase green accent (#3ECF8E)
+}
+```
+
+#### 2. Staggered Entrance Animations - Dashboard Pages
+
+**Files Modified:**
+- `frontend/src/components/dashboard/invoices/InvoiceListPage.tsx`
+- `frontend/src/components/dashboard/invoices/InvoiceDetailPage.tsx`
+- `frontend/src/components/dashboard/ClientsPage.tsx`
+- `frontend/src/components/dashboard/ads-alert/AdsAlertPage.tsx`
+
+**Animation Implementation:**
+```typescript
+import { easings, reduceMotion } from '../../styles/animations'
+import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
+
+// In component:
+const statsVisible = useStaggeredAnimation(4, 100)  // 4 items, 100ms stagger
+
+// In styled component:
+const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic};
+  transition-delay: ${props => props.$delay || 0}ms;
+  ${reduceMotion}  // Respects prefers-reduced-motion
+`
+
+// In JSX:
+<StatCard $isVisible={statsVisible[0]} $delay={0}>
+<StatCard $isVisible={statsVisible[1]} $delay={100}>
+```
+
+#### 3. Sidebar Gap Fix
+
+**Files Modified:**
+- `frontend/src/components/layouts/DashboardLayout.tsx`
+- `frontend/src/components/layouts/DashboardSidebar.tsx`
+
+**Problem:** Sidebar didn't extend to full page height - gap visible below Pro Plan section.
+
+**Solution:**
+```typescript
+// DashboardLayout.tsx - SidebarArea
+const SidebarArea = styled.div`
+  grid-area: sidebar;
+  min-height: 0;  // Allow proper grid stretching
+`
+
+// DashboardSidebar.tsx - SidebarContainer
+const SidebarContainer = styled.nav`
+  min-height: calc(100vh - 60px);
+  height: 100%;  // Fill parent container
+`
+```
+
+#### Color Mapping Reference
+
+| Light Mode | Dark Mode | Theme Variable |
+|------------|-----------|----------------|
+| `#ffffff` | `#171717` | `theme.background` |
+| `#f8f9fa` | `#1c1c1c` | `theme.backgroundSecondary` |
+| `#f9fafb` | `#242424` | `theme.backgroundTertiary` |
+| `#ffffff` | `#242424` | `theme.card` |
+| `#1f2937` | `#f8f8f8` | `theme.textPrimary` |
+| `#6b7280` | `#a0a0a0` | `theme.textSecondary` |
+| `#4a90e2` | `#3ECF8E` | `theme.accent` |
+| `#2a5298` | `#2da36e` | `theme.accentDark` |
+| `#e5e7eb` | `#2e2e2e` | `theme.border` |
+
+#### Testing Checklist
+- [x] HomePage dark mode toggle (desktop and mobile)
+- [x] Login page respects theme setting
+- [x] Register page respects theme setting
+- [x] Invoice pages have staggered animations
+- [x] Client page has staggered animations
+- [x] Ads Alert page has staggered animations
+- [x] Sidebar extends full height
+- [x] TypeScript compilation passes
+- [x] Smooth transitions between themes
+
+---
+
 ### 2026-01-21 - Production Database Configuration & Constraint Fixes
 
 #### Overview

@@ -6,6 +6,8 @@ import { Promotion, AdsAlertStats } from '../../../types/adsAlert'
 import PromotionList from './PromotionList'
 import PromotionForm from './PromotionForm'
 import ChatList from './ChatList'
+import { easings, reduceMotion } from '../../../styles/animations'
+import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 
 const Container = styled.div`
   padding: 24px;
@@ -25,7 +27,7 @@ const TitleSection = styled.div``
 const Title = styled.h1`
   font-size: 24px;
   font-weight: 700;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 4px 0;
   display: flex;
   align-items: center;
@@ -39,7 +41,7 @@ const Title = styled.h1`
 
 const Subtitle = styled.p`
   font-size: 14px;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin: 0;
 `
 
@@ -48,7 +50,7 @@ const CreateButton = styled.button`
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
-  background: #4A90E2;
+  background: ${props => props.theme.accent};
   color: white;
   border: none;
   border-radius: 8px;
@@ -58,7 +60,7 @@ const CreateButton = styled.button`
   transition: background 0.2s;
 
   &:hover {
-    background: #357ABD;
+    background: ${props => props.theme.accentDark};
   }
 `
 
@@ -69,30 +71,43 @@ const StatsGrid = styled.div`
   margin-bottom: 24px;
 `
 
-const StatCard = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
+const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 20px;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  &:hover {
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
+  }
+
+  ${reduceMotion}
 `
 
 const StatValue = styled.div`
   font-size: 28px;
   font-weight: 700;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin-bottom: 4px;
 `
 
 const StatLabel = styled.div`
   font-size: 13px;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 `
 
 const StatIcon = styled.span`
   display: inline-flex;
   align-items: center;
   margin-right: 8px;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 
   svg {
     width: 20px;
@@ -103,7 +118,7 @@ const StatIcon = styled.span`
 const Tabs = styled.div`
   display: flex;
   gap: 4px;
-  background: #f3f4f6;
+  background: ${props => props.theme.backgroundTertiary};
   padding: 4px;
   border-radius: 10px;
   margin-bottom: 24px;
@@ -117,9 +132,9 @@ const Tab = styled.button<{ $active: boolean }>`
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  background: ${props => props.$active ? 'white' : 'transparent'};
-  color: ${props => props.$active ? '#1f2937' : '#6b7280'};
-  box-shadow: ${props => props.$active ? '0 1px 3px rgba(0, 0, 0, 0.1)' : 'none'};
+  background: ${props => props.$active ? props.theme.card : 'transparent'};
+  color: ${props => props.$active ? props.theme.textPrimary : props.theme.textSecondary};
+  box-shadow: ${props => props.$active ? `0 1px 3px ${props.theme.shadowColor}` : 'none'};
   display: flex;
   align-items: center;
   gap: 6px;
@@ -130,15 +145,16 @@ const Tab = styled.button<{ $active: boolean }>`
   }
 
   &:hover {
-    color: #1f2937;
+    color: ${props => props.theme.textPrimary};
   }
 `
 
 const TabContent = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 24px;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 `
 
 const BackButton = styled.button`
@@ -148,13 +164,13 @@ const BackButton = styled.button`
   padding: 8px 16px;
   background: transparent;
   border: none;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   font-size: 14px;
   cursor: pointer;
   margin-bottom: 16px;
 
   &:hover {
-    color: #4A90E2;
+    color: ${props => props.theme.accent};
   }
 `
 
@@ -172,7 +188,7 @@ const DetailHeader = styled.div`
 const DetailTitle = styled.h2`
   font-size: 20px;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 8px 0;
 `
 
@@ -180,7 +196,7 @@ const DetailMeta = styled.div`
   display: flex;
   gap: 16px;
   font-size: 13px;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 `
 
 const StatusBadge = styled.span<{ $status: string }>`
@@ -192,13 +208,13 @@ const StatusBadge = styled.span<{ $status: string }>`
   ${props => {
     switch (props.$status) {
       case 'draft':
-        return `background: #f3f4f6; color: #6b7280;`
+        return `background: ${props.theme.backgroundTertiary}; color: ${props.theme.textSecondary};`
       case 'scheduled':
-        return `background: #fef3c7; color: #d97706;`
+        return `background: ${props.theme.warningLight}; color: ${props.theme.warning};`
       case 'sent':
-        return `background: #d1fae5; color: #059669;`
+        return `background: ${props.theme.successLight}; color: ${props.theme.success};`
       default:
-        return `background: #f3f4f6; color: #6b7280;`
+        return `background: ${props.theme.backgroundTertiary}; color: ${props.theme.textSecondary};`
     }
   }}
 `
@@ -210,17 +226,17 @@ const DetailSection = styled.div`
 const SectionLabel = styled.h3`
   font-size: 12px;
   font-weight: 600;
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
   text-transform: uppercase;
   margin: 0 0 8px 0;
 `
 
 const ContentBox = styled.div`
   padding: 16px;
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 8px;
   font-size: 14px;
-  color: #374151;
+  color: ${props => props.theme.textPrimary};
   white-space: pre-wrap;
 `
 
@@ -234,7 +250,7 @@ const MediaItem = styled.div`
   aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
-  background: #f3f4f6;
+  background: ${props => props.theme.backgroundTertiary};
 `
 
 const MediaImage = styled.img`
@@ -247,7 +263,7 @@ const DetailActions = styled.div`
   display: flex;
   gap: 12px;
   padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid ${props => props.theme.border};
 `
 
 const ActionButton = styled.button<{ $variant?: 'primary' | 'danger' }>`
@@ -259,28 +275,28 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'danger' }>`
   transition: all 0.2s;
 
   ${props => props.$variant === 'primary' ? `
-    background: #4A90E2;
+    background: ${props.theme.accent};
     color: white;
     border: none;
 
     &:hover {
-      background: #357ABD;
+      background: ${props.theme.accentDark};
     }
   ` : props.$variant === 'danger' ? `
-    background: white;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    background: ${props.theme.card};
+    color: ${props.theme.error};
+    border: 1px solid ${props.theme.errorLight};
 
     &:hover {
-      background: #fef2f2;
+      background: ${props.theme.errorLight};
     }
   ` : `
-    background: white;
-    color: #6b7280;
-    border: 1px solid #d1d5db;
+    background: ${props.theme.card};
+    color: ${props.theme.textSecondary};
+    border: 1px solid ${props.theme.border};
 
     &:hover {
-      background: #f3f4f6;
+      background: ${props.theme.backgroundTertiary};
     }
   `}
 `
@@ -294,6 +310,9 @@ const AdsAlertPage: React.FC = () => {
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null)
   const [stats, setStats] = useState<AdsAlertStats | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Animation state for stat cards (5 stat cards)
+  const statsVisible = useStaggeredAnimation(5, 100)
 
   useEffect(() => {
     loadStats()
@@ -495,7 +514,7 @@ const AdsAlertPage: React.FC = () => {
 
       {!loading && stats && (
         <StatsGrid>
-          <StatCard>
+          <StatCard $isVisible={statsVisible[0]} $delay={0}>
             <StatValue>
               <StatIcon>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -506,7 +525,7 @@ const AdsAlertPage: React.FC = () => {
             </StatValue>
             <StatLabel>Active Subscribers</StatLabel>
           </StatCard>
-          <StatCard>
+          <StatCard $isVisible={statsVisible[1]} $delay={100}>
             <StatValue>
               <StatIcon>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -517,7 +536,7 @@ const AdsAlertPage: React.FC = () => {
             </StatValue>
             <StatLabel>Draft Promotions</StatLabel>
           </StatCard>
-          <StatCard>
+          <StatCard $isVisible={statsVisible[2]} $delay={200}>
             <StatValue>
               <StatIcon>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -528,7 +547,7 @@ const AdsAlertPage: React.FC = () => {
             </StatValue>
             <StatLabel>Scheduled</StatLabel>
           </StatCard>
-          <StatCard>
+          <StatCard $isVisible={statsVisible[3]} $delay={300}>
             <StatValue>
               <StatIcon>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -539,7 +558,7 @@ const AdsAlertPage: React.FC = () => {
             </StatValue>
             <StatLabel>Sent</StatLabel>
           </StatCard>
-          <StatCard>
+          <StatCard $isVisible={statsVisible[4]} $delay={400}>
             <StatValue>
               <StatIcon>
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">

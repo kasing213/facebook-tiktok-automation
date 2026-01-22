@@ -7,6 +7,8 @@ import { InvoiceForm } from '../../invoice'
 import { InvoiceStatusBadge } from '../../invoice/InvoiceStatusBadge'
 import { LineItemsEditor } from '../../invoice/LineItemsEditor'
 import { Invoice, InvoiceUpdate } from '../../../types/invoice'
+import { easings, reduceMotion } from '../../../styles/animations'
+import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 
 const Container = styled.div`
   max-width: 900px;
@@ -20,7 +22,7 @@ const Header = styled.div`
 const BackLink = styled.button`
   background: none;
   border: none;
-  color: #4a90e2;
+  color: ${props => props.theme.accent};
   font-size: 0.875rem;
   cursor: pointer;
   padding: 0;
@@ -51,7 +53,7 @@ const TitleSection = styled.div`
 const Title = styled.h1`
   font-size: 2rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
@@ -72,34 +74,34 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
     switch (props.$variant) {
       case 'primary':
         return `
-          background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+          background: linear-gradient(135deg, ${props.theme.accent} 0%, ${props.theme.accentDark} 100%);
           color: white;
           border: none;
 
           &:hover {
             transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+            box-shadow: 0 2px 8px ${props.theme.shadowColor};
           }
         `
       case 'danger':
         return `
-          background: white;
-          color: #dc3545;
-          border: 1px solid #dc3545;
+          background: ${props.theme.card};
+          color: ${props.theme.error};
+          border: 1px solid ${props.theme.error};
 
           &:hover {
-            background: #dc3545;
+            background: ${props.theme.error};
             color: white;
           }
         `
       default:
         return `
-          background: white;
-          color: #6b7280;
-          border: 1px solid #e5e7eb;
+          background: ${props.theme.card};
+          color: ${props.theme.textSecondary};
+          border: 1px solid ${props.theme.border};
 
           &:hover {
-            background: #f9fafb;
+            background: ${props.theme.backgroundTertiary};
           }
         `
     }
@@ -111,21 +113,29 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
   }
 `
 
-const Section = styled.section`
-  background: white;
-  border: 1px solid #e5e7eb;
+const Section = styled.section<{ $isVisible?: boolean; $delay?: number }>`
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+  ${reduceMotion}
 `
 
 const SectionTitle = styled.h2`
   font-size: 1.125rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 1rem 0;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid ${props => props.theme.border};
 `
 
 const InfoGrid = styled.div`
@@ -139,7 +149,7 @@ const InfoItem = styled.div``
 const InfoLabel = styled.div`
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.25rem;
@@ -147,11 +157,11 @@ const InfoLabel = styled.div`
 
 const InfoValue = styled.div`
   font-size: 1rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
 `
 
 const CustomerCard = styled.div`
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 8px;
   padding: 1rem;
 `
@@ -159,18 +169,18 @@ const CustomerCard = styled.div`
 const CustomerName = styled.div`
   font-weight: 600;
   font-size: 1.125rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin-bottom: 0.5rem;
 `
 
 const CustomerDetail = styled.div`
   font-size: 0.875rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin-bottom: 0.25rem;
 `
 
 const TotalsBox = styled.div`
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 8px;
   padding: 1.5rem;
   margin-top: 1.5rem;
@@ -181,30 +191,30 @@ const TotalRow = styled.div`
   justify-content: space-between;
   padding: 0.5rem 0;
   font-size: 0.9375rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 `
 
 const GrandTotalRow = styled(TotalRow)`
   font-size: 1.25rem;
   font-weight: 700;
-  color: #1f2937;
-  border-top: 2px solid #e5e7eb;
+  color: ${props => props.theme.textPrimary};
+  border-top: 2px solid ${props => props.theme.border};
   padding-top: 1rem;
   margin-top: 0.5rem;
 `
 
 const Notes = styled.div`
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 8px;
   padding: 1rem;
   font-size: 0.9375rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   white-space: pre-wrap;
 `
 
 const ErrorMessage = styled.div`
-  background: #f8d7da;
-  color: #721c24;
+  background: ${props => props.theme.errorLight};
+  color: ${props => props.theme.error};
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
@@ -213,7 +223,7 @@ const ErrorMessage = styled.div`
 const LoadingState = styled.div`
   text-align: center;
   padding: 3rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 `
 
 const InvoiceDetailPage: React.FC = () => {
@@ -221,6 +231,9 @@ const InvoiceDetailPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isEditMode = searchParams.get('edit') === 'true'
+
+  // Animation state for sections (4 sections: details, customer, line items, notes)
+  const sectionsVisible = useStaggeredAnimation(4, 100)
 
   const {
     customers,
@@ -384,7 +397,7 @@ const InvoiceDetailPage: React.FC = () => {
         </ErrorMessage>
       )}
 
-      <Section>
+      <Section $isVisible={sectionsVisible[0]} $delay={0}>
         <SectionTitle>Invoice Details</SectionTitle>
         <InfoGrid>
           <InfoItem>
@@ -406,7 +419,7 @@ const InvoiceDetailPage: React.FC = () => {
         </InfoGrid>
       </Section>
 
-      <Section>
+      <Section $isVisible={sectionsVisible[1]} $delay={100}>
         <SectionTitle>Customer</SectionTitle>
         <CustomerCard>
           <CustomerName>{invoice.customer?.name || 'Unknown Customer'}</CustomerName>
@@ -417,7 +430,7 @@ const InvoiceDetailPage: React.FC = () => {
         </CustomerCard>
       </Section>
 
-      <Section>
+      <Section $isVisible={sectionsVisible[2]} $delay={200}>
         <SectionTitle>Line Items</SectionTitle>
         <LineItemsEditor
           items={invoice.items}
@@ -450,7 +463,7 @@ const InvoiceDetailPage: React.FC = () => {
       </Section>
 
       {invoice.notes && (
-        <Section>
+        <Section $isVisible={sectionsVisible[3]} $delay={300}>
           <SectionTitle>Notes</SectionTitle>
           <Notes>{invoice.notes}</Notes>
         </Section>

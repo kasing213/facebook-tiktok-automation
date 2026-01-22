@@ -32,6 +32,8 @@ const HeaderArea = styled.div`
 
 const SidebarArea = styled.div`
   grid-area: sidebar;
+  min-height: 0;
+
   @media (max-width: 768px) {
     display: none;
   }

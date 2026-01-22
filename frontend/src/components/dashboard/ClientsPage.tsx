@@ -9,6 +9,8 @@ import { RegisteredClient, ClientLinkCodeResponse, CustomerCreate } from '../../
 import QRCodeModal from './clients/QRCodeModal'
 import BatchQRModal from './clients/BatchQRModal'
 import AddClientModal from './clients/AddClientModal'
+import { easings, reduceMotion } from '../../styles/animations'
+import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
 
 // Styled Components
 const Container = styled.div`
@@ -38,13 +40,13 @@ const TitleSection = styled.div``
 const Title = styled.h1`
   font-size: 1.5rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 0.25rem 0;
 `
 
 const Subtitle = styled.p`
   font-size: 0.875rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin: 0;
 `
 
@@ -63,7 +65,7 @@ const BatchButton = styled.button`
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: #4a90e2;
+  background: ${props => props.theme.accent};
   color: white;
   border: none;
   border-radius: 8px;
@@ -73,7 +75,7 @@ const BatchButton = styled.button`
   transition: background 0.2s ease;
 
   &:hover {
-    background: #2a5298;
+    background: ${props => props.theme.accentDark};
   }
 
   &:disabled {
@@ -87,7 +89,7 @@ const AddButton = styled.button`
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1rem;
-  background: #10b981;
+  background: ${props => props.theme.success};
   color: white;
   border: none;
   border-radius: 8px;
@@ -97,7 +99,7 @@ const AddButton = styled.button`
   transition: background 0.2s ease;
 
   &:hover {
-    background: #059669;
+    opacity: 0.9;
   }
 
   &:disabled {
@@ -189,11 +191,24 @@ const StatsGrid = styled.div`
   }
 `
 
-const StatCard = styled.div`
-  background: white;
+const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
+  background: ${props => props.theme.card};
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   padding: 1.25rem;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  &:hover {
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
+  }
+
+  ${reduceMotion}
 `
 
 const StatHeader = styled.div`
@@ -205,13 +220,13 @@ const StatHeader = styled.div`
 
 const StatLabel = styled.span`
   font-size: 0.875rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 `
 
 const StatBadge = styled.span`
   font-size: 0.75rem;
-  color: #10b981;
-  background: #d1fae5;
+  color: ${props => props.theme.success};
+  background: ${props => props.theme.successLight};
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
 `
@@ -219,7 +234,7 @@ const StatBadge = styled.span`
 const StatValue = styled.p`
   font-size: 1.5rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
@@ -265,10 +280,11 @@ const InstructionsText = styled.p`
 
 // Table Container
 const TableContainer = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   overflow: hidden;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 `
 
 const TableHeader = styled.div`
@@ -278,7 +294,7 @@ const TableHeader = styled.div`
   align-items: center;
   flex-wrap: wrap;
   gap: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid ${props => props.theme.border};
 `
 
 const SearchInput = styled.input`
@@ -286,14 +302,20 @@ const SearchInput = styled.input`
   min-width: 200px;
   max-width: 400px;
   padding: 0.5rem 1rem 0.5rem 2.5rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 8px;
   font-size: 0.875rem;
+  background: ${props => props.theme.card};
+  color: ${props => props.theme.textPrimary};
 
   &:focus {
     outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    border-color: ${props => props.theme.accent};
+    box-shadow: 0 0 0 3px ${props => props.theme.accentLight};
+  }
+
+  &::placeholder {
+    color: ${props => props.theme.textMuted};
   }
 `
 
@@ -310,7 +332,7 @@ const SearchIcon = styled.svg`
   transform: translateY(-50%);
   width: 1rem;
   height: 1rem;
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
 `
 
 const FilterButtons = styled.div`
@@ -326,11 +348,11 @@ const FilterButton = styled.button<{ isActive: boolean }>`
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: ${props => props.isActive ? '#d1fae5' : 'transparent'};
-  color: ${props => props.isActive ? '#059669' : '#6b7280'};
+  background: ${props => props.isActive ? props.theme.successLight : 'transparent'};
+  color: ${props => props.isActive ? props.theme.success : props.theme.textSecondary};
 
   &:hover {
-    background: ${props => props.isActive ? '#d1fae5' : '#f3f4f6'};
+    background: ${props => props.isActive ? props.theme.successLight : props.theme.backgroundTertiary};
   }
 `
 
@@ -344,16 +366,16 @@ const Th = styled.th`
   padding: 0.75rem 1rem;
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  background: ${props => props.theme.backgroundTertiary};
+  border-bottom: 1px solid ${props => props.theme.border};
 `
 
 const Td = styled.td`
   padding: 1rem;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid ${props => props.theme.borderLight};
   vertical-align: middle;
 `
 
@@ -367,24 +389,24 @@ const ClientAvatar = styled.div`
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #d1fae5;
+  background: ${props => props.theme.successLight};
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #059669;
+  color: ${props => props.theme.success};
   font-weight: 600;
 `
 
 const ClientName = styled.p`
   font-size: 0.875rem;
   font-weight: 500;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
 const ClientDate = styled.p`
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
   margin: 0;
 `
 
@@ -398,23 +420,23 @@ const StatusDot = styled.span<{ status: 'linked' | 'not_linked' }>`
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: ${props => props.status === 'linked' ? '#10b981' : '#f59e0b'};
+  background: ${props => props.status === 'linked' ? props.theme.success : props.theme.warning};
 `
 
 const TelegramUsername = styled.span`
   font-size: 0.875rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
 `
 
 const NotLinkedText = styled.span`
   font-size: 0.875rem;
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
 `
 
 const Amount = styled.span<{ type?: 'pending' | 'paid' }>`
   font-size: 0.875rem;
   font-weight: ${props => props.type === 'pending' ? '500' : '400'};
-  color: ${props => props.type === 'pending' ? '#f59e0b' : props.type === 'paid' ? '#10b981' : '#1f2937'};
+  color: ${props => props.type === 'pending' ? props.theme.warning : props.type === 'paid' ? props.theme.success : props.theme.textPrimary};
 `
 
 const ActionButtons = styled.div`
@@ -432,11 +454,11 @@ const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: ${props => props.variant === 'primary' ? '#eff6ff' : 'transparent'};
-  color: ${props => props.variant === 'primary' ? '#3b82f6' : '#10b981'};
+  background: ${props => props.variant === 'primary' ? props.theme.accentLight : 'transparent'};
+  color: ${props => props.variant === 'primary' ? props.theme.accent : props.theme.success};
 
   &:hover {
-    background: ${props => props.variant === 'primary' ? '#dbeafe' : '#d1fae5'};
+    background: ${props => props.variant === 'primary' ? props.theme.accentLight : props.theme.successLight};
   }
 
   &:disabled {
@@ -453,7 +475,7 @@ const EmptyState = styled.div`
 const EmptyIcon = styled.div`
   width: 64px;
   height: 64px;
-  background: #f3f4f6;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -462,7 +484,7 @@ const EmptyIcon = styled.div`
 `
 
 const EmptyText = styled.p`
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin: 0;
 `
 
@@ -475,8 +497,8 @@ const LoadingSpinner = styled.div`
 const Spinner = styled.div`
   width: 32px;
   height: 32px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #4a90e2;
+  border: 3px solid ${props => props.theme.border};
+  border-top-color: ${props => props.theme.accent};
   border-radius: 50%;
   animation: spin 1s linear infinite;
 
@@ -489,11 +511,12 @@ const Spinner = styled.div`
 
 // Batch Codes Section
 const BatchCodesSection = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   padding: 1.5rem;
   margin-bottom: 1.5rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 `
 
 const BatchCodesHeader = styled.div`
@@ -506,7 +529,7 @@ const BatchCodesHeader = styled.div`
 const BatchCodesTitle = styled.h3`
   font-size: 1rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
   display: flex;
   align-items: center;
@@ -520,8 +543,8 @@ const BatchCodesList = styled.div`
 `
 
 const BatchCodeCard = styled.div`
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.backgroundTertiary};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 10px;
   padding: 1rem;
   display: flex;
@@ -532,8 +555,8 @@ const BatchCodeQR = styled.div`
   flex-shrink: 0;
   width: 80px;
   height: 80px;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -548,7 +571,7 @@ const BatchCodeInfo = styled.div`
 const BatchCodeName = styled.p`
   font-size: 0.875rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 0.25rem 0;
   white-space: nowrap;
   overflow: hidden;
@@ -557,7 +580,7 @@ const BatchCodeName = styled.p`
 
 const BatchCodeStats = styled.div`
   font-size: 0.75rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin-bottom: 0.5rem;
 `
 
@@ -569,8 +592,8 @@ const BatchCodeStatus = styled.span<{ isActive: boolean }>`
   font-weight: 500;
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
-  background: ${props => props.isActive ? '#d1fae5' : '#fee2e2'};
-  color: ${props => props.isActive ? '#059669' : '#dc2626'};
+  background: ${props => props.isActive ? props.theme.successLight : props.theme.errorLight};
+  color: ${props => props.isActive ? props.theme.success : props.theme.error};
 `
 
 const BatchCodeActions = styled.div`
@@ -587,20 +610,20 @@ const SmallButton = styled.button`
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: #e5e7eb;
-  color: #374151;
+  background: ${props => props.theme.border};
+  color: ${props => props.theme.textPrimary};
 
   &:hover {
-    background: #d1d5db;
+    background: ${props => props.theme.borderLight};
   }
 `
 
 const DeleteButton = styled(SmallButton)`
   background: transparent;
-  color: #dc2626;
+  color: ${props => props.theme.error};
 
   &:hover {
-    background: #fee2e2;
+    background: ${props => props.theme.errorLight};
   }
 `
 
@@ -609,6 +632,9 @@ const ClientsPage: React.FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { status: telegramStatus, loading: telegramLoading } = useTelegram()
+
+  // Animation state for stat cards
+  const statsVisible = useStaggeredAnimation(3, 100)
 
   const [clients, setClients] = useState<RegisteredClient[]>([])
   const [loading, setLoading] = useState(true)
@@ -838,20 +864,20 @@ const ClientsPage: React.FC = () => {
 
       {/* Stats Cards */}
       <StatsGrid>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[0]} $delay={0}>
           <StatHeader>
             <StatLabel>{t('clients.totalClients')}</StatLabel>
           </StatHeader>
           <StatValue>{stats.totalClients}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[1]} $delay={100}>
           <StatHeader>
             <StatLabel>{t('clients.telegramLinked')}</StatLabel>
             <StatBadge>{linkedPercentage}%</StatBadge>
           </StatHeader>
           <StatValue>{stats.linkedClients}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[2]} $delay={200}>
           <StatHeader>
             <StatLabel>{t('clients.totalReceivable')}</StatLabel>
           </StatHeader>

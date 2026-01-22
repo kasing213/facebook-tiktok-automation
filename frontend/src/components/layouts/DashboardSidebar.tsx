@@ -14,7 +14,8 @@ const SidebarContainer = styled.nav<{ $mobile?: boolean; $isOpen?: boolean }>`
   width: 250px;
   background: ${props => props.theme.card};
   border-right: 1px solid ${props => props.theme.border};
-  height: calc(100vh - 60px);
+  min-height: calc(100vh - 60px);
+  height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;

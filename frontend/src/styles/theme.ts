@@ -1,6 +1,11 @@
 // Theme color definitions for light and dark modes
 
+export type ThemeMode = 'light' | 'dark'
+
 export interface ThemeColors {
+  // Mode identifier
+  mode: ThemeMode
+
   // Backgrounds
   background: string
   backgroundSecondary: string
@@ -41,6 +46,9 @@ export interface ThemeColors {
 }
 
 export const lightTheme: ThemeColors = {
+  // Mode identifier
+  mode: 'light',
+
   // Backgrounds
   background: '#ffffff',
   backgroundSecondary: '#f8f9fa',
@@ -81,6 +89,9 @@ export const lightTheme: ThemeColors = {
 }
 
 export const darkTheme: ThemeColors = {
+  // Mode identifier
+  mode: 'dark',
+
   // Backgrounds (Supabase-style dark)
   background: '#171717',
   backgroundSecondary: '#1c1c1c',
@@ -119,5 +130,3 @@ export const darkTheme: ThemeColors = {
   // Shadows
   shadowColor: 'rgba(0, 0, 0, 0.3)',
 }
-
-export type ThemeMode = 'light' | 'dark'
