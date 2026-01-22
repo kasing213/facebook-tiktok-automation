@@ -50,10 +50,16 @@ async def get_subscription_info(
     Returns:
         Subscription details and available features
     """
-    # Get tenant's subscription (if any)
+    # Get user's subscription (direct relationship: User -> Subscription)
     subscription = None
-    if hasattr(owner.tenant, 'subscription') and owner.tenant.subscription:
-        subscription = owner.tenant.subscription
+    if hasattr(owner, 'subscription') and owner.subscription:
+        subscription = owner.subscription
+    else:
+        # Fallback: query database directly
+        from app.core.models import Subscription
+        subscription = db.query(Subscription).filter(
+            Subscription.user_id == owner.id
+        ).first()
 
     # Default to free tier if no subscription
     tier = subscription.tier if subscription else SubscriptionTier.free
@@ -105,9 +111,14 @@ async def change_subscription_plan(
     Returns:
         Redirect to payment instructions or change result
     """
+    # Get user's subscription (direct relationship: User -> Subscription)
     current_subscription = None
-    if hasattr(owner.tenant, 'subscription') and owner.tenant.subscription:
-        current_subscription = owner.tenant.subscription
+    if hasattr(owner, 'subscription') and owner.subscription:
+        current_subscription = owner.subscription
+    else:
+        current_subscription = db.query(Subscription).filter(
+            Subscription.user_id == owner.id
+        ).first()
 
     current_tier = current_subscription.tier if current_subscription else SubscriptionTier.free
 
@@ -187,9 +198,14 @@ async def cancel_subscription(
     Returns:
         Cancellation result
     """
+    # Get user's subscription (direct relationship: User -> Subscription)
     subscription = None
-    if hasattr(owner.tenant, 'subscription') and owner.tenant.subscription:
-        subscription = owner.tenant.subscription
+    if hasattr(owner, 'subscription') and owner.subscription:
+        subscription = owner.subscription
+    else:
+        subscription = db.query(Subscription).filter(
+            Subscription.user_id == owner.id
+        ).first()
 
     if not subscription or subscription.tier == SubscriptionTier.free:
         raise HTTPException(
@@ -226,9 +242,14 @@ async def reactivate_subscription(
     Returns:
         Reactivation result
     """
+    # Get user's subscription (direct relationship: User -> Subscription)
     subscription = None
-    if hasattr(owner.tenant, 'subscription') and owner.tenant.subscription:
-        subscription = owner.tenant.subscription
+    if hasattr(owner, 'subscription') and owner.subscription:
+        subscription = owner.subscription
+    else:
+        subscription = db.query(Subscription).filter(
+            Subscription.user_id == owner.id
+        ).first()
 
     if not subscription or not subscription.cancel_at_period_end:
         raise HTTPException(

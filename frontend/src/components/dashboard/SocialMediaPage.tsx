@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { useAuth, useOAuth } from '../../hooks/useAuth'
 import { LoadingSpinner } from '../LoadingSpinner'
+import { easings, reduceMotion } from '../../styles/animations'
+import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
 
 // Import platform logos
 import facebookLogo from '../../assets/images/social/facebook-logo.png'
@@ -40,11 +42,24 @@ const StatsGrid = styled.div`
   margin-bottom: 2rem;
 `
 
-const StatCard = styled.div`
-  background: white;
+const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
+  background: ${props => props.theme.card || 'white'};
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border || '#e5e7eb'};
   padding: 1.25rem;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  &:hover {
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor || 'rgba(0, 0, 0, 0.1)'};
+  }
+
+  ${reduceMotion}
 `
 
 const StatLabel = styled.p`
@@ -83,16 +98,25 @@ const PlatformsGrid = styled.div`
   gap: 1rem;
 `
 
-const PlatformCard = styled.div<{ $connected: boolean }>`
-  background: white;
+const PlatformCard = styled.div<{ $connected: boolean; $isVisible?: boolean; $delay?: number }>`
+  background: ${props => props.theme.card || 'white'};
   border-radius: 12px;
-  border: 1px solid ${props => props.$connected ? '#d1fae5' : '#e5e7eb'};
+  border: 1px solid ${props => props.$connected ? '#d1fae5' : (props.theme.border || '#e5e7eb')};
   padding: 1.5rem;
-  transition: all 0.2s ease;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              box-shadow 0.2s ease,
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
+
+  ${reduceMotion}
 `
 
 const PlatformHeader = styled.div`
@@ -305,6 +329,10 @@ const SocialMediaPage: React.FC = () => {
   const { authStatus, loading, error } = useAuth(tenantId || null)
   const { initiating, errors: oauthErrors, clearErrors, initiateFacebookOAuth, initiateTikTokOAuth } = useOAuth()
 
+  // Staggered animations for stats and platform cards
+  const statsVisible = useStaggeredAnimation(3, 100)  // 3 stat cards
+  const platformsVisible = useStaggeredAnimation(2, 150)  // 2 platform cards
+
   const handleConnectFacebook = async () => {
     if (!tenantId) return
     clearErrors()
@@ -352,15 +380,15 @@ const SocialMediaPage: React.FC = () => {
 
       {/* Stats Overview */}
       <StatsGrid>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[0]} $delay={0}>
           <StatLabel>{t('socialMedia.connectedPlatforms')}</StatLabel>
           <StatValue>{totalConnected}/2</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[1]} $delay={100}>
           <StatLabel>{t('socialMedia.linkedAccounts')}</StatLabel>
           <StatValue>{totalAccounts}</StatValue>
         </StatCard>
-        <StatCard>
+        <StatCard $isVisible={statsVisible[2]} $delay={200}>
           <StatLabel>{t('socialMedia.scheduledPosts')}</StatLabel>
           <StatValue>0</StatValue>
         </StatCard>
@@ -387,7 +415,7 @@ const SocialMediaPage: React.FC = () => {
         ) : (
           <PlatformsGrid>
             {/* Facebook Card */}
-            <PlatformCard $connected={facebookConnected}>
+            <PlatformCard $connected={facebookConnected} $isVisible={platformsVisible[0]} $delay={0}>
               <PlatformHeader>
                 <PlatformLogo src={facebookLogo} alt="Facebook" />
                 <PlatformInfo>
@@ -474,7 +502,7 @@ const SocialMediaPage: React.FC = () => {
             </PlatformCard>
 
             {/* TikTok Card */}
-            <PlatformCard $connected={tiktokConnected}>
+            <PlatformCard $connected={tiktokConnected} $isVisible={platformsVisible[1]} $delay={150}>
               <PlatformHeader>
                 <PlatformLogo src={tiktokLogo} alt="TikTok" />
                 <PlatformInfo>

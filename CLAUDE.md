@@ -792,6 +792,109 @@ After fixing mock service isolation and implementing usage limits:
 
 ## Change Log
 
+### 2026-01-22 - Multi-Tier Subscription System & Role-Based Access Control
+
+#### Overview
+Implemented a multi-tier subscription system with proper role-based access control. Owners always have full access regardless of subscription. Members require Pro subscription for full access.
+
+#### 1. Subscription Tiers
+
+| Tier | Price | Target Users | Features |
+|------|-------|--------------|----------|
+| **Free** | $0 | 1 (owner only) | Basic invoicing, payment verify |
+| **Invoice Plus** | $10/mo | 2 | + Bulk operations, inventory, customer management |
+| **Marketing Plus** | $10/mo | 2 | + Social automation, ads alerts, promotions |
+| **Pro** | $20/mo | 2 | All features combined |
+
+#### 2. Role-Based Access Control
+
+**File:** `app/core/authorization.py`
+
+**Access Rules:**
+- **Owner (admin role)**: FULL ACCESS always, regardless of subscription
+- **Member (user role)**: Access based on tenant's subscription tier
+- **Viewer role**: Read-only access
+
+**Implementation:**
+```python
+def check_subscription_feature(feature_name: str, user: User, db: Session) -> bool:
+    # Rule 1: Owner ALWAYS has full access
+    if user.role == UserRole.admin:
+        return True
+
+    # Rule 2: For members, check tenant's subscription via owner
+    owner_subscription = db.query(Subscription).join(User).filter(
+        User.tenant_id == user.tenant_id,
+        User.role == UserRole.admin
+    ).first()
+
+    # Check feature access based on subscription tier
+    ...
+```
+
+#### 3. Feature Sets by Tier
+
+```python
+free_features = {
+    'invoice_create', 'invoice_view', 'invoice_send',
+    'payment_verify', 'telegram_link', 'basic_reports'
+}
+
+invoice_plus_features = free_features | {
+    'bulk_operations', 'advanced_inventory', 'customer_management'
+}
+
+marketing_plus_features = free_features | {
+    'social_automation', 'ads_alerts', 'promotion_create', 'promotion_send'
+}
+
+pro_features = invoice_plus_features | marketing_plus_features  # All features
+```
+
+#### 4. Team Member Limits
+
+| Tier | Max Users |
+|------|-----------|
+| Free | 1 (owner only) |
+| Invoice Plus | 2 |
+| Marketing Plus | 2 |
+| Pro | 2 |
+
+**Files Modified:**
+- `app/core/models.py:108` - Default `team_member_limit = 1`
+- `app/core/usage_limits.py:150-190` - `check_team_member_limit()` uses owner's subscription
+
+#### 5. Bug Fixes
+
+**Subscription Relationship Fix:**
+- **Problem:** Code used `user.tenant.subscription` which doesn't exist
+- **Solution:** Use `user.subscription` (direct relationship) or query owner's subscription for tenant tier
+
+**Files Fixed:**
+- `app/core/authorization.py` - `check_subscription_feature()`
+- `app/routes/subscription.py` - All endpoints (4 locations)
+
+#### 6. Marketing/Promotion Limits (Anti-Abuse)
+
+New columns added to Tenant model:
+```python
+promotion_limit = Column(Integer, default=0)  # Free: 0, Marketing Plus: 10
+broadcast_recipient_limit = Column(Integer, default=0)  # Free: 0, Marketing Plus: 500
+current_month_promotions = Column(Integer, default=0)
+current_month_broadcasts = Column(Integer, default=0)
+```
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `app/core/models.py` | Added SubscriptionTier enum values, promotion limits |
+| `app/core/authorization.py` | Role-based access, feature sets by tier |
+| `app/core/usage_limits.py` | Team member limit check, subscription limits |
+| `app/routes/subscription.py` | Fixed subscription relationship bugs |
+
+---
+
 ### 2026-01-22 - Frontend UI Enhancements (Dark Mode & Animations)
 
 #### Overview
@@ -843,6 +946,8 @@ export const darkTheme: ThemeColors = {
 - `frontend/src/components/dashboard/invoices/InvoiceDetailPage.tsx`
 - `frontend/src/components/dashboard/ClientsPage.tsx`
 - `frontend/src/components/dashboard/ads-alert/AdsAlertPage.tsx`
+- `frontend/src/components/dashboard/SocialMediaPage.tsx` - Added stat cards and platform cards animations
+- `frontend/src/components/dashboard/IntegrationsPage.tsx` - Added integration cards animations + i18n
 
 **Animation Implementation:**
 ```typescript

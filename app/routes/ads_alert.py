@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.models import User, PromotionStatus
 from app.core.dependencies import get_current_user
-from app.core.authorization import get_current_owner, get_current_member_or_owner
+from app.core.authorization import get_current_owner, get_current_member_or_owner, require_subscription_feature
 from app.schemas.ads_alert import (
     ChatCreate, ChatUpdate, ChatResponse,
     PromotionCreate, PromotionUpdate, PromotionResponse,
@@ -26,6 +26,10 @@ from app.repositories.ads_alert import (
     AdsAlertMediaRepository, AdsAlertMediaFolderRepository
 )
 from app.services.ads_alert_service import AdsAlertService
+from app.core.usage_limits import (
+    check_promotion_limit, increment_promotion_counter,
+    check_broadcast_limit, increment_broadcast_counter
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ads-alert", tags=["ads-alert"])
@@ -190,12 +194,16 @@ async def list_promotions(
 
 
 @router.post("/promotions", response_model=PromotionResponse, status_code=status.HTTP_201_CREATED)
+@require_subscription_feature('promotion_create')
 async def create_promotion(
     data: PromotionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_member_or_owner)
 ):
     """Create a new promotion"""
+    # Check promotion limit before creating (anti-abuse)
+    await check_promotion_limit(current_user.tenant_id, db)
+
     promotion_repo = AdsAlertPromotionRepository(db)
 
     # Determine initial status
@@ -218,6 +226,10 @@ async def create_promotion(
         status=initial_status
     )
     db.commit()
+
+    # Increment promotion counter after successful creation
+    increment_promotion_counter(current_user.tenant_id, db)
+
     return promotion
 
 
@@ -287,15 +299,36 @@ async def delete_promotion(
 
 
 @router.post("/promotions/{promotion_id}/send", response_model=BroadcastResponse)
+@require_subscription_feature('promotion_send')
 async def send_promotion(
     promotion_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_member_or_owner)
 ):
     """Send a promotion immediately to all target chats"""
+    # Get promotion and check recipient count before sending (anti-abuse)
+    promotion_repo = AdsAlertPromotionRepository(db)
+    promotion = promotion_repo.get_by_tenant(promotion_id, current_user.tenant_id)
+    if not promotion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promotion not found")
+
+    # Estimate recipient count for broadcast limit check
+    chat_repo = AdsAlertChatRepository(db)
+    if promotion.target_type == "all":
+        recipient_count = chat_repo.count_active_by_tenant(current_user.tenant_id)
+    else:
+        recipient_count = len(promotion.target_chat_ids or [])
+
+    # Check broadcast limit before sending (anti-abuse)
+    await check_broadcast_limit(current_user.tenant_id, recipient_count, db)
+
     service = AdsAlertService(db)
     try:
         result = await service.send_promotion_now(promotion_id, current_user.tenant_id)
+
+        # Increment broadcast counter after successful send
+        increment_broadcast_counter(current_user.tenant_id, recipient_count, db)
+
         return result
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

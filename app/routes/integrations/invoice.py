@@ -24,6 +24,10 @@ from app.core.models import User
 from app.core.db import get_db
 from app.routes.subscriptions import require_pro_tier
 from app.core.authorization import require_subscription_feature, get_current_member_or_owner
+from app.core.usage_limits import (
+    check_invoice_limit, increment_invoice_counter,
+    check_customer_limit, check_export_limit, increment_export_counter
+)
 from app.services import invoice_mock_service as mock_svc
 from app.services.ocr_service import get_ocr_service
 from app.repositories.product import ProductRepository
@@ -256,6 +260,9 @@ async def create_customer(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new customer."""
+    # Check customer limit before creating
+    await check_customer_limit(current_user.tenant_id, db)
+
     if is_mock_mode():
         return mock_svc.create_customer(str(current_user.tenant_id), data.model_dump(exclude_none=True))
 
@@ -1315,6 +1322,9 @@ async def create_invoice(
     from datetime import datetime
     logger = logging.getLogger(__name__)
 
+    # Check invoice limit before creating
+    await check_invoice_limit(current_user.tenant_id, db)
+
     # Check if this is a registered client (from Telegram bot)
     registered_customer = await get_registered_customer_for_invoice(
         customer_id=data.customer_id,
@@ -1448,6 +1458,9 @@ async def create_invoice(
             db=db
         )
 
+    # Increment invoice counter after successful creation
+    increment_invoice_counter(current_user.tenant_id, db)
+
     # Include telegram send status in response
     response = dict(invoice) if isinstance(invoice, dict) else invoice
     if telegram_result:
@@ -1479,6 +1492,9 @@ async def export_invoices(
         start_date: Filter start date (YYYY-MM-DD)
         end_date: Filter end date (YYYY-MM-DD)
     """
+    # Check export limit before proceeding
+    await check_export_limit(current_user.tenant_id, db)
+
     # Check tier enforcement
     if is_tier_enforced():
         from app.routes.subscriptions import has_pro_access, get_or_create_subscription
@@ -1504,6 +1520,9 @@ async def export_invoices(
         content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"invoices.{format}"
 
+        # Increment export counter after successful export
+        increment_export_counter(current_user.tenant_id, db)
+
         return Response(
             content=content,
             media_type=content_type,
@@ -1526,6 +1545,9 @@ async def export_invoices(
 
             content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             filename = f"invoices.{format}"
+
+            # Increment export counter after successful export
+            increment_export_counter(current_user.tenant_id, db)
 
             return Response(
                 content=response.content,

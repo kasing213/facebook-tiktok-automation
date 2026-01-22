@@ -141,6 +141,15 @@ def check_subscription_feature(feature_name: str, user: User, db: Session) -> bo
     """
     Check if user's tenant subscription allows access to a feature.
 
+    Access Rules:
+    - Owner (admin role): FULL ACCESS always, regardless of subscription
+    - Member (user role): FULL ACCESS only if tenant has Pro subscription
+    - Viewer role: Restricted to view-only features
+
+    Subscription Limits:
+    - Free: 1 user (owner only)
+    - Pro ($10/month): 2 users (owner + 1 member)
+
     Args:
         feature_name: Name of the feature to check
         user: Current user
@@ -149,30 +158,57 @@ def check_subscription_feature(feature_name: str, user: User, db: Session) -> bo
     Returns:
         True if feature is allowed, False otherwise
     """
-    from app.core.models import SubscriptionTier
+    from app.core.models import SubscriptionTier, Subscription
 
-    # Get tenant's subscription
-    subscription = None
-    if hasattr(user.tenant, 'subscription') and user.tenant.subscription:
-        subscription = user.tenant.subscription
-
-    # Free tier restrictions
-    if not subscription or subscription.tier == SubscriptionTier.free:
-        free_features = {
-            'invoice_create',
-            'invoice_view',
-            'invoice_send',
-            'payment_verify',
-            'telegram_link',
-            'basic_reports'
-        }
-        return feature_name in free_features
-
-    # Pro tier gets all features
-    if subscription.tier == SubscriptionTier.pro:
+    # Rule 1: Owner (admin role) ALWAYS has full access
+    if user.role == UserRole.admin:
         return True
 
-    return False
+    # Rule 2: For members, check tenant's subscription via owner
+    # Find the owner's subscription for this tenant
+    owner_subscription = db.query(Subscription).join(User).filter(
+        User.tenant_id == user.tenant_id,
+        User.role == UserRole.admin
+    ).first()
+
+    # Check subscription tier and feature access
+    subscription_tier = owner_subscription.tier if owner_subscription else SubscriptionTier.free
+
+    # Define features by subscription tier
+    free_features = {
+        'invoice_create',
+        'invoice_view',
+        'invoice_send',
+        'payment_verify',
+        'telegram_link',
+        'basic_reports'
+    }
+
+    invoice_plus_features = free_features | {
+        'bulk_operations',    # Export invoices
+        'advanced_inventory', # Product management
+        'customer_management',
+    }
+
+    marketing_plus_features = free_features | {
+        'social_automation',  # Facebook/TikTok
+        'ads_alerts',        # Promotions/broadcasts
+        'promotion_create',
+        'promotion_send',
+    }
+
+    pro_features = invoice_plus_features | marketing_plus_features  # All features
+
+    # Check feature access based on subscription
+    if subscription_tier == SubscriptionTier.pro:
+        return feature_name in pro_features
+    elif subscription_tier == SubscriptionTier.invoice_plus:
+        return feature_name in invoice_plus_features
+    elif subscription_tier == SubscriptionTier.marketing_plus:
+        return feature_name in marketing_plus_features
+    else:
+        # Free tier - basic features only
+        return feature_name in free_features
 
 
 def require_subscription_feature(feature_name: str):

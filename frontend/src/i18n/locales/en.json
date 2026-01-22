@@ -102,7 +102,30 @@
     "title": "Integrations",
     "facebook": "Facebook",
     "tiktok": "TikTok",
-    "telegram": "Telegram"
+    "telegram": "Telegram",
+    "noWorkspace": "No workspace selected. Please select a workspace from the header.",
+    "refresh": "Refresh",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "connect": "Connect",
+    "manage": "Manage"
+  },
+  "adsAlert": {
+    "title": "Ads Alert",
+    "subtitle": "Create and manage promotional broadcasts to your customers",
+    "newPromotion": "New Promotion",
+    "activeSubscribers": "Active Subscribers",
+    "draftPromotions": "Draft Promotions",
+    "scheduled": "Scheduled",
+    "sent": "Sent",
+    "mediaFiles": "Media Files",
+    "promotionsTab": "Promotions",
+    "chatsTab": "Chats",
+    "backToPromotions": "Back to Promotions",
+    "createPromotion": "Create Promotion",
+    "editPromotion": "Edit Promotion",
+    "noPromotions": "No promotions yet",
+    "loading": "Loading..."
   },
   "socialMedia": {
     "title": "Social Media",

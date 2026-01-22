@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { useAuth, useOAuth } from '../../hooks/useAuth'
 import { useTelegram } from '../../hooks/useTelegram'
@@ -7,6 +8,8 @@ import { useSubscription } from '../../hooks/useSubscription'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorMessage } from '../ErrorMessage'
 import SocialIcon from '../SocialIcon'
+import { easings, reduceMotion } from '../../styles/animations'
+import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -89,17 +92,25 @@ const IntegrationsGrid = styled.div`
   }
 `
 
-const IntegrationCard = styled.div<{ connected: boolean }>`
-  border: 2px solid ${props => props.connected ? '#28a745' : '#e5e7eb'};
+const IntegrationCard = styled.div<{ connected: boolean; $isVisible?: boolean; $delay?: number }>`
+  border: 2px solid ${props => props.connected ? '#28a745' : (props.theme.border || '#e5e7eb')};
   border-radius: 12px;
   padding: 1.5rem;
-  background: ${props => props.connected ? '#f8fff9' : 'white'};
-  transition: all 0.3s ease;
+  background: ${props => props.connected ? '#f8fff9' : (props.theme.card || 'white')};
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              box-shadow 0.3s ease,
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
   }
+
+  ${reduceMotion}
 `
 
 const CardHeader = styled.div`
@@ -460,10 +471,14 @@ const ManageButton = styled.button`
 `
 
 const IntegrationsPage: React.FC = () => {
+  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
   const [tenantId, setTenantId] = useState<string>('')
   const [successMessage, setSuccessMessage] = useState<string>('')
+
+  // Staggered animations for integration cards
+  const cardsVisible = useStaggeredAnimation(5, 100)  // 5 integration cards
 
   // Get tenant ID from localStorage (set by DashboardHeader)
   useEffect(() => {
@@ -581,8 +596,8 @@ const IntegrationsPage: React.FC = () => {
   if (!tenantId) {
     return (
       <Container>
-        <Title>Integrations</Title>
-        <ErrorMessage message="No workspace selected. Please select a workspace from the header." />
+        <Title>{t('integrations.title')}</Title>
+        <ErrorMessage message={t('integrations.noWorkspace')} />
       </Container>
     )
   }
@@ -590,10 +605,10 @@ const IntegrationsPage: React.FC = () => {
   return (
     <Container>
       <Header>
-        <Title>Integrations</Title>
+        <Title>{t('integrations.title')}</Title>
         <RefreshButton onClick={handleRefresh} disabled={loading}>
           {loading && <LoadingSpinner size="small" />}
-          Refresh
+          {t('integrations.refresh')}
         </RefreshButton>
       </Header>
 
@@ -617,7 +632,7 @@ const IntegrationsPage: React.FC = () => {
       {authStatus && (
         <IntegrationsGrid>
           {/* Facebook Integration */}
-          <IntegrationCard connected={authStatus.facebook?.connected || false}>
+          <IntegrationCard connected={authStatus.facebook?.connected || false} $isVisible={cardsVisible[0]} $delay={0}>
             <CardHeader>
               <SocialIcon platform="facebook" size="large" />
               <PlatformName>Facebook</PlatformName>
@@ -681,7 +696,7 @@ const IntegrationsPage: React.FC = () => {
           </IntegrationCard>
 
           {/* TikTok Integration */}
-          <IntegrationCard connected={authStatus.tiktok?.connected || false}>
+          <IntegrationCard connected={authStatus.tiktok?.connected || false} $isVisible={cardsVisible[1]} $delay={100}>
             <CardHeader>
               <SocialIcon platform="tiktok" size="large" />
               <PlatformName>TikTok</PlatformName>
@@ -745,7 +760,7 @@ const IntegrationsPage: React.FC = () => {
           </IntegrationCard>
 
           {/* Telegram Integration */}
-          <IntegrationCard connected={telegramStatus?.connected || false}>
+          <IntegrationCard connected={telegramStatus?.connected || false} $isVisible={cardsVisible[2]} $delay={200}>
             <CardHeader>
               <span style={{
                 width: '28px',
@@ -831,7 +846,7 @@ const IntegrationsPage: React.FC = () => {
           </IntegrationCard>
 
           {/* Invoice Generator Integration */}
-          <IntegrationCard connected={true}>
+          <IntegrationCard connected={true} $isVisible={cardsVisible[3]} $delay={300}>
             <CardHeader>
               <span style={{
                 width: '28px',
@@ -888,7 +903,7 @@ const IntegrationsPage: React.FC = () => {
           </IntegrationCard>
 
           {/* Stripe Payments / Subscription Management */}
-          <IntegrationCard connected={isPro}>
+          <IntegrationCard connected={isPro} $isVisible={cardsVisible[4]} $delay={400}>
             <CardHeader>
               <span style={{
                 width: '28px',

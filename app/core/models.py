@@ -2,7 +2,7 @@
 import enum, uuid, datetime as dt
 from sqlalchemy import (
     Column, String, DateTime, Enum, JSON, ForeignKey, UniqueConstraint,
-    Boolean, Integer, Text, Index, text, ARRAY
+    Boolean, Integer, Text, Index, text, ARRAY, Numeric
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
@@ -45,7 +45,9 @@ class IPRuleType(str, enum.Enum):
 
 class SubscriptionTier(str, enum.Enum):
     free = "free"
-    pro = "pro"
+    invoice_plus = "invoice_plus"  # $10/month - Invoice + Inventory
+    marketing_plus = "marketing_plus"  # $10/month - Social + Ads Alerts
+    pro = "pro"  # $20/month - Both products combined
 
 class SubscriptionStatus(str, enum.Enum):
     active = "active"
@@ -100,6 +102,29 @@ class Tenant(Base):
     slug = Column(String(100), nullable=False, unique=True)  # URL-friendly identifier
     is_active = Column(Boolean, default=True, nullable=False)
     settings = Column(JSON, nullable=True)  # tenant-specific configuration
+
+    # Usage limits (per tier)
+    invoice_limit = Column(Integer, default=50, nullable=False)
+    product_limit = Column(Integer, default=100, nullable=False)
+    customer_limit = Column(Integer, default=50, nullable=False)
+    team_member_limit = Column(Integer, default=1, nullable=False)  # Free tier: owner only
+    storage_limit_mb = Column(Integer, default=500, nullable=False)
+    api_calls_limit_hourly = Column(Integer, default=100, nullable=False)
+
+    # Marketing/Promotion limits (anti-abuse)
+    promotion_limit = Column(Integer, default=0, nullable=False)  # Free: 0, Marketing Plus: 10
+    broadcast_recipient_limit = Column(Integer, default=0, nullable=False)  # Free: 0, Marketing Plus: 500
+    current_month_promotions = Column(Integer, default=0, nullable=False)
+    current_month_broadcasts = Column(Integer, default=0, nullable=False)  # Total recipients this month
+
+    # Monthly usage counters (reset on 1st of month)
+    current_month_invoices = Column(Integer, default=0, nullable=False)
+    current_month_exports = Column(Integer, default=0, nullable=False)
+    current_month_reset_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Storage tracking (cumulative, does not reset)
+    storage_used_mb = Column(Numeric(10, 2), default=0, nullable=False)
+
     created_at = Column(DateTime, default=dt.datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow, nullable=False)
 

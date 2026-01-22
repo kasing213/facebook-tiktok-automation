@@ -102,7 +102,30 @@
     "title": "ការភ្ជាប់",
     "facebook": "Facebook",
     "tiktok": "TikTok",
-    "telegram": "Telegram"
+    "telegram": "Telegram",
+    "noWorkspace": "មិនបានជ្រើសរើសកន្លែងធ្វើការ។ សូមជ្រើសរើសកន្លែងធ្វើការពីបឋមកថា។",
+    "refresh": "ធ្វើឱ្យស្រស់",
+    "connected": "បានភ្ជាប់",
+    "disconnected": "បានផ្តាច់",
+    "connect": "ភ្ជាប់",
+    "manage": "គ្រប់គ្រង"
+  },
+  "adsAlert": {
+    "title": "ការជូនដំណឹងផ្សាយពាណិជ្ជកម្ម",
+    "subtitle": "បង្កើតនិងគ្រប់គ្រងការផ្សព្វផ្សាយទៅកាន់អតិថិជនរបស់អ្នក",
+    "newPromotion": "ការផ្សព្វផ្សាយថ្មី",
+    "activeSubscribers": "អ្នកជាវសកម្ម",
+    "draftPromotions": "សេចក្តីព្រាង",
+    "scheduled": "បានកំណត់ពេល",
+    "sent": "បានផ្ញើ",
+    "mediaFiles": "ឯកសារមេឌៀ",
+    "promotionsTab": "ការផ្សព្វផ្សាយ",
+    "chatsTab": "ការសន្ទនា",
+    "backToPromotions": "ត្រឡប់ទៅការផ្សព្វផ្សាយ",
+    "createPromotion": "បង្កើតការផ្សព្វផ្សាយ",
+    "editPromotion": "កែសម្រួលការផ្សព្វផ្សាយ",
+    "noPromotions": "មិនទាន់មានការផ្សព្វផ្សាយ",
+    "loading": "កំពុងផ្ទុក..."
   },
   "socialMedia": {
     "title": "បណ្តាញសង្គម",

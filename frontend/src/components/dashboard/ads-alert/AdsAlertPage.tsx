@@ -1,5 +1,6 @@
 // frontend/src/components/dashboard/ads-alert/AdsAlertPage.tsx
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { adsAlertService } from '../../../services/adsAlertApi'
 import { Promotion, AdsAlertStats } from '../../../types/adsAlert'
@@ -305,6 +306,7 @@ type TabType = 'promotions' | 'chats' | 'media'
 type ViewMode = 'list' | 'create' | 'edit' | 'view'
 
 const AdsAlertPage: React.FC = () => {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<TabType>('promotions')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null)
@@ -501,13 +503,13 @@ const AdsAlertPage: React.FC = () => {
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
             </svg>
-            Ads Alert
+            {t('adsAlert.title')}
           </Title>
-          <Subtitle>Create and manage promotional broadcasts to your customers</Subtitle>
+          <Subtitle>{t('adsAlert.subtitle')}</Subtitle>
         </TitleSection>
         {activeTab === 'promotions' && viewMode === 'list' && (
           <CreateButton onClick={handleCreate}>
-            + New Promotion
+            + {t('adsAlert.newPromotion')}
           </CreateButton>
         )}
       </Header>
@@ -523,7 +525,7 @@ const AdsAlertPage: React.FC = () => {
               </StatIcon>
               {stats.subscribed_chats}
             </StatValue>
-            <StatLabel>Active Subscribers</StatLabel>
+            <StatLabel>{t('adsAlert.activeSubscribers')}</StatLabel>
           </StatCard>
           <StatCard $isVisible={statsVisible[1]} $delay={100}>
             <StatValue>
@@ -534,7 +536,7 @@ const AdsAlertPage: React.FC = () => {
               </StatIcon>
               {stats.draft_promotions}
             </StatValue>
-            <StatLabel>Draft Promotions</StatLabel>
+            <StatLabel>{t('adsAlert.draftPromotions')}</StatLabel>
           </StatCard>
           <StatCard $isVisible={statsVisible[2]} $delay={200}>
             <StatValue>
@@ -545,7 +547,7 @@ const AdsAlertPage: React.FC = () => {
               </StatIcon>
               {stats.scheduled_promotions}
             </StatValue>
-            <StatLabel>Scheduled</StatLabel>
+            <StatLabel>{t('adsAlert.scheduled')}</StatLabel>
           </StatCard>
           <StatCard $isVisible={statsVisible[3]} $delay={300}>
             <StatValue>
@@ -556,7 +558,7 @@ const AdsAlertPage: React.FC = () => {
               </StatIcon>
               {stats.sent_promotions}
             </StatValue>
-            <StatLabel>Sent</StatLabel>
+            <StatLabel>{t('adsAlert.sent')}</StatLabel>
           </StatCard>
           <StatCard $isVisible={statsVisible[4]} $delay={400}>
             <StatValue>
@@ -567,7 +569,7 @@ const AdsAlertPage: React.FC = () => {
               </StatIcon>
               {stats.total_media}
             </StatValue>
-            <StatLabel>Media Files</StatLabel>
+            <StatLabel>{t('adsAlert.mediaFiles')}</StatLabel>
           </StatCard>
         </StatsGrid>
       )}
@@ -580,7 +582,7 @@ const AdsAlertPage: React.FC = () => {
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
           </svg>
-          Promotions
+          {t('adsAlert.promotionsTab')}
         </Tab>
         <Tab
           $active={activeTab === 'chats'}
@@ -589,7 +591,7 @@ const AdsAlertPage: React.FC = () => {
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
-          Chats
+          {t('adsAlert.chatsTab')}
         </Tab>
       </Tabs>
 
@@ -605,7 +607,7 @@ const AdsAlertPage: React.FC = () => {
             {(viewMode === 'create' || viewMode === 'edit') && (
               <>
                 <BackButton onClick={handleCancel}>
-                  ← Back to Promotions
+                  ← {t('adsAlert.backToPromotions')}
                 </BackButton>
                 <PromotionForm
                   promotion={viewMode === 'edit' ? selectedPromotion || undefined : undefined}
