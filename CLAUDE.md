@@ -995,6 +995,54 @@ const SidebarContainer = styled.nav`
 `
 ```
 
+#### 4. Khmer Translations - Ads Alert & Integrations Pages
+
+**Files Modified:**
+- `frontend/src/components/dashboard/ads-alert/AdsAlertPage.tsx` - Added i18n translations
+- `frontend/src/components/dashboard/IntegrationsPage.tsx` - Added i18n translations
+- `frontend/src/i18n/locales/en.json` - Added adsAlert section (14 keys)
+- `frontend/src/i18n/locales/km.json` - Added Khmer translations for adsAlert
+
+**AdsAlertPage Translation Implementation:**
+```typescript
+import { useTranslation } from 'react-i18next'
+
+const { t } = useTranslation()
+
+// Usage:
+<h1>{t('adsAlert.title')}</h1>
+<p>{t('adsAlert.subtitle')}</p>
+```
+
+**New Translation Keys Added:**
+```json
+"adsAlert": {
+  "title": "Ads Alert",
+  "subtitle": "Create and manage promotional broadcasts to your customers",
+  "newPromotion": "New Promotion",
+  "activeSubscribers": "Active Subscribers",
+  "draftPromotions": "Draft Promotions",
+  "scheduled": "Scheduled",
+  "sent": "Sent",
+  "mediaFiles": "Media Files",
+  "promotionsTab": "Promotions",
+  "chatsTab": "Chats",
+  "backToPromotions": "Back to Promotions",
+  "createPromotion": "Create Promotion",
+  "editPromotion": "Edit Promotion",
+  "noPromotions": "No promotions yet",
+  "loading": "Loading..."
+}
+```
+
+**Khmer Translations:**
+- ការជូនដំណឹងផ្សាយពាណិជ្ជកម្ម (Ads Alert)
+- ការផ្សព្វផ្សាយថ្មី (New Promotion)
+- អ្នកជាវសកម្ម (Active Subscribers)
+- សេចក្តីព្រាង (Draft Promotions)
+- បានកំណត់ពេល (Scheduled)
+- បានផ្ញើ (Sent)
+
 #### Color Mapping Reference
 
 | Light Mode | Dark Mode | Theme Variable |
@@ -1016,9 +1064,14 @@ const SidebarContainer = styled.nav`
 - [x] Invoice pages have staggered animations
 - [x] Client page has staggered animations
 - [x] Ads Alert page has staggered animations
+- [x] **Social Media page has staggered animations** (stat cards + platform cards)
+- [x] **Integrations page has staggered animations** (integration cards)
 - [x] Sidebar extends full height
 - [x] TypeScript compilation passes
 - [x] Smooth transitions between themes
+- [x] **Ads Alert page shows Khmer translations when language switched**
+- [x] **Integrations page shows Khmer translations when language switched**
+- [x] Build passes: `npm run build` completed in 5.55s
 
 ---
 
