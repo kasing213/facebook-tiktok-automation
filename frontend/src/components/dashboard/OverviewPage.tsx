@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 import { easings, reduceMotion } from '../../styles/animations'
 import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
+import { dashboardApi, DashboardStats, emptyDashboardStats } from '../../services/dashboardApi'
 
 // Platform logos
 import facebookLogo from '../../assets/images/social/facebook-logo.png'
@@ -309,11 +310,11 @@ const PlatformDetail = styled.p`
   margin: 0;
 `
 
-const StatusDot = styled.span`
+const StatusDot = styled.span<{ $connected?: boolean }>`
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 9999px;
-  background: ${props => props.theme.success};
+  background: ${props => props.$connected ? props.theme.success : props.theme.textMuted};
 `
 
 const ManageButton = styled.a`
@@ -405,43 +406,65 @@ const QuickActionIcon = styled.div<{ $color: 'blue' | 'green' | 'amber' }>`
   }}
 `
 
-// Mock data
-const stats = {
-  revenue: { value: 2450000, currency: 'KHR', change: 18.2 },
-  invoicesPending: { count: 12, amount: 890000 },
-  postsScheduled: { count: 24, platforms: { facebook: 15, tiktok: 9 } },
-  verifiedToday: { count: 8, autoApproved: 6 }
-}
-
-const recentActivity = [
-  { type: 'invoice_paid', title: 'Invoice #INV-0042 paid', amount: 125000, time: '5 min ago', status: 'success' as const },
-  { type: 'post_published', title: 'Posted to Facebook', platform: 'facebook', time: '12 min ago', status: 'success' as const },
-  { type: 'verification', title: 'Payment verified via OCR', confidence: 94, time: '18 min ago', status: 'success' as const },
-  { type: 'post_scheduled', title: 'TikTok video scheduled', platform: 'tiktok', time: '1 hour ago', status: 'info' as const },
-  { type: 'low_stock', title: 'Low stock: iPhone 15 Pro', stock: 3, time: '2 hours ago', status: 'warning' as const },
-  { type: 'invoice_sent', title: 'Invoice #INV-0043 sent via Telegram', time: '3 hours ago', status: 'success' as const },
-]
-
-const connectedPlatforms = [
-  { name: 'Facebook', connected: true, detail: '2 pages', icon: facebookLogo },
-  { name: 'TikTok', connected: true, detail: '1 account', icon: tiktokLogo },
-  { name: 'Telegram Bot', connected: true, detail: '45 linked users', icon: telegramLogo },
-]
-
+// Currency formatters
 const formatKHR = (amount: number) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '0 ៛'
   return new Intl.NumberFormat('en-US').format(amount) + ' ៛'
 }
 
 const formatUSD = (amount: number) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '$0.00'
   return '$' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(amount)
+}
+
+const formatCurrency = (amount: number, currency: string) => {
+  if (currency === 'USD') return formatUSD(amount)
+  return formatKHR(amount)
 }
 
 const OverviewPage: React.FC = () => {
   const navigate = useNavigate()
+  const [stats, setStats] = useState<DashboardStats>(emptyDashboardStats)
+
+  // Fetch real data on mount
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await dashboardApi.getStats()
+        setStats(data)
+      } catch (err) {
+        console.error('Failed to load dashboard stats:', err)
+        // Keep default empty stats on error - shows 0 for all values
+      }
+    }
+    fetchStats()
+  }, [])
+
+  // Build connected platforms from stats
+  const connectedPlatforms = [
+    {
+      name: 'Facebook',
+      connected: stats.facebook_pages > 0,
+      detail: stats.facebook_pages > 0 ? `${stats.facebook_pages} page${stats.facebook_pages > 1 ? 's' : ''}` : 'Not connected',
+      icon: facebookLogo
+    },
+    {
+      name: 'TikTok',
+      connected: stats.tiktok_accounts > 0,
+      detail: stats.tiktok_accounts > 0 ? `${stats.tiktok_accounts} account${stats.tiktok_accounts > 1 ? 's' : ''}` : 'Not connected',
+      icon: tiktokLogo
+    },
+    {
+      name: 'Telegram Bot',
+      connected: stats.telegram_linked_users > 0,
+      detail: stats.telegram_linked_users > 0 ? `${stats.telegram_linked_users} linked user${stats.telegram_linked_users > 1 ? 's' : ''}` : 'No linked users',
+      icon: telegramLogo
+    }
+  ]
 
   // Animation hooks
   const statsVisible = useStaggeredAnimation(4, 100) // 4 stat cards, 100ms stagger
-  const activityVisible = useStaggeredAnimation(recentActivity.length, 60)
+  const activityVisible = useStaggeredAnimation(stats.recent_activity.length || 1, 60)
   const platformsVisible = useStaggeredAnimation(connectedPlatforms.length, 80)
 
   const getActivityIcon = (type: string) => {
@@ -503,33 +526,38 @@ const OverviewPage: React.FC = () => {
         <StatCard $isVisible={statsVisible[0]} $delay={0}>
           <StatHeader>
             <StatLabel>Revenue (This Month)</StatLabel>
-            <StatBadge $variant="success">+{stats.revenue.change}%</StatBadge>
+            {stats.revenue_change_percent !== null && (
+              <StatBadge $variant={stats.revenue_change_percent >= 0 ? "success" : "warning"}>
+                {stats.revenue_change_percent >= 0 ? '+' : ''}{stats.revenue_change_percent}%
+              </StatBadge>
+            )}
           </StatHeader>
-          <StatValue>{formatKHR(stats.revenue.value)}</StatValue>
-          <StatSubtext>≈ {formatUSD(stats.revenue.value / 4000)}</StatSubtext>
+          <StatValue>{formatCurrency(stats.revenue_this_month, stats.revenue_currency)}</StatValue>
+          {stats.revenue_currency === 'KHR' && stats.revenue_this_month > 0 && (
+            <StatSubtext>≈ {formatUSD(stats.revenue_this_month / 4000)}</StatSubtext>
+          )}
         </StatCard>
 
         {/* Pending Invoices */}
         <StatCard $isVisible={statsVisible[1]} $delay={100}>
           <StatHeader>
             <StatLabel>Pending Invoices</StatLabel>
-            <StatBadge $variant="warning">{stats.invoicesPending.count} unpaid</StatBadge>
+            {stats.pending_count > 0 && (
+              <StatBadge $variant="warning">{stats.pending_count} unpaid</StatBadge>
+            )}
           </StatHeader>
-          <StatValue>{formatKHR(stats.invoicesPending.amount)}</StatValue>
-          <StatSubtext>Awaiting payment</StatSubtext>
+          <StatValue>{formatCurrency(stats.pending_amount, stats.revenue_currency)}</StatValue>
+          <StatSubtext>{stats.pending_count > 0 ? 'Awaiting payment' : 'No pending invoices'}</StatSubtext>
         </StatCard>
 
         {/* Scheduled Posts */}
         <StatCard $isVisible={statsVisible[2]} $delay={200}>
           <StatHeader>
             <StatLabel>Scheduled Posts</StatLabel>
-            <StatBadge>Next 7 days</StatBadge>
+            <StatBadge>Promotions</StatBadge>
           </StatHeader>
-          <StatValue>{stats.postsScheduled.count}</StatValue>
-          <StatPlatforms>
-            <span className="fb">FB: {stats.postsScheduled.platforms.facebook}</span>
-            <span> • TT: {stats.postsScheduled.platforms.tiktok}</span>
-          </StatPlatforms>
+          <StatValue>{stats.scheduled_posts}</StatValue>
+          <StatSubtext>{stats.scheduled_posts > 0 ? 'Scheduled to send' : 'No scheduled promotions'}</StatSubtext>
         </StatCard>
 
         {/* Verified Today */}
@@ -538,8 +566,8 @@ const OverviewPage: React.FC = () => {
             <StatLabel>Verified Today</StatLabel>
             <StatBadge>OCR</StatBadge>
           </StatHeader>
-          <StatValue>{stats.verifiedToday.count}</StatValue>
-          <StatSubtext>{stats.verifiedToday.autoApproved} auto-approved</StatSubtext>
+          <StatValue>{stats.verified_today}</StatValue>
+          <StatSubtext>{stats.auto_approved_today > 0 ? `${stats.auto_approved_today} auto-approved` : 'No verifications yet'}</StatSubtext>
         </StatCard>
       </StatsGrid>
 
@@ -552,26 +580,31 @@ const OverviewPage: React.FC = () => {
             <ViewAllLink onClick={() => navigate('/dashboard/logs')}>View all</ViewAllLink>
           </CardHeader>
           <ActivityList>
-            {recentActivity.map((activity, i) => (
-              <ActivityItem key={i} $isVisible={activityVisible[i]} $delay={i * 60}>
-                <ActivityIcon $variant={getActivityVariant(activity.status)}>
-                  {getActivityIcon(activity.type)}
-                </ActivityIcon>
+            {stats.recent_activity.length > 0 ? (
+              stats.recent_activity.map((activity, i) => (
+                <ActivityItem key={i} $isVisible={activityVisible[i]} $delay={i * 60}>
+                  <ActivityIcon $variant={getActivityVariant(activity.status)}>
+                    {getActivityIcon(activity.type)}
+                  </ActivityIcon>
+                  <ActivityContent>
+                    <ActivityTitle>{activity.title}</ActivityTitle>
+                    {activity.amount && (
+                      <ActivityMeta $variant="success">{formatCurrency(activity.amount, activity.currency || 'KHR')}</ActivityMeta>
+                    )}
+                    {activity.confidence && (
+                      <ActivityMeta $variant="success">{activity.confidence}% confidence</ActivityMeta>
+                    )}
+                  </ActivityContent>
+                  <ActivityTime>{activity.time}</ActivityTime>
+                </ActivityItem>
+              ))
+            ) : (
+              <ActivityItem $isVisible={true}>
                 <ActivityContent>
-                  <ActivityTitle>{activity.title}</ActivityTitle>
-                  {activity.amount && (
-                    <ActivityMeta $variant="success">{formatKHR(activity.amount)}</ActivityMeta>
-                  )}
-                  {activity.confidence && (
-                    <ActivityMeta $variant="success">{activity.confidence}% confidence</ActivityMeta>
-                  )}
-                  {activity.stock !== undefined && (
-                    <ActivityMeta $variant="warning">Only {activity.stock} left</ActivityMeta>
-                  )}
+                  <ActivityTitle style={{ color: 'var(--text-muted)' }}>No recent activity</ActivityTitle>
                 </ActivityContent>
-                <ActivityTime>{activity.time}</ActivityTime>
               </ActivityItem>
-            ))}
+            )}
           </ActivityList>
         </ActivityCard>
 
@@ -592,7 +625,7 @@ const OverviewPage: React.FC = () => {
                       <PlatformDetail>{platform.detail}</PlatformDetail>
                     </div>
                   </PlatformInfo>
-                  <StatusDot />
+                  <StatusDot $connected={platform.connected} />
                 </PlatformItem>
               ))}
             </PlatformList>

@@ -470,10 +470,91 @@ quantity, reference_type, reference_id, notes, created_by, created_at
 2. **Telegram Bot Integration** ← Unique in Cambodia
 3. **Social Media Automation** ← Nobody combines this with invoicing
 
-**Pricing Strategy:**
-- Free: Core invoice + payment verification
-- Pro ($10-15/mo): Inventory + advanced reports + bulk operations
-- Stay under $15/mo to compete in Cambodia market
+**Updated Pricing Strategy (2026-01-22):**
+- Free: Basic invoice + payment verification (limited)
+- Invoice Plus ($10/mo): Invoice system + inventory + customer management
+- Marketing Plus ($10/mo): Social media automation + ads alerts + promotions
+- Pro ($20/mo): Both products combined
+
+---
+
+## Dual $10/Month Subscription Model (IMPLEMENTED 2026-01-22)
+
+### Product Strategy
+**Two Focused Products at $10 Each:**
+1. **Invoice Plus** - Complete business invoicing solution
+2. **Marketing Plus** - Social media automation & customer engagement
+
+This strategy provides:
+- **Clear value proposition** for each $10 payment
+- **Focused feature sets** that don't overwhelm users
+- **Scalable revenue** - customers can buy one or both products
+- **Market competitive pricing** for Cambodia market
+
+### Subscription Tiers & Realistic Limits
+
+| Feature | Free | Invoice Plus ($10) | Marketing Plus ($10) | Pro ($20) |
+|---------|------|-------------------|---------------------|-----------|
+| **Invoice Features** |||||
+| Invoices/month | 20 | 200 | 20 | 200 |
+| Products | 50 | 500 | 50 | 500 |
+| Customers | 25 | 250 | 25 | 250 |
+| PDF exports/month | 10 | 100 | 10 | 100 |
+| **Marketing Features** |||||
+| Promotions/month | 0* | 0* | 10 | 20 |
+| Broadcast recipients/month | 0* | 0* | 500 | 1000 |
+| Social media accounts | 0 | 0 | 3 | 3 |
+| **Shared Features** |||||
+| Team members | 1 | 2 | 2 | 3 |
+| Storage | 100 MB | 1 GB | 500 MB | 2 GB |
+| API calls/hour | 50 | 200 | 200 | 500 |
+
+***Zero = Feature completely blocked (anti-abuse)**
+
+### Anti-Abuse Protection for Telegram
+
+**Critical for Platform Compliance:**
+- **Free tier**: NO promotional features (prevents spam)
+- **Daily limits**: Max 1 message per recipient per 24 hours
+- **Rate limiting**: 10 messages/second max batch sending
+- **Monthly caps**: Broadcast recipient limits strictly enforced
+- **Feature gates**: Marketing features require paid subscription
+
+**This prevents:**
+- Telegram API violations
+- Bot getting banned for spam
+- Free tier abuse
+- Customer annoyance from over-messaging
+
+### Implementation Status ✅
+
+**Database Schema:**
+- ✅ New subscription tiers: `invoice_plus`, `marketing_plus`, `pro`
+- ✅ Usage tracking columns: promotion/broadcast counters
+- ✅ Monthly reset system for all counters
+
+**Business Logic Enforcement:**
+- ✅ 402 Payment Required responses for limit violations
+- ✅ Feature gates prevent unauthorized access
+- ✅ Automatic counter increments after successful operations
+- ✅ Anti-abuse checks before promotional activities
+
+**API Protection:**
+- ✅ `POST /promotions` - Requires Marketing Plus + checks promotion limit
+- ✅ `POST /promotions/{id}/send` - Checks broadcast recipient limit
+- ✅ `POST /invoices` - Enhanced limits for paid tiers
+- ✅ `GET /invoices/export` - Higher limits for paid tiers
+
+**Files Modified:**
+| File | Purpose |
+|------|---------|
+| `app/core/models.py` | New subscription tiers + usage limit columns |
+| `app/core/usage_limits.py` | Dual product limits + anti-abuse logic |
+| `app/core/authorization.py` | Feature gates for separate products |
+| `app/routes/ads_alert.py` | Promotion/broadcast limit enforcement |
+| `app/routes/usage.py` | Usage dashboard API endpoints |
+| `app/jobs/usage_reset.py` | Monthly counter reset (includes promotions) |
+| `migrations/` | Database schema updates |
 
 ---
 

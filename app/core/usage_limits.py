@@ -60,11 +60,15 @@ def get_tenant_usage_limits(tenant_id: UUID, db: Session) -> Dict:
             "customer": tenant.customer_limit,
             "team_member": tenant.team_member_limit,
             "storage_mb": tenant.storage_limit_mb,
-            "api_calls_hourly": tenant.api_calls_limit_hourly
+            "api_calls_hourly": tenant.api_calls_limit_hourly,
+            "promotion": tenant.promotion_limit,
+            "broadcast_recipients": tenant.broadcast_recipient_limit
         },
         "current_usage": {
             "invoices": tenant.current_month_invoices,
             "exports": tenant.current_month_exports,
+            "promotions": tenant.current_month_promotions,
+            "broadcasts": tenant.current_month_broadcasts,
             "storage_mb": float(tenant.storage_used_mb) if tenant.storage_used_mb else 0.0
         },
         "subscription_tier": subscription_tier,
