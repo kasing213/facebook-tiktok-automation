@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
+import { useTranslation } from 'react-i18next'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -235,14 +236,15 @@ const mockUsageData = [
 ]
 
 const UsagePage: React.FC = () => {
+  const { t } = useTranslation()
   const [dateRange] = useState({ start: '2024-01-01', end: '2024-01-31' })
 
   return (
     <Container>
       <Header>
-        <Title>Usage Analytics</Title>
+        <Title>{t('usage.title')}</Title>
         <DateSelector>
-          <DateLabel>Period:</DateLabel>
+          <DateLabel>{t('usage.period')}</DateLabel>
           <DateInput type="text" value={`${dateRange.start} - ${dateRange.end}`} readOnly />
         </DateSelector>
       </Header>
@@ -251,56 +253,56 @@ const UsagePage: React.FC = () => {
         <MetricCard>
           <MetricHeader>
             <MetricIcon>API</MetricIcon>
-            <MetricLabel>Total API Calls</MetricLabel>
+            <MetricLabel>{t('usage.totalApiCalls')}</MetricLabel>
           </MetricHeader>
           <MetricValue>12,529</MetricValue>
-          <MetricSubtext>This month</MetricSubtext>
+          <MetricSubtext>{t('usage.thisMonth')}</MetricSubtext>
         </MetricCard>
 
         <MetricCard>
           <MetricHeader>
             <MetricIcon>DATA</MetricIcon>
-            <MetricLabel>Data Processed</MetricLabel>
+            <MetricLabel>{t('usage.dataProcessed')}</MetricLabel>
           </MetricHeader>
           <MetricValue>18.3 GB</MetricValue>
-          <MetricSubtext>This month</MetricSubtext>
+          <MetricSubtext>{t('usage.thisMonth')}</MetricSubtext>
         </MetricCard>
 
         <MetricCard>
           <MetricHeader>
             <MetricIcon>TIME</MetricIcon>
-            <MetricLabel>Avg Response Time</MetricLabel>
+            <MetricLabel>{t('usage.avgResponseTime')}</MetricLabel>
           </MetricHeader>
           <MetricValue>245ms</MetricValue>
-          <MetricSubtext>Last 30 days</MetricSubtext>
+          <MetricSubtext>{t('usage.last30Days')}</MetricSubtext>
         </MetricCard>
 
         <MetricCard>
           <MetricHeader>
             <MetricIcon>RATE</MetricIcon>
-            <MetricLabel>Success Rate</MetricLabel>
+            <MetricLabel>{t('usage.successRate')}</MetricLabel>
           </MetricHeader>
           <MetricValue>98.5%</MetricValue>
-          <MetricSubtext>Last 30 days</MetricSubtext>
+          <MetricSubtext>{t('usage.last30Days')}</MetricSubtext>
         </MetricCard>
       </MetricsGrid>
 
       <ChartSection>
-        <SectionTitle>Usage Comparison by Service</SectionTitle>
+        <SectionTitle>{t('usage.usageComparison')}</SectionTitle>
         <PlaceholderChart>
-          Bar chart comparing service usage will be displayed here
+          {t('usage.chartPlaceholder')}
         </PlaceholderChart>
       </ChartSection>
 
       <TableSection>
-        <SectionTitle>Usage Breakdown</SectionTitle>
+        <SectionTitle>{t('usage.usageBreakdown')}</SectionTitle>
         <UsageTable>
           <TableHeader>
             <tr>
-              <TableHeaderCell>Service</TableHeaderCell>
-              <TableHeaderCell>Requests</TableHeaderCell>
-              <TableHeaderCell>Data Processed</TableHeaderCell>
-              <TableHeaderCell>Usage %</TableHeaderCell>
+              <TableHeaderCell>{t('usage.service')}</TableHeaderCell>
+              <TableHeaderCell>{t('usage.requests')}</TableHeaderCell>
+              <TableHeaderCell>{t('usage.dataProcessed')}</TableHeaderCell>
+              <TableHeaderCell>{t('usage.usagePercent')}</TableHeaderCell>
             </tr>
           </TableHeader>
           <TableBody>

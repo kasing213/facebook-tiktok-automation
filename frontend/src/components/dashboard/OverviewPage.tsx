@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
+import { useTranslation } from 'react-i18next'
 import { easings, reduceMotion } from '../../styles/animations'
 import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
 import { dashboardApi, DashboardStats, emptyDashboardStats } from '../../services/dashboardApi'
@@ -425,6 +426,7 @@ const formatCurrency = (amount: number, currency: string) => {
 
 const OverviewPage: React.FC = () => {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [stats, setStats] = useState<DashboardStats>(emptyDashboardStats)
 
   // Fetch real data on mount
@@ -446,19 +448,25 @@ const OverviewPage: React.FC = () => {
     {
       name: 'Facebook',
       connected: stats.facebook_pages > 0,
-      detail: stats.facebook_pages > 0 ? `${stats.facebook_pages} page${stats.facebook_pages > 1 ? 's' : ''}` : 'Not connected',
+      detail: stats.facebook_pages > 0
+        ? `${stats.facebook_pages} ${stats.facebook_pages > 1 ? t('overview.pages') : t('overview.page')}`
+        : t('overview.notConnected'),
       icon: facebookLogo
     },
     {
       name: 'TikTok',
       connected: stats.tiktok_accounts > 0,
-      detail: stats.tiktok_accounts > 0 ? `${stats.tiktok_accounts} account${stats.tiktok_accounts > 1 ? 's' : ''}` : 'Not connected',
+      detail: stats.tiktok_accounts > 0
+        ? `${stats.tiktok_accounts} ${stats.tiktok_accounts > 1 ? t('overview.accounts') : t('overview.account')}`
+        : t('overview.notConnected'),
       icon: tiktokLogo
     },
     {
       name: 'Telegram Bot',
       connected: stats.telegram_linked_users > 0,
-      detail: stats.telegram_linked_users > 0 ? `${stats.telegram_linked_users} linked user${stats.telegram_linked_users > 1 ? 's' : ''}` : 'No linked users',
+      detail: stats.telegram_linked_users > 0
+        ? `${stats.telegram_linked_users} ${stats.telegram_linked_users > 1 ? t('overview.linkedUsers') : t('overview.linkedUser')}`
+        : t('overview.noLinkedUsers'),
       icon: telegramLogo
     }
   ]
@@ -526,7 +534,7 @@ const OverviewPage: React.FC = () => {
         {/* Revenue */}
         <StatCard $isVisible={statsVisible[0]} $delay={0}>
           <StatHeader>
-            <StatLabel>Revenue (This Month)</StatLabel>
+            <StatLabel>{t('overview.revenue')}</StatLabel>
             {stats.revenue_change_percent !== null && (
               <StatBadge $variant={stats.revenue_change_percent >= 0 ? "success" : "warning"}>
                 {stats.revenue_change_percent >= 0 ? '+' : ''}{stats.revenue_change_percent}%
@@ -542,33 +550,33 @@ const OverviewPage: React.FC = () => {
         {/* Pending Invoices */}
         <StatCard $isVisible={statsVisible[1]} $delay={100}>
           <StatHeader>
-            <StatLabel>Pending Invoices</StatLabel>
+            <StatLabel>{t('overview.pendingInvoices')}</StatLabel>
             {stats.pending_count > 0 && (
-              <StatBadge $variant="warning">{stats.pending_count} unpaid</StatBadge>
+              <StatBadge $variant="warning">{stats.pending_count} {t('overview.unpaid')}</StatBadge>
             )}
           </StatHeader>
           <StatValue>{formatCurrency(stats.pending_amount, stats.revenue_currency)}</StatValue>
-          <StatSubtext>{stats.pending_count > 0 ? 'Awaiting payment' : 'No pending invoices'}</StatSubtext>
+          <StatSubtext>{stats.pending_count > 0 ? t('overview.awaitingPayment') : t('overview.noPendingInvoices')}</StatSubtext>
         </StatCard>
 
         {/* Scheduled Posts */}
         <StatCard $isVisible={statsVisible[2]} $delay={200}>
           <StatHeader>
-            <StatLabel>Scheduled Posts</StatLabel>
-            <StatBadge>Promotions</StatBadge>
+            <StatLabel>{t('overview.scheduledPosts')}</StatLabel>
+            <StatBadge>{t('overview.promotions')}</StatBadge>
           </StatHeader>
           <StatValue>{stats.scheduled_posts}</StatValue>
-          <StatSubtext>{stats.scheduled_posts > 0 ? 'Scheduled to send' : 'No scheduled promotions'}</StatSubtext>
+          <StatSubtext>{stats.scheduled_posts > 0 ? t('overview.scheduledToSend') : t('overview.noScheduledPromotions')}</StatSubtext>
         </StatCard>
 
         {/* Verified Today */}
         <StatCard $isVisible={statsVisible[3]} $delay={300}>
           <StatHeader>
-            <StatLabel>Verified Today</StatLabel>
-            <StatBadge>OCR</StatBadge>
+            <StatLabel>{t('overview.verifiedToday')}</StatLabel>
+            <StatBadge>{t('overview.ocr')}</StatBadge>
           </StatHeader>
           <StatValue>{stats.verified_today}</StatValue>
-          <StatSubtext>{stats.auto_approved_today > 0 ? `${stats.auto_approved_today} auto-approved` : 'No verifications yet'}</StatSubtext>
+          <StatSubtext>{stats.auto_approved_today > 0 ? t('overview.autoApproved', { count: stats.auto_approved_today }) : t('overview.noVerificationsYet')}</StatSubtext>
         </StatCard>
       </StatsGrid>
 
@@ -577,8 +585,8 @@ const OverviewPage: React.FC = () => {
         {/* Activity Feed */}
         <ActivityCard>
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <ViewAllLink onClick={() => navigate('/dashboard/logs')}>View all</ViewAllLink>
+            <CardTitle>{t('overview.recentActivity')}</CardTitle>
+            <ViewAllLink onClick={() => navigate('/dashboard/logs')}>{t('overview.viewAll')}</ViewAllLink>
           </CardHeader>
           <ActivityList>
             {stats.recent_activity.length > 0 ? (
@@ -593,7 +601,7 @@ const OverviewPage: React.FC = () => {
                       <ActivityMeta $variant="success">{formatCurrency(activity.amount, activity.currency || 'KHR')}</ActivityMeta>
                     )}
                     {activity.confidence && (
-                      <ActivityMeta $variant="success">{activity.confidence}% confidence</ActivityMeta>
+                      <ActivityMeta $variant="success">{t('overview.confidence', { value: activity.confidence })}</ActivityMeta>
                     )}
                   </ActivityContent>
                   <ActivityTime>{activity.time}</ActivityTime>
@@ -602,7 +610,7 @@ const OverviewPage: React.FC = () => {
             ) : (
               <ActivityItem $isVisible={true}>
                 <ActivityContent>
-                  <ActivityTitle style={{ color: 'var(--text-muted)' }}>No recent activity</ActivityTitle>
+                  <ActivityTitle style={{ color: 'var(--text-muted)' }}>{t('overview.noRecentActivity')}</ActivityTitle>
                 </ActivityContent>
               </ActivityItem>
             )}
@@ -614,7 +622,7 @@ const OverviewPage: React.FC = () => {
           {/* Connected Platforms */}
           <PlatformCard>
             <CardHeader>
-              <CardTitle>Connected Platforms</CardTitle>
+              <CardTitle>{t('overview.connectedPlatforms')}</CardTitle>
             </CardHeader>
             <PlatformList>
               {connectedPlatforms.map((platform, i) => (
@@ -631,14 +639,14 @@ const OverviewPage: React.FC = () => {
               ))}
             </PlatformList>
             <ManageButton onClick={() => navigate('/dashboard/integrations')}>
-              Manage Integrations
+              {t('overview.manageIntegrations')}
             </ManageButton>
           </PlatformCard>
 
           {/* Quick Actions */}
           <QuickActionsCard>
             <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
+              <CardTitle>{t('overview.quickActions')}</CardTitle>
             </CardHeader>
             <QuickActionsList>
               <QuickActionItem onClick={() => navigate('/dashboard/invoices/new')}>
@@ -647,7 +655,7 @@ const OverviewPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 </QuickActionIcon>
-                Create Invoice
+                {t('overview.createInvoice')}
               </QuickActionItem>
               <QuickActionItem onClick={() => navigate('/dashboard/integrations/facebook')}>
                 <QuickActionIcon $color="green">
@@ -655,7 +663,7 @@ const OverviewPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </QuickActionIcon>
-                Schedule Post
+                {t('overview.schedulePost')}
               </QuickActionItem>
               <QuickActionItem onClick={() => navigate('/dashboard/inventory')}>
                 <QuickActionIcon $color="amber">
@@ -663,7 +671,7 @@ const OverviewPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
                 </QuickActionIcon>
-                Add Product
+                {t('overview.addProduct')}
               </QuickActionItem>
             </QuickActionsList>
           </QuickActionsCard>
