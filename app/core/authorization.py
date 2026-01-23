@@ -164,15 +164,21 @@ def check_subscription_feature(feature_name: str, user: User, db: Session) -> bo
     if user.role == UserRole.admin:
         return True
 
-    # Rule 2: For members, check tenant's subscription via owner
-    # Find the owner's subscription for this tenant
-    owner_subscription = db.query(Subscription).join(User).filter(
-        User.tenant_id == user.tenant_id,
-        User.role == UserRole.admin
+    # Rule 2: For members, check subscription
+    # First try the user's own subscription
+    user_subscription = db.query(Subscription).filter(
+        Subscription.user_id == user.id
     ).first()
 
-    # Check subscription tier and feature access
-    subscription_tier = owner_subscription.tier if owner_subscription else SubscriptionTier.free
+    if user_subscription:
+        subscription_tier = user_subscription.tier
+    else:
+        # Fallback: check tenant owner's subscription
+        owner_subscription = db.query(Subscription).join(User).filter(
+            User.tenant_id == user.tenant_id,
+            User.role == UserRole.admin
+        ).first()
+        subscription_tier = owner_subscription.tier if owner_subscription else SubscriptionTier.free
 
     # Define features by subscription tier
     free_features = {
