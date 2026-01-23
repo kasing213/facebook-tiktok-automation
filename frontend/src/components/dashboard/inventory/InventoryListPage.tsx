@@ -72,13 +72,13 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
       transform: translateY(0) scale(0.98);
     }
   ` : `
-    background: white;
-    color: #6b7280;
-    border: 1px solid #e5e7eb;
+    background: ${props.theme.card};
+    color: ${props.theme.textSecondary};
+    border: 1px solid ${props.theme.border};
 
     &:hover:not(:disabled) {
-      background: #f9fafb;
-      border-color: #d1d5db;
+      background: ${props.theme.backgroundTertiary};
+      border-color: ${props.theme.textMuted};
     }
   `}
 
@@ -98,8 +98,8 @@ const StatsGrid = styled.div`
 `
 
 const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 1.25rem;
   opacity: ${props => props.$isVisible ? 1 : 0};
@@ -110,7 +110,7 @@ const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
   }
 
   ${reduceMotion}
@@ -119,7 +119,7 @@ const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
 const StatLabel = styled.div`
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.5rem;
@@ -128,12 +128,12 @@ const StatLabel = styled.div`
 const StatValue = styled.div<{ $color?: string }>`
   font-size: 1.5rem;
   font-weight: 700;
-  color: ${props => props.$color || '#1f2937'};
+  color: ${props => props.$color || props.theme.textPrimary};
 `
 
 const FilterToolbar = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 1rem 1.5rem;
   margin-bottom: 1.5rem;
@@ -154,7 +154,7 @@ const SearchIcon = styled.span`
   left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -168,14 +168,19 @@ const SearchIcon = styled.span`
 const SearchInput = styled.input`
   width: 100%;
   padding: 0.625rem 1rem 0.625rem 2.5rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   font-size: 0.9375rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
+  background: ${props => props.theme.background};
+
+  &::placeholder {
+    color: ${props => props.theme.textMuted};
+  }
 
   &:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: ${props => props.theme.accent};
   }
 `
 
@@ -184,7 +189,7 @@ const FilterCheckbox = styled.label`
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   cursor: pointer;
 
   input {
@@ -195,8 +200,8 @@ const FilterCheckbox = styled.label`
 `
 
 const TableSection = styled.section`
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   overflow: hidden;
 `
@@ -207,7 +212,7 @@ const Table = styled.table`
 `
 
 const TableHeader = styled.thead`
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
 `
 
 const TableHeaderCell = styled.th`
@@ -215,16 +220,16 @@ const TableHeaderCell = styled.th`
   padding: 1rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid ${props => props.theme.border};
 `
 
 const TableBody = styled.tbody``
 
 const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid ${props => props.theme.border};
   opacity: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 1 : 0) : 1};
   transform: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 'translateX(0)' : 'translateX(-10px)') : 'translateX(0)'};
   transition: opacity 0.3s ${easings.easeOutCubic},
@@ -237,7 +242,7 @@ const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
   }
 
   &:hover {
-    background: #f9fafb;
+    background: ${props => props.theme.backgroundTertiary};
   }
 
   ${reduceMotion}
@@ -246,18 +251,18 @@ const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
 const TableCell = styled.td`
   padding: 1rem;
   font-size: 0.9375rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   vertical-align: middle;
 `
 
 const ProductName = styled.div`
   font-weight: 500;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
 `
 
 const ProductSku = styled.div`
   font-size: 0.75rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 `
 
 const StockBadge = styled.span<{ $isLow: boolean }>`
@@ -268,6 +273,19 @@ const StockBadge = styled.span<{ $isLow: boolean }>`
   font-weight: 500;
   background: ${props => props.$isLow ? '#fef2f2' : '#f0fdf4'};
   color: ${props => props.$isLow ? '#dc2626' : '#16a34a'};
+`
+
+const StatusText = styled.span<{ $active?: boolean }>`
+  color: ${props => props.$active ? props.theme.success : props.theme.textSecondary};
+`
+
+const MutedText = styled.span`
+  color: ${props => props.theme.textSecondary};
+`
+
+const ModalDescription = styled.p`
+  color: ${props => props.theme.textSecondary};
+  margin-bottom: 1.5rem;
 `
 
 const ActionButtons = styled.div`
@@ -281,13 +299,13 @@ const IconButton = styled.button`
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
   display: flex;
   align-items: center;
   justify-content: center;
 
   &:hover {
-    color: #6b7280;
+    color: ${props => props.theme.accent};
   }
 
   &:disabled {
@@ -302,8 +320,8 @@ const IconButton = styled.button`
 `
 
 const ErrorMessage = styled.div`
-  background: #f8d7da;
-  color: #721c24;
+  background: ${props => props.theme.mode === 'dark' ? 'rgba(220, 53, 69, 0.15)' : '#f8d7da'};
+  color: ${props => props.theme.error};
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
@@ -313,8 +331,8 @@ const ErrorMessage = styled.div`
 `
 
 const SuccessMessage = styled.div`
-  background: #d4edda;
-  color: #155724;
+  background: ${props => props.theme.mode === 'dark' ? 'rgba(40, 167, 69, 0.15)' : '#d4edda'};
+  color: ${props => props.theme.success};
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
@@ -326,10 +344,10 @@ const SuccessMessage = styled.div`
 const EmptyState = styled.div`
   text-align: center;
   padding: 3rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 
   h3 {
-    color: #1f2937;
+    color: ${props => props.theme.textPrimary};
     margin-bottom: 0.5rem;
   }
 `
@@ -363,7 +381,7 @@ const ModalOverlay = styled.div`
 `
 
 const ModalContent = styled.div`
-  background: white;
+  background: ${props => props.theme.card};
   border-radius: 12px;
   padding: 2rem;
   max-width: 500px;
@@ -374,7 +392,7 @@ const ModalContent = styled.div`
 
   h2 {
     margin: 0 0 1.5rem 0;
-    color: #1f2937;
+    color: ${props => props.theme.textPrimary};
     font-size: 1.5rem;
   }
 
@@ -389,54 +407,64 @@ const FormLabel = styled.label`
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #374151;
+  color: ${props => props.theme.textPrimary};
   margin-bottom: 0.5rem;
 `
 
 const FormInput = styled.input`
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   font-size: 0.9375rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
+  background: ${props => props.theme.background};
+
+  &::placeholder {
+    color: ${props => props.theme.textMuted};
+  }
 
   &:focus {
     outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+    border-color: ${props => props.theme.accent};
+    box-shadow: 0 0 0 2px ${props => props.theme.mode === 'dark' ? 'rgba(62, 207, 142, 0.1)' : 'rgba(74, 144, 226, 0.1)'};
   }
 `
 
 const FormTextarea = styled.textarea`
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   font-size: 0.9375rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
+  background: ${props => props.theme.background};
   min-height: 80px;
   resize: vertical;
 
+  &::placeholder {
+    color: ${props => props.theme.textMuted};
+  }
+
   &:focus {
     outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+    border-color: ${props => props.theme.accent};
+    box-shadow: 0 0 0 2px ${props => props.theme.mode === 'dark' ? 'rgba(62, 207, 142, 0.1)' : 'rgba(74, 144, 226, 0.1)'};
   }
 `
 
 const FormSelect = styled.select`
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   font-size: 0.9375rem;
-  color: #1f2937;
-  background: white;
+  color: ${props => props.theme.textPrimary};
+  background: ${props => props.theme.background};
 
   &:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: ${props => props.theme.accent};
   }
 `
 
@@ -445,7 +473,7 @@ const FormCheckbox = styled.label`
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9375rem;
-  color: #374151;
+  color: ${props => props.theme.textPrimary};
   cursor: pointer;
 
   input {
@@ -811,15 +839,13 @@ const InventoryListPage: React.FC = () => {
                           {product.current_stock} units
                         </StockBadge>
                       ) : (
-                        <span style={{ color: '#6b7280' }}>Not tracked</span>
+                        <MutedText>Not tracked</MutedText>
                       )}
                     </TableCell>
                     <TableCell>
-                      {product.is_active ? (
-                        <span style={{ color: '#16a34a' }}>Active</span>
-                      ) : (
-                        <span style={{ color: '#6b7280' }}>Inactive</span>
-                      )}
+                      <StatusText $active={product.is_active}>
+                        {product.is_active ? 'Active' : 'Inactive'}
+                      </StatusText>
                     </TableCell>
                     <TableCell>
                       <ActionButtons>
@@ -1006,9 +1032,9 @@ const InventoryListPage: React.FC = () => {
         }}>
           <ModalContent onClick={e => e.stopPropagation()}>
             <h2>Adjust Stock</h2>
-            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+            <ModalDescription>
               Adjust stock level for <strong>{selectedProduct.name}</strong>
-            </p>
+            </ModalDescription>
 
             <FormGroup>
               <FormLabel>Current Stock: {selectedProduct.current_stock} units</FormLabel>
@@ -1058,10 +1084,10 @@ const InventoryListPage: React.FC = () => {
         }}>
           <ModalContent onClick={e => e.stopPropagation()}>
             <h2>Delete Product</h2>
-            <p style={{ color: '#6b7280' }}>
+            <ModalDescription>
               Are you sure you want to delete <strong>{selectedProduct.name}</strong>?
               This action cannot be undone.
-            </p>
+            </ModalDescription>
             <ModalActions>
               <Button onClick={() => {
                 setShowDeleteModal(false)
