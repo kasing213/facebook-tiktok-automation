@@ -32,12 +32,15 @@ const Header = styled.div`
 const Title = styled.h1`
   font-size: 2rem;
   font-weight: 600;
-  color: #1f2937;
+  background: linear-gradient(135deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0;
 `
 
 const RefreshButton = styled.button`
-  background: #4a90e2;
+  background: ${props => props.theme.accent};
   color: white;
   border: none;
   padding: 0.625rem 1.25rem;
@@ -51,7 +54,7 @@ const RefreshButton = styled.button`
   gap: 0.5rem;
 
   &:hover:not(:disabled) {
-    background: #2a5298;
+    background: ${props => props.theme.accentDark};
     transform: translateY(-1px);
   }
 
@@ -62,12 +65,12 @@ const RefreshButton = styled.button`
 `
 
 const SuccessMessage = styled.div`
-  background: #d4edda;
-  border: 1px solid #c3e6cb;
+  background: ${props => props.theme.mode === 'dark' ? 'rgba(40, 167, 69, 0.15)' : '#d4edda'};
+  border: 1px solid ${props => props.theme.mode === 'dark' ? 'rgba(40, 167, 69, 0.3)' : '#c3e6cb'};
   border-radius: 8px;
   padding: 0.875rem 1.25rem;
   margin-bottom: 1.5rem;
-  color: #155724;
+  color: ${props => props.theme.success};
   font-size: 0.9375rem;
   display: flex;
   align-items: center;
@@ -77,7 +80,7 @@ const SuccessMessage = styled.div`
     content: "\\2713";
     font-size: 1.125rem;
     font-weight: 700;
-    color: #28a745;
+    color: ${props => props.theme.success};
   }
 `
 
@@ -93,10 +96,12 @@ const IntegrationsGrid = styled.div`
 `
 
 const IntegrationCard = styled.div<{ connected: boolean; $isVisible?: boolean; $delay?: number }>`
-  border: 2px solid ${props => props.connected ? '#28a745' : (props.theme.border || '#e5e7eb')};
+  border: 2px solid ${props => props.connected ? props.theme.success : props.theme.border};
   border-radius: 12px;
   padding: 1.5rem;
-  background: ${props => props.connected ? '#f8fff9' : (props.theme.card || 'white')};
+  background: ${props => props.connected
+    ? (props.theme.mode === 'dark' ? 'rgba(40, 167, 69, 0.1)' : '#f8fff9')
+    : props.theme.card};
   opacity: ${props => props.$isVisible ? 1 : 0};
   transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(20px)'};
   transition: opacity 0.5s ${easings.easeOutCubic},
@@ -107,7 +112,7 @@ const IntegrationCard = styled.div<{ connected: boolean; $isVisible?: boolean; $
   transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
   }
 
   ${reduceMotion}
@@ -122,7 +127,7 @@ const CardHeader = styled.div`
 
 const PlatformName = styled.h3`
   margin: 0;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   font-size: 1.25rem;
   font-weight: 600;
   flex: 1;
@@ -145,7 +150,7 @@ const StatusBadge = styled.span<{ connected: boolean }>`
 
 const Description = styled.p`
   margin: 0 0 1rem 0;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   font-size: 0.9375rem;
   line-height: 1.5;
 `
@@ -155,12 +160,13 @@ const TokensList = styled.div`
 `
 
 const TokenItem = styled.div`
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.backgroundTertiary};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   padding: 0.875rem;
   margin-bottom: 0.625rem;
   font-size: 0.9375rem;
+  color: ${props => props.theme.textPrimary};
 
   &:last-child {
     margin-bottom: 0;
@@ -168,7 +174,7 @@ const TokenItem = styled.div`
 `
 
 const TokenMeta = styled.div`
-  color: #6b7280;
+  color: ${props => props.theme.textMuted};
   font-size: 0.8125rem;
   margin-top: 0.375rem;
 `
@@ -262,12 +268,18 @@ const DisconnectButton = styled.button`
 `
 
 const LinkCodeBox = styled.div`
-  background: #f0f9ff;
+  background: ${props => props.theme.mode === 'dark' ? 'rgba(0, 136, 204, 0.1)' : '#f0f9ff'};
   border: 1px solid #0088cc;
   border-radius: 8px;
   padding: 1rem;
   margin-top: 1rem;
   text-align: center;
+`
+
+const LinkCodeText = styled.p`
+  margin: 0;
+  font-size: 0.875rem;
+  color: ${props => props.theme.textSecondary};
 `
 
 const LinkCode = styled.code`
@@ -300,7 +312,7 @@ const DeepLinkButton = styled.a`
 
 const ExpiryText = styled.p`
   font-size: 0.8125rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin-top: 0.5rem;
 `
 
@@ -313,8 +325,8 @@ const TierBadge = styled.span<{ tier: 'free' | 'pro' }>`
     background: linear-gradient(135deg, #ffd700 0%, #ff9500 100%);
     color: #1f2937;
   ` : `
-    background: #e5e7eb;
-    color: #6b7280;
+    background: ${props.theme.backgroundTertiary};
+    color: ${props.theme.textSecondary};
   `}
 `
 
@@ -330,11 +342,11 @@ const FeatureItem = styled.li<{ available: boolean }>`
   gap: 0.5rem;
   padding: 0.375rem 0;
   font-size: 0.9375rem;
-  color: ${props => props.available ? '#1f2937' : '#9ca3af'};
+  color: ${props => props.available ? props.theme.textPrimary : props.theme.textMuted};
 
   &:before {
     content: "${props => props.available ? '✓' : '✗'}";
-    color: ${props => props.available ? '#28a745' : '#dc3545'};
+    color: ${props => props.available ? props.theme.success : props.theme.error};
     font-weight: 700;
   }
 `
@@ -407,18 +419,18 @@ const PriceButton = styled.button<{ recommended?: boolean }>`
   text-align: center;
 
   ${props => props.recommended ? `
-    background: linear-gradient(135deg, #4a90e2 0%, #2a5298 100%);
+    background: linear-gradient(135deg, ${props.theme.accent} 0%, ${props.theme.accentDark} 100%);
     color: white;
     border: none;
   ` : `
-    background: white;
-    color: #4a90e2;
-    border: 2px solid #4a90e2;
+    background: ${props.theme.card};
+    color: ${props.theme.accent};
+    border: 2px solid ${props.theme.accent};
   `}
 
   &:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+    box-shadow: 0 2px 8px ${props => props.theme.shadowColor};
   }
 
   &:disabled {
@@ -436,7 +448,7 @@ const PriceButton = styled.button<{ recommended?: boolean }>`
 `
 
 const SubscriptionInfo = styled.div`
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 8px;
   padding: 1rem;
   margin-top: 1rem;
@@ -445,13 +457,25 @@ const SubscriptionInfo = styled.div`
 const SubscriptionDetail = styled.p`
   margin: 0.25rem 0;
   font-size: 0.875rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
+`
+
+const LoadingText = styled.p`
+  margin-top: 1rem;
+  color: ${props => props.theme.textSecondary};
+`
+
+const InfoText = styled.p`
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9375rem;
+  color: ${props => props.theme.textSecondary};
+  font-weight: 500;
 `
 
 const ManageButton = styled.button`
-  background: white;
-  color: #4a90e2;
-  border: 2px solid #4a90e2;
+  background: ${props => props.theme.card};
+  color: ${props => props.theme.accent};
+  border: 2px solid ${props => props.theme.accent};
   padding: 0.625rem 1rem;
   border-radius: 6px;
   font-size: 0.875rem;
@@ -461,7 +485,7 @@ const ManageButton = styled.button`
   margin-top: 0.75rem;
 
   &:hover:not(:disabled) {
-    background: #f0f7ff;
+    background: ${props => props.theme.mode === 'dark' ? 'rgba(62, 207, 142, 0.1)' : '#f0f7ff'};
   }
 
   &:disabled {
@@ -625,7 +649,7 @@ const IntegrationsPage: React.FC = () => {
       {loading && !authStatus && (
         <div style={{ textAlign: 'center', padding: '3rem' }}>
           <LoadingSpinner size="large" />
-          <p style={{ marginTop: '1rem', color: '#6b7280' }}>Loading integration status...</p>
+          <LoadingText>Loading integration status...</LoadingText>
         </div>
       )}
 
@@ -647,9 +671,9 @@ const IntegrationsPage: React.FC = () => {
 
             {authStatus.facebook?.connected && (
               <div>
-                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
+                <InfoText>
                   Valid tokens: {authStatus.facebook.valid_tokens}
-                </p>
+                </InfoText>
 
                 {authStatus.facebook.accounts && authStatus.facebook.accounts.length > 0 && (
                   <TokensList>
@@ -711,9 +735,9 @@ const IntegrationsPage: React.FC = () => {
 
             {authStatus.tiktok?.connected && (
               <div>
-                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
+                <InfoText>
                   Valid tokens: {authStatus.tiktok.valid_tokens}
-                </p>
+                </InfoText>
 
                 {authStatus.tiktok.accounts && authStatus.tiktok.accounts.length > 0 && (
                   <TokensList>
@@ -786,9 +810,9 @@ const IntegrationsPage: React.FC = () => {
 
             {telegramStatus?.connected && (
               <div>
-                <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9375rem', color: '#6b7280', fontWeight: 500 }}>
+                <InfoText>
                   Connected as @{telegramStatus.telegram_username || telegramStatus.telegram_user_id}
-                </p>
+                </InfoText>
                 {telegramStatus.linked_at && (
                   <TokenMeta>
                     Linked: {new Date(telegramStatus.linked_at).toLocaleDateString()}
@@ -821,9 +845,9 @@ const IntegrationsPage: React.FC = () => {
 
             {!telegramStatus?.connected && linkCode && (
               <LinkCodeBox>
-                <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
+                <LinkCodeText>
                   Click the button below or send this code to the bot:
-                </p>
+                </LinkCodeText>
                 <LinkCode>{linkCode.code}</LinkCode>
                 <DeepLinkButton
                   href={linkCode.deep_link}
