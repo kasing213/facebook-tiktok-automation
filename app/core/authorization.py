@@ -188,6 +188,7 @@ def check_subscription_feature(feature_name: str, user: User, db: Session) -> bo
         'bulk_operations',    # Export invoices
         'advanced_inventory', # Product management
         'customer_management',
+        'advanced_reports',   # Stats and analytics
     }
 
     marketing_plus_features = free_features | {

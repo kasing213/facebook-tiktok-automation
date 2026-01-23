@@ -971,6 +971,30 @@ CREATE INDEX idx_subscription_trial_ends ON subscription(trial_ends_at);
 
 Investigated tenant isolation for inventory - **no bug found**. The system already has excellent tenant isolation with all queries properly filtered by `tenant_id`.
 
+#### 4. Fixed Subscription Feature Gating (advanced_reports)
+
+**Problem:** Pro tier users blocked from `/stats` endpoint with "Feature 'advanced_reports' requires Pro subscription" even though they had Pro subscription.
+
+**Root Cause:** The `advanced_reports` feature was not defined in any feature set in `authorization.py`. The `require_subscription_feature('advanced_reports')` decorator checked for a feature that didn't exist.
+
+**Fix:**
+1. Added `advanced_reports` to `invoice_plus_features` in `authorization.py`
+2. Updated `subscription.py` features display to be consistent with all tiers
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `app/core/authorization.py:191` | Added `advanced_reports` to `invoice_plus_features` |
+| `app/routes/subscription.py:68-97` | Updated features display for all tiers |
+
+**Feature Access by Tier:**
+| Feature | Free | Invoice Plus | Marketing Plus | Pro |
+|---------|------|--------------|----------------|-----|
+| `advanced_reports` | ❌ | ✅ | ❌ | ✅ |
+| `bulk_operations` | ❌ | ✅ | ❌ | ✅ |
+| `social_automation` | ❌ | ❌ | ✅ | ✅ |
+| `ads_alerts` | ❌ | ❌ | ✅ | ✅ |
+
 ---
 
 ### 2026-01-22 - Multi-Tier Subscription System & Role-Based Access Control

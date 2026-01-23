@@ -65,21 +65,35 @@ async def get_subscription_info(
     tier = subscription.tier if subscription else SubscriptionTier.free
     status = subscription.status if subscription else None
 
-    # Define features based on tier
+    # Define features based on tier (consistent with authorization.py)
+    has_invoice_plus = tier in [SubscriptionTier.invoice_plus, SubscriptionTier.pro]
+    has_marketing_plus = tier in [SubscriptionTier.marketing_plus, SubscriptionTier.pro]
+    has_pro = tier == SubscriptionTier.pro
+
     features = {
+        # Free tier features (all tiers have these)
         "invoice_create": True,
         "invoice_send": True,
         "invoice_view": True,
         "payment_verify": True,
         "telegram_link": True,
         "basic_reports": True,
-        "advanced_reports": tier == SubscriptionTier.pro,
-        "bulk_operations": tier == SubscriptionTier.pro,
-        "custom_branding": tier == SubscriptionTier.pro,
-        "api_access": tier == SubscriptionTier.pro,
-        "priority_support": tier == SubscriptionTier.pro,
-        "unlimited_invoices": tier == SubscriptionTier.pro,
-        "team_collaboration": tier == SubscriptionTier.pro
+        # Invoice Plus features ($10/month or Pro)
+        "advanced_reports": has_invoice_plus,
+        "bulk_operations": has_invoice_plus,
+        "advanced_inventory": has_invoice_plus,
+        "customer_management": has_invoice_plus,
+        # Marketing Plus features ($10/month or Pro)
+        "social_automation": has_marketing_plus,
+        "ads_alerts": has_marketing_plus,
+        "promotion_create": has_marketing_plus,
+        "promotion_send": has_marketing_plus,
+        # Pro-only features ($20/month)
+        "custom_branding": has_pro,
+        "api_access": has_pro,
+        "priority_support": has_pro,
+        "unlimited_invoices": has_pro,
+        "team_collaboration": has_pro
     }
 
     return SubscriptionInfo(
