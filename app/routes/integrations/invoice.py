@@ -341,7 +341,8 @@ async def list_registered_clients(
     db: Session = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=100),
     skip: int = Query(default=0, ge=0),
-    telegram_linked: Optional[bool] = Query(default=None, description="Filter by Telegram linked status")
+    telegram_linked: Optional[bool] = Query(default=None, description="Filter by Telegram linked status"),
+    include_pending_invoices: bool = Query(default=True, description="Include pending invoices for each client")
 ):
     """
     List clients registered via Telegram bot for the current merchant.
@@ -353,6 +354,7 @@ async def list_registered_clients(
         limit: Maximum number of results (default 50)
         skip: Offset for pagination
         telegram_linked: Optional filter - True for linked clients only, False for unlinked
+        include_pending_invoices: Include pending invoices list for each client (default True)
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -388,7 +390,7 @@ async def list_registered_clients(
 
         clients = []
         for row in rows:
-            clients.append({
+            client = {
                 "id": str(row.id),
                 "name": row.name,
                 "email": row.email,
@@ -399,8 +401,52 @@ async def list_registered_clients(
                 "telegram_linked": row.telegram_chat_id is not None,
                 "telegram_linked_at": row.telegram_linked_at.isoformat() if row.telegram_linked_at else None,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "updated_at": row.updated_at.isoformat() if row.updated_at else None
-            })
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                "pending_invoices": []
+            }
+            clients.append(client)
+
+        # Fetch pending invoices for all clients in one query if requested
+        if include_pending_invoices and clients:
+            client_ids = [c["id"] for c in clients]
+            # Build placeholders for IN clause
+            placeholders = ", ".join([f":cid_{i}" for i in range(len(client_ids))])
+            invoices_query = f"""
+                SELECT
+                    id, customer_id, invoice_number, amount, currency, status,
+                    due_date, verification_status, created_at
+                FROM invoice.invoice
+                WHERE tenant_id = :tenant_id
+                  AND customer_id::text IN ({placeholders})
+                  AND status IN ('pending', 'sent', 'overdue')
+                ORDER BY created_at DESC
+            """
+            query_params = {"tenant_id": str(current_user.tenant_id)}
+            for i, cid in enumerate(client_ids):
+                query_params[f"cid_{i}"] = cid
+            invoices_result = db.execute(text(invoices_query), query_params)
+            invoices_rows = invoices_result.fetchall()
+
+            # Group invoices by customer_id
+            invoices_by_customer = {}
+            for inv in invoices_rows:
+                cust_id = str(inv.customer_id)
+                if cust_id not in invoices_by_customer:
+                    invoices_by_customer[cust_id] = []
+                invoices_by_customer[cust_id].append({
+                    "id": str(inv.id),
+                    "invoice_number": inv.invoice_number,
+                    "amount": float(inv.amount) if inv.amount else 0,
+                    "currency": inv.currency or "USD",
+                    "status": inv.status,
+                    "due_date": inv.due_date.isoformat() if inv.due_date else None,
+                    "verification_status": inv.verification_status,
+                    "created_at": inv.created_at.isoformat() if inv.created_at else None
+                })
+
+            # Attach invoices to clients
+            for client in clients:
+                client["pending_invoices"] = invoices_by_customer.get(client["id"], [])
 
         # Get total count for pagination
         count_query = """
