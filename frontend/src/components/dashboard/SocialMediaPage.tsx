@@ -25,13 +25,13 @@ const Header = styled.div`
 const Title = styled.h1`
   font-size: 1.5rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 0.5rem 0;
 `
 
 const Subtitle = styled.p`
   font-size: 0.875rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin: 0;
 `
 
@@ -65,7 +65,7 @@ const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
 const StatLabel = styled.p`
   font-size: 0.75rem;
   font-weight: 500;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 0.5rem 0;
@@ -74,7 +74,7 @@ const StatLabel = styled.p`
 const StatValue = styled.p`
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
@@ -85,7 +85,7 @@ const PlatformsSection = styled.section`
 const SectionTitle = styled.h2`
   font-size: 1rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 1rem 0;
   display: flex;
   align-items: center;
@@ -140,7 +140,7 @@ const PlatformInfo = styled.div`
 const PlatformName = styled.h3`
   font-size: 1.125rem;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 0.25rem 0;
 `
 
@@ -156,7 +156,7 @@ const PlatformStatus = styled.span<{ $connected: boolean }>`
 const AccountsList = styled.div`
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid ${props => props.theme.border};
 `
 
 const AccountItem = styled.div`
@@ -164,7 +164,7 @@ const AccountItem = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem;
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 8px;
   margin-bottom: 0.5rem;
 
@@ -178,13 +178,13 @@ const AccountInfo = styled.div``
 const AccountName = styled.p`
   font-size: 0.875rem;
   font-weight: 500;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   margin: 0;
 `
 
 const AccountMeta = styled.p`
   font-size: 0.75rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin: 0.25rem 0 0 0;
 `
 
@@ -228,18 +228,18 @@ const ManageButton = styled.button`
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border};
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 500;
-  background: white;
-  color: #374151;
+  background: ${props => props.theme.card};
+  color: ${props => props.theme.textPrimary};
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: #f9fafb;
-    border-color: #d1d5db;
+    background: ${props => props.theme.backgroundTertiary};
+    border-color: ${props => props.theme.border};
   }
 `
 
@@ -260,8 +260,8 @@ const FeatureGrid = styled.div`
 `
 
 const FeatureCard = styled.div`
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px dashed #cbd5e1;
+  background: ${props => props.theme.backgroundSecondary};
+  border: 1px dashed ${props => props.theme.border};
   border-radius: 12px;
   padding: 1.5rem;
   text-align: center;
@@ -270,25 +270,25 @@ const FeatureCard = styled.div`
 const FeatureIcon = styled.div`
   width: 48px;
   height: 48px;
-  background: #e2e8f0;
+  background: ${props => props.theme.backgroundTertiary};
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 1rem;
-  color: #64748b;
+  color: ${props => props.theme.textSecondary};
 `
 
 const FeatureTitle = styled.h4`
   font-size: 0.9375rem;
   font-weight: 600;
-  color: #475569;
+  color: ${props => props.theme.textPrimary};
   margin: 0 0 0.5rem 0;
 `
 
 const FeatureDescription = styled.p`
   font-size: 0.8125rem;
-  color: #64748b;
+  color: ${props => props.theme.textSecondary};
   margin: 0;
 `
 
@@ -313,11 +313,11 @@ const LoadingContainer = styled.div`
 `
 
 const ErrorMessage = styled.div`
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: ${props => props.theme.mode === 'dark' ? 'rgba(220, 38, 38, 0.1)' : '#fef2f2'};
+  border: 1px solid ${props => props.theme.mode === 'dark' ? 'rgba(220, 38, 38, 0.3)' : '#fecaca'};
   border-radius: 8px;
   padding: 1rem;
-  color: #991b1b;
+  color: ${props => props.theme.error};
   margin-bottom: 1rem;
 `
 
@@ -410,7 +410,7 @@ const SocialMediaPage: React.FC = () => {
         {loading ? (
           <LoadingContainer>
             <LoadingSpinner size="large" />
-            <p style={{ color: '#6b7280' }}>{t('common.loading')}</p>
+            <Subtitle>{t('common.loading')}</Subtitle>
           </LoadingContainer>
         ) : (
           <PlatformsGrid>

@@ -1262,34 +1262,15 @@ async def list_invoices(
 
     except Exception as e:
         logger.error(f"Error fetching PostgreSQL invoices: {e}")
-        # Don't fail completely - continue to get mock/external invoices
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch invoices: {str(e)}"
+        )
 
-    # 2. Get mock or external invoices (for non-registered customers)
-    try:
-        if is_mock_mode():
-            mock_invoices = mock_svc.list_invoices(
-                str(current_user.tenant_id),
-                limit=limit, skip=skip, customer_id=customer_id, status=status
-            )
-            if mock_invoices:
-                for inv in mock_invoices:
-                    inv["source"] = "mock"
-                all_invoices.extend(mock_invoices)
-        else:
-            params = {"limit": limit, "skip": skip}
-            if customer_id:
-                params["customer_id"] = customer_id
-            if status:
-                params["status"] = status
-            external_invoices = await proxy_request("GET", "/api/invoices", params=params)
-            if external_invoices:
-                for inv in external_invoices:
-                    inv["source"] = "external"
-                all_invoices.extend(external_invoices)
-    except Exception as e:
-        logger.error(f"Error fetching mock/external invoices: {e}")
+    # NOTE: Mock/external invoice fetching removed - all data now in PostgreSQL
+    # The previous code tried to proxy to an external API that doesn't exist
 
-    # 3. Apply pagination (PostgreSQL invoices first, then others)
+    # Apply pagination
     # Sort by created_at descending
     all_invoices.sort(
         key=lambda x: x.get("created_at") or "1970-01-01",
@@ -2320,11 +2301,75 @@ async def get_stats(
     current_user: User = Depends(get_current_member_or_owner),
     db: Session = Depends(get_db)
 ):
-    """Get invoice statistics and dashboard data."""
-    if is_mock_mode():
-        return mock_svc.get_stats()
+    """Get invoice statistics and dashboard data from PostgreSQL."""
+    from datetime import datetime, timedelta
+    import logging
+    logger = logging.getLogger(__name__)
 
-    return await proxy_request("GET", "/api/stats")
+    try:
+        tenant_id = str(current_user.tenant_id)
+
+        # Get invoice counts by status
+        status_query = text("""
+            SELECT status, COUNT(*) as count
+            FROM invoice.invoice
+            WHERE tenant_id = :tenant_id
+            GROUP BY status
+        """)
+        status_result = db.execute(status_query, {"tenant_id": tenant_id}).fetchall()
+
+        status_counts = {row.status: row.count for row in status_result if row.status}
+        total_invoices = sum(status_counts.values())
+
+        # Get revenue stats (from paid/verified invoices)
+        revenue_query = text("""
+            SELECT
+                COALESCE(SUM(amount), 0) as total_revenue,
+                COUNT(*) as paid_count
+            FROM invoice.invoice
+            WHERE tenant_id = :tenant_id
+            AND status IN ('paid', 'verified')
+        """)
+        revenue_result = db.execute(revenue_query, {"tenant_id": tenant_id}).fetchone()
+
+        # Get recent invoices (last 30 days)
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        recent_query = text("""
+            SELECT COUNT(*) as count
+            FROM invoice.invoice
+            WHERE tenant_id = :tenant_id
+            AND created_at >= :thirty_days_ago
+        """)
+        recent_result = db.execute(recent_query, {
+            "tenant_id": tenant_id,
+            "thirty_days_ago": thirty_days_ago
+        }).fetchone()
+
+        # Get customer count
+        customer_query = text("""
+            SELECT COUNT(*) as count
+            FROM invoice.customer
+            WHERE tenant_id = :tenant_id
+        """)
+        customer_result = db.execute(customer_query, {"tenant_id": tenant_id}).fetchone()
+
+        return {
+            "total_invoices": total_invoices,
+            "invoices_by_status": status_counts,
+            "total_revenue": float(revenue_result.total_revenue) if revenue_result else 0,
+            "paid_invoices": revenue_result.paid_count if revenue_result else 0,
+            "recent_invoices_30d": recent_result.count if recent_result else 0,
+            "total_customers": customer_result.count if customer_result else 0,
+            "pending_invoices": status_counts.get("pending", 0),
+            "overdue_invoices": status_counts.get("overdue", 0)
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching invoice stats: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch invoice statistics: {str(e)}"
+        )
 
 
 # ============================================================================
