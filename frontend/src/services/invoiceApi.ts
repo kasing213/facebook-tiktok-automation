@@ -21,8 +21,20 @@ const BASE_PATH = '/api/integrations/invoice'
 // Helper function to extract error message
 function getErrorMessage(error: unknown, defaultMessage: string): string {
   if (error instanceof Error) {
-    const axiosError = error as { response?: { data?: { detail?: string } } }
-    return axiosError.response?.data?.detail || error.message || defaultMessage
+    const axiosError = error as { response?: { data?: { detail?: string | object } } }
+    const detail = axiosError.response?.data?.detail
+    // Handle detail being an object (e.g., {error: "...", message: "..."})
+    if (detail) {
+      if (typeof detail === 'string') {
+        return detail
+      }
+      // If detail is an object, try to extract a message from it
+      if (typeof detail === 'object') {
+        const obj = detail as Record<string, unknown>
+        return (obj.message || obj.error || obj.msg || JSON.stringify(detail)) as string
+      }
+    }
+    return error.message || defaultMessage
   }
   return defaultMessage
 }
