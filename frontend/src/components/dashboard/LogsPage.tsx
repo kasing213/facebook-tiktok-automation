@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
+import { useTranslation } from 'react-i18next'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -9,7 +10,10 @@ const Container = styled.div`
 const Title = styled.h1`
   font-size: 2rem;
   font-weight: 600;
-  color: #1f2937;
+  background: linear-gradient(135deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 2rem;
 `
 
@@ -272,13 +276,14 @@ const mockLogs = [
 ]
 
 const LogsPage: React.FC = () => {
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedService, setSelectedService] = useState('all')
   const [selectedSeverity, setSelectedSeverity] = useState('all')
 
   return (
     <Container>
-      <Title>Activity Logs</Title>
+      <Title>{t('logs.title')}</Title>
 
       <FilterToolbar>
         <FilterRow>
@@ -290,23 +295,23 @@ const LogsPage: React.FC = () => {
             </SearchIcon>
             <SearchInput
               type="text"
-              placeholder="Search logs..."
+              placeholder={t('logs.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </SearchBox>
 
           <FilterSelect value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
-            <option value="all">All Services</option>
-            <option value="facebook">Facebook</option>
-            <option value="tiktok">TikTok</option>
+            <option value="all">{t('logs.allServices')}</option>
+            <option value="facebook">{t('logs.facebook')}</option>
+            <option value="tiktok">{t('logs.tiktok')}</option>
           </FilterSelect>
 
           <FilterSelect value={selectedSeverity} onChange={(e) => setSelectedSeverity(e.target.value)}>
-            <option value="all">All Statuses</option>
-            <option value="success">Success</option>
-            <option value="warning">Warning</option>
-            <option value="error">Error</option>
+            <option value="all">{t('logs.allStatuses')}</option>
+            <option value="success">{t('logs.success')}</option>
+            <option value="warning">{t('logs.warning')}</option>
+            <option value="error">{t('logs.error')}</option>
           </FilterSelect>
         </FilterRow>
       </FilterToolbar>
@@ -316,11 +321,11 @@ const LogsPage: React.FC = () => {
           <LogsTable>
             <TableHeader>
               <tr>
-                <TableHeaderCell>Timestamp</TableHeaderCell>
-                <TableHeaderCell>Service</TableHeaderCell>
-                <TableHeaderCell>Event Type</TableHeaderCell>
-                <TableHeaderCell>Status</TableHeaderCell>
-                <TableHeaderCell>Message</TableHeaderCell>
+                <TableHeaderCell>{t('logs.timestamp')}</TableHeaderCell>
+                <TableHeaderCell>{t('logs.service')}</TableHeaderCell>
+                <TableHeaderCell>{t('logs.eventType')}</TableHeaderCell>
+                <TableHeaderCell>{t('logs.status')}</TableHeaderCell>
+                <TableHeaderCell>{t('logs.message')}</TableHeaderCell>
               </tr>
             </TableHeader>
             <TableBody>
@@ -351,15 +356,15 @@ const LogsPage: React.FC = () => {
       </LogsTableSection>
 
       <PaginationSection>
-        <PageInfo>Showing 1-25 of 250 logs</PageInfo>
+        <PageInfo>{t('logs.showing', { start: 1, end: 25, total: 250 })}</PageInfo>
         <PaginationButtons>
-          <PageButton disabled>Previous</PageButton>
+          <PageButton disabled>{t('logs.previous')}</PageButton>
           <PageButton $active>1</PageButton>
           <PageButton>2</PageButton>
           <PageButton>3</PageButton>
           <PageButton>...</PageButton>
           <PageButton>10</PageButton>
-          <PageButton>Next</PageButton>
+          <PageButton>{t('logs.next')}</PageButton>
         </PaginationButtons>
       </PaginationSection>
     </Container>

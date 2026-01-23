@@ -29,7 +29,10 @@ const IconWrapper = styled.div`
 const Title = styled.h1`
   font-size: 1.75rem;
   font-weight: 700;
-  color: #1e293b;
+  background: linear-gradient(135deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0 0 0.75rem 0;
 `
 

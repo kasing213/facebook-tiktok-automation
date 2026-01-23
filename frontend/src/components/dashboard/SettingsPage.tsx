@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
+import { useTranslation } from 'react-i18next'
 import { authService } from '../../services/api'
 import { User } from '../../types/auth'
 
@@ -11,7 +12,10 @@ const Container = styled.div`
 const Title = styled.h1`
   font-size: 2rem;
   font-weight: 600;
-  color: #1f2937;
+  background: linear-gradient(135deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 2rem;
 `
 
@@ -332,6 +336,7 @@ const LoadingSpinner = styled.div`
 `
 
 const SettingsPage: React.FC = () => {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'account' | 'workspace' | 'notifications'>('account')
 
   // User state
@@ -405,17 +410,17 @@ const SettingsPage: React.FC = () => {
 
     // Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setPasswordError('All password fields are required')
+      setPasswordError(t('settings.allFieldsRequired'))
       return
     }
 
     if (newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters')
+      setPasswordError(t('settings.passwordMinLength'))
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match')
+      setPasswordError(t('settings.passwordsNoMatch'))
       return
     }
 
@@ -423,12 +428,12 @@ const SettingsPage: React.FC = () => {
 
     try {
       await authService.changePassword(currentPassword, newPassword)
-      setPasswordSuccess('Password changed successfully')
+      setPasswordSuccess(t('settings.passwordChangeSuccess'))
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (error: any) {
-      setPasswordError(error.message || 'Failed to change password')
+      setPasswordError(error.message || t('settings.passwordChangeFailed'))
     } finally {
       setChangingPassword(false)
     }
@@ -524,13 +529,13 @@ const SettingsPage: React.FC = () => {
         return (
           <TabContent>
             <FormSection>
-              <SectionTitle>Personal Information</SectionTitle>
+              <SectionTitle>{t('settings.personalInformation')}</SectionTitle>
               {userLoading ? (
-                <LoadingSpinner>Loading user data...</LoadingSpinner>
+                <LoadingSpinner>{t('settings.loadingUserData')}</LoadingSpinner>
               ) : (
                 <>
                   <FormRow>
-                    <Label htmlFor="fullName">Username</Label>
+                    <Label htmlFor="fullName">{t('settings.username')}</Label>
                     <Input
                       id="fullName"
                       type="text"
@@ -539,7 +544,7 @@ const SettingsPage: React.FC = () => {
                     />
                   </FormRow>
                   <FormRow>
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email">{t('settings.emailAddress')}</Label>
                     <EmailRow>
                       <Input
                         id="email"
@@ -549,7 +554,7 @@ const SettingsPage: React.FC = () => {
                         style={{ flex: 1, minWidth: '200px' }}
                       />
                       <VerificationBadge $verified={user?.email_verified ?? false}>
-                        {user?.email_verified ? '✓ Verified' : '! Unverified'}
+                        {user?.email_verified ? `✓ ${t('settings.verified')}` : `! ${t('settings.unverified')}`}
                       </VerificationBadge>
                       {!user?.email_verified && user?.email && (
                         <VerifyButton
@@ -557,28 +562,28 @@ const SettingsPage: React.FC = () => {
                           disabled={sendingVerification || verificationSent || cooldownSeconds > 0}
                         >
                           {sendingVerification
-                            ? 'Sending...'
+                            ? t('settings.sending')
                             : verificationSent
-                            ? 'Email Sent'
+                            ? t('settings.emailSent')
                             : cooldownSeconds > 0
-                            ? `Wait ${cooldownSeconds}s`
-                            : 'Verify Email'}
+                            ? t('settings.waitSeconds', { seconds: cooldownSeconds })
+                            : t('settings.verifyEmail')}
                         </VerifyButton>
                       )}
                     </EmailRow>
                     {verificationSent && (
                       <InfoBox style={{ marginTop: '0.75rem' }}>
                         <InfoText>
-                          Verification email sent! Please check your inbox and click the verification link.
+                          {t('settings.verificationSentMessage')}
                         </InfoText>
                         <div style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
                           <Label style={{ marginBottom: '0.5rem', fontSize: '0.8125rem' }}>
-                            Or enter verification code from email:
+                            {t('settings.manualTokenLabel')}
                           </Label>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <Input
                               type="text"
-                              placeholder="Paste verification code here"
+                              placeholder={t('settings.tokenPlaceholder')}
                               value={manualToken}
                               onChange={(e) => setManualToken(e.target.value)}
                               style={{ flex: 1, fontFamily: 'monospace', fontSize: '0.8125rem' }}
@@ -588,7 +593,7 @@ const SettingsPage: React.FC = () => {
                               disabled={verifyingToken || !manualToken.trim()}
                               style={{ whiteSpace: 'nowrap' }}
                             >
-                              {verifyingToken ? 'Verifying...' : 'Verify'}
+                              {verifyingToken ? t('settings.verifying') : t('settings.verify')}
                             </VerifyButton>
                           </div>
                           {tokenError && (
@@ -606,10 +611,10 @@ const SettingsPage: React.FC = () => {
                     )}
                   </FormRow>
                   <FormRow>
-                    <Label>Role</Label>
+                    <Label>{t('settings.role')}</Label>
                     <Input
                       type="text"
-                      value={user?.role === 'admin' ? 'Owner' : user?.role === 'user' ? 'Member' : user?.role || ''}
+                      value={user?.role === 'admin' ? t('settings.owner') : user?.role === 'user' ? t('settings.member') : user?.role === 'viewer' ? t('settings.viewer') : user?.role || ''}
                       disabled
                     />
                   </FormRow>
@@ -618,35 +623,35 @@ const SettingsPage: React.FC = () => {
             </FormSection>
 
             <FormSection>
-              <SectionTitle>Change Password</SectionTitle>
+              <SectionTitle>{t('settings.changePassword')}</SectionTitle>
               {passwordSuccess && <SuccessMessage>{passwordSuccess}</SuccessMessage>}
               {passwordError && <ErrorMessage>{passwordError}</ErrorMessage>}
               <FormRow>
-                <Label htmlFor="currentPassword">Current Password</Label>
+                <Label htmlFor="currentPassword">{t('settings.currentPassword')}</Label>
                 <Input
                   id="currentPassword"
                   type="password"
-                  placeholder="Enter current password"
+                  placeholder={t('settings.currentPasswordPlaceholder')}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                 />
               </FormRow>
               <FormRow>
-                <Label htmlFor="newPassword">New Password</Label>
+                <Label htmlFor="newPassword">{t('settings.newPassword')}</Label>
                 <Input
                   id="newPassword"
                   type="password"
-                  placeholder="Enter new password (min 8 characters)"
+                  placeholder={t('settings.newPasswordPlaceholder')}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
               </FormRow>
               <FormRow>
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Label htmlFor="confirmPassword">{t('settings.confirmPassword')}</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
-                  placeholder="Confirm new password"
+                  placeholder={t('settings.confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
@@ -658,9 +663,9 @@ const SettingsPage: React.FC = () => {
                 onClick={handleChangePassword}
                 disabled={changingPassword}
               >
-                {changingPassword ? 'Saving...' : 'Save Changes'}
+                {changingPassword ? t('settings.saving') : t('settings.saveChanges')}
               </PrimaryButton>
-              <SecondaryButton onClick={handleCancelPassword}>Cancel</SecondaryButton>
+              <SecondaryButton onClick={handleCancelPassword}>{t('settings.cancel')}</SecondaryButton>
             </ButtonGroup>
           </TabContent>
         )
@@ -669,27 +674,27 @@ const SettingsPage: React.FC = () => {
         return (
           <TabContent>
             <FormSection>
-              <SectionTitle>Workspace Details</SectionTitle>
+              <SectionTitle>{t('settings.workspaceDetails')}</SectionTitle>
               <FormRow>
-                <Label htmlFor="workspaceName">Workspace Name</Label>
+                <Label htmlFor="workspaceName">{t('settings.workspaceName')}</Label>
                 <Input
                   id="workspaceName"
                   type="text"
-                  defaultValue="My Workspace"
+                  defaultValue={t('settings.workspaceNameDefault')}
                 />
               </FormRow>
               <FormRow>
-                <Label htmlFor="workspaceDescription">Description</Label>
+                <Label htmlFor="workspaceDescription">{t('settings.description')}</Label>
                 <Textarea
                   id="workspaceDescription"
-                  placeholder="Describe your workspace..."
-                  defaultValue="Main workspace for social media automation"
+                  placeholder={t('settings.descriptionPlaceholder')}
+                  defaultValue={t('settings.descriptionDefault')}
                 />
               </FormRow>
             </FormSection>
 
             <FormSection>
-              <SectionTitle>Team Members</SectionTitle>
+              <SectionTitle>{t('settings.teamMembers')}</SectionTitle>
               <MembersList>
                 {user && (
                   <MemberItem>
@@ -697,17 +702,17 @@ const SettingsPage: React.FC = () => {
                       <MemberName>{user.username}</MemberName>
                       <MemberEmail>{user.email}</MemberEmail>
                     </MemberInfo>
-                    <MemberRole>{user.role === 'admin' ? 'Owner' : user.role === 'user' ? 'Member' : 'Viewer'}</MemberRole>
+                    <MemberRole>{user.role === 'admin' ? t('settings.owner') : user.role === 'user' ? t('settings.member') : t('settings.viewer')}</MemberRole>
                   </MemberItem>
                 )}
               </MembersList>
             </FormSection>
 
             <ButtonGroup>
-              <PrimaryButton onClick={() => alert('Workspace settings saved!')}>
-                Save Changes
+              <PrimaryButton onClick={() => alert(t('settings.workspaceSaved'))}>
+                {t('settings.saveChanges')}
               </PrimaryButton>
-              <SecondaryButton>Invite Member</SecondaryButton>
+              <SecondaryButton>{t('settings.inviteMember')}</SecondaryButton>
             </ButtonGroup>
           </TabContent>
         )
@@ -716,15 +721,15 @@ const SettingsPage: React.FC = () => {
         return (
           <TabContent>
             <FormSection>
-              <SectionTitle>Notification Preferences</SectionTitle>
+              <SectionTitle>{t('settings.notificationPreferences')}</SectionTitle>
               {notificationSaved && (
-                <SuccessMessage>Notification preferences saved!</SuccessMessage>
+                <SuccessMessage>{t('settings.notificationSaved')}</SuccessMessage>
               )}
               <ToggleWrapper>
                 <ToggleLabel>
-                  <ToggleLabelText>Email notifications</ToggleLabelText>
+                  <ToggleLabelText>{t('settings.emailNotifications')}</ToggleLabelText>
                   <ToggleLabelDescription>
-                    Receive email notifications for important updates
+                    {t('settings.emailNotificationsDesc')}
                   </ToggleLabelDescription>
                 </ToggleLabel>
                 <Toggle
@@ -735,9 +740,9 @@ const SettingsPage: React.FC = () => {
 
               <ToggleWrapper>
                 <ToggleLabel>
-                  <ToggleLabelText>Campaign notifications</ToggleLabelText>
+                  <ToggleLabelText>{t('settings.campaignNotifications')}</ToggleLabelText>
                   <ToggleLabelDescription>
-                    Get notified when campaigns start, finish, or encounter errors
+                    {t('settings.campaignNotificationsDesc')}
                   </ToggleLabelDescription>
                 </ToggleLabel>
                 <Toggle
@@ -748,9 +753,9 @@ const SettingsPage: React.FC = () => {
 
               <ToggleWrapper>
                 <ToggleLabel>
-                  <ToggleLabelText>Weekly reports</ToggleLabelText>
+                  <ToggleLabelText>{t('settings.weeklyReports')}</ToggleLabelText>
                   <ToggleLabelDescription>
-                    Receive weekly performance reports every Monday
+                    {t('settings.weeklyReportsDesc')}
                   </ToggleLabelDescription>
                 </ToggleLabel>
                 <Toggle
@@ -762,7 +767,7 @@ const SettingsPage: React.FC = () => {
 
             <ButtonGroup>
               <PrimaryButton onClick={handleSaveNotifications}>
-                Save Preferences
+                {t('settings.savePreferences')}
               </PrimaryButton>
             </ButtonGroup>
           </TabContent>
@@ -772,26 +777,26 @@ const SettingsPage: React.FC = () => {
 
   return (
     <Container>
-      <Title>Settings</Title>
+      <Title>{t('settings.title')}</Title>
 
       <TabNavigation>
         <Tab
           $active={activeTab === 'account'}
           onClick={() => setActiveTab('account')}
         >
-          Account
+          {t('settings.account')}
         </Tab>
         <Tab
           $active={activeTab === 'workspace'}
           onClick={() => setActiveTab('workspace')}
         >
-          Workspace
+          {t('settings.workspace')}
         </Tab>
         <Tab
           $active={activeTab === 'notifications'}
           onClick={() => setActiveTab('notifications')}
         >
-          Notifications
+          {t('settings.notifications')}
         </Tab>
       </TabNavigation>
 
