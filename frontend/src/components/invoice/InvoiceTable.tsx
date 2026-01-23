@@ -28,7 +28,7 @@ const Table = styled.table`
 `
 
 const TableHeader = styled.thead`
-  background: #f9fafb;
+  background: ${props => props.theme.backgroundTertiary};
 `
 
 const HeaderCell = styled.th`
@@ -36,17 +36,17 @@ const HeaderCell = styled.th`
   padding: 0.875rem 1rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid ${props => props.theme.border};
   white-space: nowrap;
 `
 
 const TableBody = styled.tbody``
 
 const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid ${props => props.theme.border};
   opacity: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 1 : 0) : 1};
   transform: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 'translateX(0)' : 'translateX(-8px)') : 'translateX(0)'};
   transition: opacity 0.3s ${easings.easeOutCubic},
@@ -55,7 +55,7 @@ const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
   transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
-    background-color: #f9fafb;
+    background-color: ${props => props.theme.backgroundTertiary};
   }
 
   &:last-child {
@@ -68,13 +68,13 @@ const TableRow = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
 const TableCell = styled.td`
   padding: 1rem;
   font-size: 0.875rem;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   vertical-align: middle;
 `
 
 const InvoiceNumber = styled.div`
   font-weight: 600;
-  color: #4a90e2;
+  color: ${props => props.theme.accent};
   cursor: pointer;
 
   &:hover {
@@ -84,23 +84,23 @@ const InvoiceNumber = styled.div`
 
 const CustomerName = styled.div`
   font-weight: 500;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
 `
 
 const CustomerEmail = styled.div`
   font-size: 0.75rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   margin-top: 0.25rem;
 `
 
 const Amount = styled.div`
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary};
   text-align: right;
 `
 
 const DateCell = styled.div`
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   white-space: nowrap;
 `
 
@@ -158,15 +158,15 @@ const IconButton = styled.button`
   transition: color 0.2s ease,
               transform 0.15s ${easings.easeOutCubic},
               background 0.15s ease;
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted};
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
 
   &:hover:not(:disabled) {
-    color: #4a90e2;
-    background: rgba(74, 144, 226, 0.08);
+    color: ${props => props.theme.accent};
+    background: ${props => props.theme.mode === 'dark' ? 'rgba(62, 207, 142, 0.1)' : 'rgba(74, 144, 226, 0.08)'};
     transform: scale(1.1);
   }
 
@@ -189,19 +189,19 @@ const IconButton = styled.button`
 
 const MenuButton = styled.button`
   padding: 0.375rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
   display: flex;
   align-items: center;
   justify-content: center;
 
   &:hover {
-    background: #f9fafb;
-    border-color: #d1d5db;
+    background: ${props => props.theme.backgroundTertiary};
+    border-color: ${props => props.theme.textMuted};
   }
 
   svg {
@@ -215,10 +215,10 @@ const DropdownMenu = styled.div<{ $visible: boolean }>`
   right: 0;
   top: 100%;
   margin-top: 0.25rem;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px ${props => props.theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.15)'};
   min-width: 140px;
   z-index: 100;
   opacity: ${props => props.$visible ? 1 : 0};
@@ -238,12 +238,14 @@ const DropdownItem = styled.button<{ $danger?: boolean }>`
   background: transparent;
   border: none;
   font-size: 0.875rem;
-  color: ${props => props.$danger ? '#dc3545' : '#374151'};
+  color: ${props => props.$danger ? props.theme.error : props.theme.textPrimary};
   cursor: pointer;
   transition: background 0.2s ease;
 
   &:hover {
-    background: ${props => props.$danger ? '#fef2f2' : '#f9fafb'};
+    background: ${props => props.$danger
+      ? (props.theme.mode === 'dark' ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2')
+      : props.theme.backgroundTertiary};
   }
 
   &:first-child {
@@ -262,12 +264,12 @@ const MenuWrapper = styled.div`
 const EmptyState = styled.div`
   text-align: center;
   padding: 3rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 
   h3 {
     font-size: 1.125rem;
     font-weight: 600;
-    color: #1f2937;
+    color: ${props => props.theme.textPrimary};
     margin-bottom: 0.5rem;
   }
 
@@ -279,7 +281,7 @@ const EmptyState = styled.div`
 const LoadingState = styled.div`
   text-align: center;
   padding: 3rem;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary};
 `
 
 export const InvoiceTable: React.FC<InvoiceTableProps> = ({
