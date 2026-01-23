@@ -559,6 +559,10 @@ class Subscription(Base):
     current_period_end = Column(DateTime(timezone=True), nullable=True)
     cancel_at_period_end = Column(Boolean, default=False, nullable=False)
 
+    # Trial period fields (1-month Pro trial for new users)
+    is_trial = Column(Boolean, default=False, nullable=False)
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc),
@@ -574,6 +578,7 @@ class Subscription(Base):
         Index("idx_subscription_stripe_customer", "stripe_customer_id"),
         Index("idx_subscription_stripe_sub", "stripe_subscription_id"),
         Index("idx_subscription_tier", "tier"),
+        Index("idx_subscription_trial_ends", "trial_ends_at"),  # For trial expiration checks
     )
 
 

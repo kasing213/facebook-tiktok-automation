@@ -420,20 +420,22 @@ quantity, reference_type, reference_id, notes, created_by, created_at
 - ✅ Session management with refresh tokens
 - ✅ Rate limiting middleware (basic)
 - ✅ IP blocking and access rules
-- ✅ **Email verification on signup** ← **COMPLETED 2026-01-15**
+- ⏸️ **Email verification** ← **DISABLED 2026-01-23** (SMTP not available on Railway)
 - ✅ **Password reset flow** ← **COMPLETED 2026-01-15**
 
-**✅ Email Verification System (PRODUCTION-READY):**
-- ✅ **Secure token generation** using `itsdangerous` + `secrets`
-- ✅ **Rate limiting** (max 3 emails per 10 minutes)
-- ✅ **Anti-enumeration protection** (always returns HTTP 202)
-- ✅ **SHA-256 token hashing** (never store raw tokens)
-- ✅ **Single-use tokens** with 24-hour expiration
-- ✅ **Background email sending** (non-blocking)
-- ✅ **Professional email templates** (verification + welcome)
-- ✅ **Middleware protection** (blocks unverified users from core features)
-- ✅ **Automatic cleanup** of expired tokens
-- ✅ **Development fallback** (console logging when SMTP not configured)
+**⏸️ Email Verification System (DISABLED):**
+Email verification has been disabled because SMTP is not available on Railway. Users are automatically marked as verified on registration.
+
+**What was disabled:**
+- Email verification middleware (`app/middleware/email_verification.py`) - commented out in `app/main.py`
+- Auto-send verification email on registration - removed from `app/routes/auth.py`
+- Users now created with `email_verified=True` by default
+
+**To re-enable email verification:**
+1. Configure SMTP or Gmail API (see Gmail API Integration section)
+2. Uncomment middleware in `app/main.py` lines 158-161
+3. Change `email_verified=True` to `email_verified=False` in `app/routes/auth.py` line 162
+4. Restore email sending code in registration endpoint
 
 **✅ Password Reset System (PRODUCTION-READY):**
 - ✅ **Secure reset tokens** with 1-hour expiration
@@ -479,6 +481,45 @@ quantity, reference_type, reference_id, notes, created_by, created_at
 ---
 
 ## Dual $10/Month Subscription Model (IMPLEMENTED 2026-01-22)
+
+### 1-Month Pro Trial System (IMPLEMENTED 2026-01-23)
+
+**New users get 30-day Pro trial, then auto-downgrade to Free tier.**
+
+**How It Works:**
+1. User registers → Account created with `email_verified=True`
+2. First subscription status check → Creates Pro trial subscription
+3. `is_trial=True`, `trial_ends_at=now+30days`
+4. User has full Pro access during trial
+5. After 30 days → Background job downgrades to Free tier
+
+**Database Fields Added:**
+```python
+# Subscription model (app/core/models.py)
+is_trial = Column(Boolean, default=False, nullable=False)
+trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+```
+
+**API Response:**
+```json
+{
+  "tier": "pro",
+  "is_trial": true,
+  "trial_ends_at": "2026-02-22T10:00:00Z",
+  "trial_days_remaining": 29,
+  "region_message": "You have 29 days remaining in your Pro trial."
+}
+```
+
+**Background Job:**
+- File: `app/jobs/subscription_trial_checker.py`
+- Runs every hour (3600s)
+- Finds expired trials and downgrades to Free tier
+
+**Migration:**
+- File: `migrations/versions/w8x9y0z1a2b3_add_subscription_trial_fields.py`
+
+---
 
 ### Product Strategy
 **Two Focused Products at $10 Each:**
@@ -872,6 +913,65 @@ After fixing mock service isolation and implementing usage limits:
 ---
 
 ## Change Log
+
+### 2026-01-23 - Email Verification Disabled & 1-Month Pro Trial System
+
+#### Overview
+Disabled email verification (SMTP not available on Railway) and implemented 1-month Pro trial system for new users with automatic downgrade to Free tier after trial expires.
+
+#### 1. Email Verification Disabled
+
+**Problem:** Registration failed with "timeout of 10000ms exceeded" because Railway blocks SMTP connections.
+
+**Solution:** Disabled email verification completely:
+- Users created with `email_verified=True` by default
+- Email verification middleware commented out
+- No verification email sent on registration
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `app/routes/auth.py:162` | Set `email_verified=True` |
+| `app/main.py:158-161` | Commented out email middleware |
+
+#### 2. 1-Month Pro Trial System
+
+**New users get 30-day Pro trial, then auto-downgrade to Free tier.**
+
+**Database Changes:**
+```sql
+-- New columns in subscription table
+ALTER TABLE subscription ADD COLUMN is_trial BOOLEAN DEFAULT false;
+ALTER TABLE subscription ADD COLUMN trial_ends_at TIMESTAMPTZ;
+CREATE INDEX idx_subscription_trial_ends ON subscription(trial_ends_at);
+```
+
+**Migration:** `w8x9y0z1a2b3_add_subscription_trial_fields.py`
+
+**Files Created/Modified:**
+| File | Purpose |
+|------|---------|
+| `app/core/models.py` | Added `is_trial`, `trial_ends_at` to Subscription |
+| `app/routes/subscriptions.py` | Trial creation, expiration check, API response |
+| `app/jobs/subscription_trial_checker.py` | Background job (runs hourly) |
+| `app/main.py` | Added trial checker to startup |
+
+**API Response Changes:**
+```json
+{
+  "tier": "pro",
+  "is_trial": true,
+  "trial_ends_at": "2026-02-22T10:00:00Z",
+  "trial_days_remaining": 29,
+  "region_message": "You have 29 days remaining in your Pro trial."
+}
+```
+
+#### 3. Inventory Tenant Isolation (Verified)
+
+Investigated tenant isolation for inventory - **no bug found**. The system already has excellent tenant isolation with all queries properly filtered by `tenant_id`.
+
+---
 
 ### 2026-01-22 - Multi-Tier Subscription System & Role-Based Access Control
 

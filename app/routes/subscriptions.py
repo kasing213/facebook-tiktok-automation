@@ -1,9 +1,9 @@
 # app/routes/subscriptions.py
 """
-Subscription management routes - Stripe disabled (not available in Cambodia).
-All users get Pro tier access for free during beta.
+Subscription management routes - 1-month Pro trial for new users.
+After trial expires, users are downgraded to Free tier.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -15,6 +15,9 @@ from app.core.models import User, Subscription, SubscriptionTier, SubscriptionSt
 from app.routes.auth import get_current_user
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
+
+# Trial period configuration
+TRIAL_DURATION_DAYS = 30
 
 
 # Response Models
@@ -29,6 +32,10 @@ class SubscriptionStatusResponse(BaseModel):
     can_access_export: bool
     stripe_available: bool = False
     region_message: Optional[str] = None
+    # Trial period fields
+    is_trial: bool = False
+    trial_ends_at: Optional[str] = None
+    trial_days_remaining: Optional[int] = None
 
 
 class CheckoutSessionResponse(BaseModel):
@@ -50,16 +57,19 @@ class CreateCheckoutRequest(BaseModel):
 
 
 def get_or_create_subscription(db: Session, user: User) -> Subscription:
-    """Get existing subscription or create a Pro tier subscription for user (beta period)"""
+    """Get existing subscription or create a 1-month Pro trial subscription for new users."""
     subscription = db.query(Subscription).filter(Subscription.user_id == user.id).first()
 
     if not subscription:
-        # Give everyone Pro tier during beta (Stripe not available in Cambodia)
+        # Create 1-month Pro trial for new users
+        trial_ends_at = datetime.now(timezone.utc) + timedelta(days=TRIAL_DURATION_DAYS)
         subscription = Subscription(
             user_id=user.id,
             tenant_id=user.tenant_id,
-            tier=SubscriptionTier.pro,  # Pro for everyone during beta
-            status=SubscriptionStatus.active
+            tier=SubscriptionTier.pro,  # Pro during trial
+            status=SubscriptionStatus.active,
+            is_trial=True,
+            trial_ends_at=trial_ends_at
         )
         db.add(subscription)
         db.commit()
@@ -68,10 +78,40 @@ def get_or_create_subscription(db: Session, user: User) -> Subscription:
     return subscription
 
 
+def check_and_expire_trial(subscription: Subscription, db: Session) -> Subscription:
+    """Check if trial has expired and downgrade to Free if so."""
+    if subscription.is_trial and subscription.trial_ends_at:
+        now = datetime.now(timezone.utc)
+        if subscription.trial_ends_at <= now:
+            # Trial expired - downgrade to Free
+            subscription.tier = SubscriptionTier.free
+            subscription.is_trial = False
+            subscription.status = None  # Free tier has no status
+            db.commit()
+            db.refresh(subscription)
+    return subscription
+
+
 def has_pro_access(subscription: Subscription) -> bool:
-    """Check if user has Pro tier access - Always true during beta"""
-    # During beta, everyone has Pro access (Stripe not available in Cambodia)
-    return True
+    """Check if user has Pro tier access (paid or active trial)."""
+    # Pro tier or higher has access
+    if subscription.tier in [SubscriptionTier.pro, SubscriptionTier.invoice_plus, SubscriptionTier.marketing_plus]:
+        # If it's a trial, check if it's still active
+        if subscription.is_trial and subscription.trial_ends_at:
+            now = datetime.now(timezone.utc)
+            return subscription.trial_ends_at > now
+        return True
+    return False
+
+
+def get_trial_days_remaining(subscription: Subscription) -> Optional[int]:
+    """Get the number of days remaining in the trial period."""
+    if subscription.is_trial and subscription.trial_ends_at:
+        now = datetime.now(timezone.utc)
+        if subscription.trial_ends_at > now:
+            delta = subscription.trial_ends_at - now
+            return max(0, delta.days)
+    return None
 
 
 @router.get("/status", response_model=SubscriptionStatusResponse)
@@ -81,20 +121,39 @@ async def get_subscription_status(
 ):
     """
     Get the current user's subscription status.
-    During beta, all users have Pro access for free.
+    New users get 1-month Pro trial. After trial expires, they are downgraded to Free.
     """
     subscription = get_or_create_subscription(db, current_user)
 
+    # Check and expire trial if needed
+    subscription = check_and_expire_trial(subscription, db)
+
+    # Calculate trial info
+    trial_days_remaining = get_trial_days_remaining(subscription)
+    has_access = has_pro_access(subscription)
+
+    # Build region message based on subscription state
+    if subscription.is_trial and trial_days_remaining is not None:
+        region_message = f"You have {trial_days_remaining} days remaining in your Pro trial. Upgrade to continue access after trial ends."
+    elif subscription.tier == SubscriptionTier.free:
+        region_message = "Your Pro trial has ended. Upgrade to Pro to unlock all features."
+    else:
+        region_message = "You have full Pro access."
+
     return SubscriptionStatusResponse(
-        tier="pro",  # Everyone is Pro during beta
-        status="active",
-        stripe_customer_id=None,
-        current_period_end=None,
-        cancel_at_period_end=False,
-        can_access_pdf=True,  # All features enabled
-        can_access_export=True,  # All features enabled
+        tier=subscription.tier.value,
+        status=subscription.status.value if subscription.status else None,
+        stripe_customer_id=subscription.stripe_customer_id,
+        current_period_end=subscription.current_period_end.isoformat() if subscription.current_period_end else None,
+        cancel_at_period_end=subscription.cancel_at_period_end,
+        can_access_pdf=has_access,
+        can_access_export=has_access,
         stripe_available=False,
-        region_message="All Pro features are free during our beta period. Payment processing will be available soon."
+        region_message=region_message,
+        # Trial fields
+        is_trial=subscription.is_trial,
+        trial_ends_at=subscription.trial_ends_at.isoformat() if subscription.trial_ends_at else None,
+        trial_days_remaining=trial_days_remaining
     )
 
 

@@ -153,30 +153,21 @@ async def register_user(
     # Determine role - first user in tenant becomes owner
     role = UserRole.admin if user_repo.is_first_user_in_tenant(user_data.tenant_id) else UserRole.user
 
-    # Create user (email_verified=False by default)
+    # Create user (email_verified=True - email verification disabled, SMTP not available on Railway)
     user = user_repo.create_user(
         tenant_id=user_data.tenant_id,
         username=user_data.username,
         email=user_data.email,
         password_hash=password_hash,
-        email_verified=False,
+        email_verified=True,  # Auto-verify - no SMTP on Railway
         role=role
     )
 
     db.commit()
     db.refresh(user)
 
-    # Send verification email (non-blocking, errors logged but don't fail registration)
-    try:
-        verification_token = email_verification_service.generate_token(db, user)
-        # Note: send_verification_email is synchronous, don't use await
-        email_service.send_verification_email(user, verification_token)
-    except Exception as e:
-        # Log error but don't fail registration
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Failed to send verification email to {user.email}: {e}")
-        # Continue with registration - user can request verification later
+    # Email verification disabled - SMTP not available on Railway
+    # Users are automatically verified on registration
 
     return user
 

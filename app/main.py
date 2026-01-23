@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI):
     from app.jobs.token_refresh import run_token_refresh_scheduler, run_daily_cleanup_scheduler
     from app.jobs.automation_scheduler import run_automation_scheduler
     from app.jobs.ads_alert_scheduler import run_ads_alert_scheduler
+    from app.jobs.subscription_trial_checker import run_trial_checker_scheduler
 
     log = get_logger()
     s = get_settings()
@@ -79,6 +80,7 @@ async def lifespan(app: FastAPI):
     cleanup_task = None
     automation_task = None
     ads_alert_task = None
+    trial_checker_task = None
 
     try:
         # Start token refresh and cleanup tasks
@@ -96,6 +98,10 @@ async def lifespan(app: FastAPI):
         ads_alert_task = asyncio.create_task(run_ads_alert_scheduler(check_interval=60))
         log.info("✅ Ads Alert scheduler started (check interval: 60s)")
 
+        # Start trial checker scheduler (checks every hour for expired trials)
+        trial_checker_task = asyncio.create_task(run_trial_checker_scheduler(check_interval=3600))
+        log.info("✅ Trial checker scheduler started (check interval: 3600s)")
+
         yield
     finally:
         # Cancel background tasks gracefully
@@ -103,7 +109,8 @@ async def lifespan(app: FastAPI):
             ("Token Refresh", token_refresh_task),
             ("Cleanup", cleanup_task),
             ("Automation Scheduler", automation_task),
-            ("Ads Alert Scheduler", ads_alert_task)
+            ("Ads Alert Scheduler", ads_alert_task),
+            ("Trial Checker", trial_checker_task)
         ]
 
         for task_name, task in tasks_to_cancel:
@@ -155,9 +162,10 @@ app.add_middleware(
 from app.middleware.rate_limit import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware)
 
-# Add email verification middleware
-from app.middleware.email_verification import email_verification_middleware
-app.middleware("http")(email_verification_middleware)
+# Email verification middleware disabled - SMTP not available on Railway
+# Users are auto-verified on registration
+# from app.middleware.email_verification import email_verification_middleware
+# app.middleware("http")(email_verification_middleware)
 
 # Include routers
 app.include_router(auth_router)
