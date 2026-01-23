@@ -16,11 +16,16 @@ const Container = styled.div`
   margin: 0 auto;
 `
 
-const Header = styled.div`
+const Header = styled.div<{ $isVisible?: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(-10px)'};
+  transition: opacity 0.4s ${easings.easeOutCubic},
+              transform 0.4s ${easings.easeOutCubic};
+  ${reduceMotion}
 `
 
 const TitleSection = styled.div``
@@ -116,13 +121,20 @@ const StatIcon = styled.span`
   }
 `
 
-const Tabs = styled.div`
+const Tabs = styled.div<{ $isVisible?: boolean }>`
   display: flex;
   gap: 4px;
   background: ${props => props.theme.backgroundTertiary};
   padding: 4px;
   border-radius: 10px;
   margin-bottom: 24px;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(15px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              background-color 0.3s ease;
+  transition-delay: 200ms;
+  ${reduceMotion}
 `
 
 const Tab = styled.button<{ $active: boolean }>`
@@ -150,12 +162,19 @@ const Tab = styled.button<{ $active: boolean }>`
   }
 `
 
-const TabContent = styled.div`
+const TabContent = styled.div<{ $isVisible?: boolean }>`
   background: ${props => props.theme.card};
   border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 24px;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(15px)'};
+  transition: opacity 0.5s ${easings.easeOutCubic},
+              transform 0.5s ${easings.easeOutCubic},
+              background-color 0.3s ease,
+              border-color 0.3s ease;
+  transition-delay: 300ms;
+  ${reduceMotion}
 `
 
 const BackButton = styled.button`
@@ -313,8 +332,15 @@ const AdsAlertPage: React.FC = () => {
   const [stats, setStats] = useState<AdsAlertStats | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Animation state for stat cards (5 stat cards)
+  // Animation states
   const statsVisible = useStaggeredAnimation(5, 100)
+  const [headerVisible, setHeaderVisible] = useState(false)
+
+  useEffect(() => {
+    // Trigger header animation on mount
+    const timer = setTimeout(() => setHeaderVisible(true), 50)
+    return () => clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
     loadStats()
@@ -497,7 +523,7 @@ const AdsAlertPage: React.FC = () => {
 
   return (
     <Container>
-      <Header>
+      <Header $isVisible={headerVisible}>
         <TitleSection>
           <Title>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -574,7 +600,7 @@ const AdsAlertPage: React.FC = () => {
         </StatsGrid>
       )}
 
-      <Tabs>
+      <Tabs $isVisible={headerVisible}>
         <Tab
           $active={activeTab === 'promotions'}
           onClick={() => { setActiveTab('promotions'); setViewMode('list') }}
@@ -595,7 +621,7 @@ const AdsAlertPage: React.FC = () => {
         </Tab>
       </Tabs>
 
-      <TabContent>
+      <TabContent $isVisible={headerVisible}>
         {activeTab === 'promotions' && (
           <>
             {viewMode === 'list' && (

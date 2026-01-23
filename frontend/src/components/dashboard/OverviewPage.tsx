@@ -105,15 +105,16 @@ const StatSubtext = styled.p`
   margin: 0.25rem 0 0 0;
 `
 
-const StatPlatforms = styled.p`
-  font-size: 0.75rem;
-  color: ${props => props.theme.textMuted};
-  margin: 0.25rem 0 0 0;
-
-  .fb {
-    color: ${props => props.theme.accent};
-  }
-`
+// Unused - keeping for future use
+// const StatPlatforms = styled.p`
+//   font-size: 0.75rem;
+//   color: ${props => props.theme.textMuted};
+//   margin: 0.25rem 0 0 0;
+//
+//   .fb {
+//     color: ${props => props.theme.accent};
+//   }
+// `
 
 // Two Column Layout
 const TwoColumnGrid = styled.div`

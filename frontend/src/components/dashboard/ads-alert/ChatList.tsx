@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import { adsAlertService } from '../../../services/adsAlertApi'
 import { Chat, ChatCreate, ChatUpdate } from '../../../types/adsAlert'
+import { easings, reduceMotion } from '../../../styles/animations'
+import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 
 const Container = styled.div`
   display: flex;
@@ -83,14 +85,23 @@ const Td = styled.td`
   border-bottom: 1px solid #e5e7eb;
 `
 
-const Tr = styled.tr`
+const Tr = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateX(0)' : 'translateX(-15px)'};
+  transition: opacity 0.4s ${easings.easeOutCubic},
+              transform 0.4s ${easings.easeOutCubic},
+              background-color 0.2s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
+
   &:hover {
-    background: #f9fafb;
+    background: ${props => props.theme.backgroundTertiary || '#f9fafb'};
   }
 
   &:last-child td {
     border-bottom: none;
   }
+
+  ${reduceMotion}
 `
 
 const ChatName = styled.div`
@@ -388,6 +399,9 @@ const ChatList: React.FC = () => {
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Animation for table rows (max 15 for performance)
+  const rowsVisible = useStaggeredAnimation(Math.min(chats.length, 15), 60)
+
   useEffect(() => {
     loadChats()
   }, [])
@@ -573,8 +587,8 @@ const ChatList: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredChats.map(chat => (
-              <Tr key={chat.id}>
+            {filteredChats.map((chat, index) => (
+              <Tr key={chat.id} $isVisible={rowsVisible[index] ?? true} $delay={index * 60}>
                 <Td>
                   <ChatName>{chat.chat_name || 'Unnamed Chat'}</ChatName>
                   <ChatId>{chat.platform}: {chat.chat_id}</ChatId>

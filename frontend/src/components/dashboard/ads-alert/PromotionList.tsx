@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import { adsAlertService } from '../../../services/adsAlertApi'
 import { Promotion } from '../../../types/adsAlert'
+import { easings, reduceMotion } from '../../../styles/animations'
+import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 
 interface PromotionListProps {
   onEdit?: (promotion: Promotion) => void
@@ -44,21 +46,30 @@ const List = styled.div`
   gap: 12px;
 `
 
-const PromotionCard = styled.div`
+const PromotionCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: ${props => props.theme.card || 'white'};
+  border: 1px solid ${props => props.theme.border || '#e5e7eb'};
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  opacity: ${props => props.$isVisible ? 1 : 0};
+  transform: ${props => props.$isVisible ? 'translateY(0)' : 'translateY(15px)'};
+  transition: opacity 0.4s ${easings.easeOutCubic},
+              transform 0.4s ${easings.easeOutCubic},
+              border-color 0.2s ease,
+              box-shadow 0.2s ease,
+              background-color 0.3s ease;
+  transition-delay: ${props => props.$delay || 0}ms;
 
   &:hover {
-    border-color: #4A90E2;
-    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.1);
+    border-color: ${props => props.theme.accent || '#4A90E2'};
+    box-shadow: 0 2px 8px ${props => props.theme.shadowColor || 'rgba(74, 144, 226, 0.1)'};
   }
+
+  ${reduceMotion}
 `
 
 const MediaPreview = styled.div`
@@ -252,6 +263,9 @@ const PromotionList: React.FC<PromotionListProps> = ({
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<StatusFilter>('all')
 
+  // Animation for promotion cards (max 10 for performance)
+  const cardsVisible = useStaggeredAnimation(Math.min(promotions.length, 10), 80)
+
   useEffect(() => {
     loadPromotions()
   }, [filter])
@@ -377,12 +391,14 @@ const PromotionList: React.FC<PromotionListProps> = ({
         </EmptyState>
       ) : (
         <List>
-          {filteredPromotions.map(promotion => {
+          {filteredPromotions.map((promotion, index) => {
             const imageUrl = getFirstImageUrl(promotion)
             return (
               <PromotionCard
                 key={promotion.id}
                 onClick={() => onView?.(promotion)}
+                $isVisible={cardsVisible[index] ?? true}
+                $delay={index * 80}
               >
                 <MediaPreview>
                   {imageUrl ? (
