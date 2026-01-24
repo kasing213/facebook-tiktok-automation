@@ -1,22 +1,32 @@
 import api from './api'
 
 /**
- * Get or create a default tenant for user registration
- * This will automatically create a default tenant if none exists
+ * Create a new tenant/organization for user registration
+ * Each new user gets their own organization with isolated data
  */
-export const getDefaultTenant = async (): Promise<string> => {
+export const createTenant = async (name: string): Promise<string> => {
   try {
-    // Use the new default tenant endpoint that auto-creates if needed
-    const response = await api.get<{ id: string; name: string; slug: string }>('/api/tenants/default')
+    const response = await api.post<{ id: string; name: string; slug: string }>(
+      '/api/tenants/register',
+      { name }
+    )
 
     if (response.data && response.data.id) {
       return response.data.id
     }
 
-    throw new Error('Failed to get default tenant ID')
+    throw new Error('Failed to create organization')
 
-  } catch (error) {
-    console.error('Failed to get default tenant:', error)
-    throw new Error('Failed to get organization. Please try again later.')
+  } catch (error: any) {
+    console.error('Failed to create tenant:', error)
+    const message = error.response?.data?.detail || 'Failed to create organization. Please try again later.'
+    throw new Error(message)
   }
+}
+
+// Keep the old function name for backwards compatibility during transition
+// TODO: Remove after all usages are updated
+export const getDefaultTenant = async (): Promise<string> => {
+  console.warn('getDefaultTenant is deprecated. Use createTenant(name) instead.')
+  return createTenant('My Organization')
 }

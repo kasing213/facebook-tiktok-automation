@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 import { authService } from '../services/api'
-import { getDefaultTenant } from '../services/tenant'
+import { createTenant } from '../services/tenant'
 import {
   fadeIn,
   fadeInUp,
@@ -266,29 +266,14 @@ interface RegisterPageProps {
 
 const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
   const navigate = useNavigate()
+  const [organizationName, setOrganizationName] = useState('')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [tenantId, setTenantId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
-  // Get default tenant on component mount
-  useEffect(() => {
-    const fetchTenant = async () => {
-      try {
-        const defaultTenantId = await getDefaultTenant()
-        console.log('[RegisterPage] Received tenant ID:', defaultTenantId)
-        setTenantId(defaultTenantId)
-      } catch (err) {
-        console.error('[RegisterPage] Failed to get tenant:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load organization')
-      }
-    }
-    fetchTenant()
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -296,8 +281,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
     setSuccess(null)
 
     // Validation
-    if (!tenantId) {
-      setError('Organization not loaded. Please refresh the page.')
+    if (!organizationName.trim()) {
+      setError('Organization name is required')
       return
     }
 
@@ -328,6 +313,11 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
 
     setLoading(true)
     try {
+      // Step 1: Create a new organization/tenant
+      const tenantId = await createTenant(organizationName.trim())
+      console.log('[RegisterPage] Created tenant:', tenantId)
+
+      // Step 2: Register user in the new tenant
       await authService.register({
         tenant_id: tenantId,
         username,
@@ -359,6 +349,24 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
         {success && <SuccessMessage>{success}</SuccessMessage>}
 
         <Form onSubmit={handleSubmit}>
+          <InputGroup>
+            <InputWithIcon>
+              <InputIcon>
+                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2 2h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm1 2v8h10V4H3z" />
+                </svg>
+              </InputIcon>
+              <Input
+                type="text"
+                placeholder="Organization / Business Name"
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                disabled={loading}
+                required
+              />
+            </InputWithIcon>
+          </InputGroup>
+
           <InputGroup>
             <InputWithIcon>
               <InputIcon>

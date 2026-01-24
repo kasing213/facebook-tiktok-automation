@@ -1,6 +1,8 @@
 # app/main.py
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from app.core.db import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -261,37 +263,55 @@ def create_tenant(request: CreateTenantRequest, tenant_service: TenantSvc):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to create tenant")
 
-@app.get("/api/tenants/default", tags=["tenants"])
-def get_default_tenant(tenant_service: TenantSvc):
-    """Get or create a default tenant for registration"""
-    tenants = tenant_service.get_active_tenants()
+class TenantRegistrationRequest(BaseModel):
+    """Request for creating a tenant during registration"""
+    name: str = Field(..., min_length=1, max_length=100, description="Organization name")
 
-    # If we have tenants, return the first one
-    if tenants:
-        tenant = tenants[0]
-        return {
-            "id": str(tenant.id),
-            "name": tenant.name,
-            "slug": tenant.slug,
-        }
 
-    # If no tenants exist, create a default one
+def generate_tenant_slug(name: str) -> str:
+    """Generate a unique slug from organization name"""
+    import re
+    import uuid
+    # Convert to lowercase and replace spaces/special chars with hyphens
+    base_slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+    if not base_slug:
+        base_slug = 'org'
+    # Add short UUID suffix to ensure uniqueness
+    unique_suffix = str(uuid.uuid4())[:8]
+    return f"{base_slug}-{unique_suffix}"
+
+
+@app.post("/api/tenants/register", tags=["tenants"])
+def create_tenant_for_registration(
+    request: TenantRegistrationRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new tenant for user registration.
+
+    Each new user registration creates their own organization/tenant.
+    The registering user will become the owner (admin) of this tenant.
+    """
+    from app.repositories import TenantRepository
+
+    tenant_repo = TenantRepository(db)
+
     try:
-        tenant, _ = tenant_service.create_tenant_with_admin(
-            name="Default Organization",
-            slug="default",
-            admin_telegram_id=None,
-            admin_email="admin@example.com",
-            admin_username="defaultadmin",
-            settings={}
-        )
+        # Generate unique slug from organization name
+        slug = generate_tenant_slug(request.name)
+
+        # Create tenant (without admin user - user will be created in /auth/register)
+        tenant = tenant_repo.create_tenant(request.name, slug, settings={})
+        db.commit()
+
         return {
             "id": str(tenant.id),
             "name": tenant.name,
             "slug": tenant.slug,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create default tenant: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create organization: {str(e)}")
 
 @app.get("/api/tenants", tags=["tenants"])
 def list_tenants(tenant_service: TenantSvc):
