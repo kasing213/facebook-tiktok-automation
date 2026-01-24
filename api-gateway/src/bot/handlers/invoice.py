@@ -25,8 +25,14 @@ async def cmd_invoice(message: types.Message):
         )
         return
 
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
     # Check if service is connected
-    stats = await invoice_service.get_stats()
+    stats = await invoice_service.get_stats(tenant_id)
     if stats.get("status") != "connected":
         await message.answer(
             "<b>Invoice Generator</b>\n\n"
@@ -53,7 +59,13 @@ async def cmd_invoice_list(message: types.Message):
         await message.answer("Please link your account first.")
         return
 
-    invoices = await invoice_service.get_invoices(limit=10)
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
+    invoices = await invoice_service.get_invoices(tenant_id, limit=10)
 
     if not invoices:
         await message.answer("No invoices found.")
@@ -79,7 +91,13 @@ async def cmd_invoice_stats(message: types.Message):
         await message.answer("Please link your account first.")
         return
 
-    stats = await invoice_service.get_stats()
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
+    stats = await invoice_service.get_stats(tenant_id)
 
     await message.answer(
         f"<b>Invoice Statistics</b>\n\n"

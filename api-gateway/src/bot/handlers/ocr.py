@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from src.services.ocr_service import ocr_service
 from src.services.invoice_service import invoice_service
+from src.services.pro_reward_service import pro_reward_service
 from src.bot.services.linking import get_user_by_telegram_id
 
 logger = logging.getLogger(__name__)
@@ -145,10 +146,14 @@ async def handle_screenshot(message: types.Message, state: FSMContext):
         # Read bytes from BytesIO
         image_data = photo_bytes.read()
 
-        # Send to OCR service
-        result = await ocr_service.verify_screenshot(
+        # Import smart OCR service for auto-learning
+        from src.services.smart_ocr_service import smart_ocr
+
+        # Use Smart OCR with auto-learning
+        result = await smart_ocr.verify_screenshot_smart(
             image_data=image_data,
-            filename=f"telegram_{photo.file_id}.jpg"
+            filename=f"telegram_{photo.file_id}.jpg",
+            use_learning=True
         )
 
         await state.clear()
@@ -229,6 +234,12 @@ async def cmd_verify_invoice(message: types.Message, command: CommandObject, sta
         )
         return
 
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
     # Check if OCR service is configured
     if not ocr_service.is_configured():
         await message.answer(
@@ -242,10 +253,10 @@ async def cmd_verify_invoice(message: types.Message, command: CommandObject, sta
     invoice_ref = command.args.strip() if command.args else None
 
     if invoice_ref:
-        # Try to find invoice by ID or number
-        invoice = await invoice_service.get_invoice_by_id(invoice_ref)
+        # Try to find invoice by ID or number (with tenant isolation)
+        invoice = await invoice_service.get_invoice_by_id(invoice_ref, tenant_id)
         if not invoice:
-            invoice = await invoice_service.get_invoice_by_number(invoice_ref)
+            invoice = await invoice_service.get_invoice_by_number(invoice_ref, tenant_id)
 
         if not invoice:
             await message.answer(
@@ -255,8 +266,8 @@ async def cmd_verify_invoice(message: types.Message, command: CommandObject, sta
             )
             return
 
-        # Store invoice in state and ask for screenshot
-        await state.update_data(invoice=invoice)
+        # Store invoice and tenant_id in state and ask for screenshot
+        await state.update_data(invoice=invoice, tenant_id=tenant_id)
         await state.set_state(OCRStates.waiting_for_invoice_screenshot)
 
         # Format invoice details
@@ -284,8 +295,8 @@ async def cmd_verify_invoice(message: types.Message, command: CommandObject, sta
             f"Send /cancel to cancel."
         )
     else:
-        # No invoice specified, show list of pending invoices
-        invoices = await invoice_service.get_invoices(limit=10)
+        # No invoice specified, show list of pending invoices (with tenant isolation)
+        invoices = await invoice_service.get_invoices(tenant_id, limit=10)
 
         # Filter to pending verification
         pending = [inv for inv in invoices if inv.get("verification_status") == "pending"]
@@ -318,6 +329,8 @@ async def cmd_verify_invoice(message: types.Message, command: CommandObject, sta
             f"<code>/verify_invoice INV-XXXXX</code>\n\n"
             f"Or reply with an invoice number:"
         )
+        # Store tenant_id in state for next handler
+        await state.update_data(tenant_id=tenant_id)
         await state.set_state(OCRStates.waiting_for_invoice_selection)
 
 
@@ -335,10 +348,18 @@ async def handle_invoice_selection(message: types.Message, state: FSMContext):
         await message.answer("Please enter an invoice number or use /cancel to cancel.")
         return
 
-    # Try to find invoice
-    invoice = await invoice_service.get_invoice_by_id(invoice_ref)
+    # Get tenant_id from state for tenant isolation
+    state_data = await state.get_data()
+    tenant_id = state_data.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Session expired. Please use /verify_invoice again.")
+        await state.clear()
+        return
+
+    # Try to find invoice (with tenant isolation)
+    invoice = await invoice_service.get_invoice_by_id(invoice_ref, tenant_id)
     if not invoice:
-        invoice = await invoice_service.get_invoice_by_number(invoice_ref)
+        invoice = await invoice_service.get_invoice_by_number(invoice_ref, tenant_id)
 
     if not invoice:
         await message.answer(
@@ -447,12 +468,18 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
             )
             return
 
-        # Send to OCR service (don't pass invoice_id - it triggers MongoDB lookup)
-        result = await ocr_service.verify_screenshot(
+        # Import smart OCR service for auto-learning
+        from src.services.smart_ocr_service import smart_ocr
+
+        # Use Smart OCR with auto-learning for merchants
+        result = await smart_ocr.verify_screenshot_smart(
             image_data=image_data,
             filename=f"telegram_{photo.file_id}.jpg",
+            invoice_id=invoice.get("id"),
             expected_payment=expected_payment,
-            customer_id=invoice.get("customer_id")
+            customer_id=invoice.get("customer_id"),
+            tenant_id=user.get("tenant_id"),  # For merchant-specific learning
+            use_learning=True
         )
 
         await state.clear()
@@ -485,11 +512,80 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
 
         confidence_bar = get_confidence_bar(confidence)
 
+        # Initialize early payment benefits tracking
+        early_payment_applied = False
+        pro_reward_granted = False
+        benefits_message = ""
+
         # Update invoice verification status in database
         if verification_status in ["verified", "rejected"]:
             note = f"OCR Record: {result.get('record_id', 'N/A')}"
             if verification.get("rejectionReason"):
                 note += f". Reason: {verification.get('rejectionReason')}"
+
+            # For verified payments, check and apply early payment benefits
+            if verification_status == "verified":
+                try:
+                    # Check if early payment discount is enabled and eligible
+                    if invoice.get("early_payment_enabled"):
+                        from datetime import date
+                        today = date.today()
+
+                        # Check eligibility for early payment discount
+                        eligibility_result = await invoice_service.check_early_payment_eligibility(
+                            invoice.get("id"),
+                            today
+                        )
+
+                        if eligibility_result.get("eligible"):
+                            # Apply discount to invoice
+                            discount_result = await invoice_service.apply_early_payment_benefits(
+                                invoice.get("id"),
+                                today
+                            )
+
+                            if discount_result.get("success"):
+                                early_payment_applied = True
+                                discount_amount = discount_result.get("discount_applied", 0)
+                                final_amount = discount_result.get("final_amount", 0)
+
+                                # Process Pro reward
+                                pro_result = await pro_reward_service.process_early_payment_rewards(
+                                    invoice.get("id")
+                                )
+
+                                if pro_result.get("pro_reward_granted"):
+                                    pro_reward_granted = True
+                                    pro_details = pro_result.get("pro_details", {})
+                                    pro_end_date = pro_details.get("pro_end_date", "")
+
+                                    benefits_message = (
+                                        f"\n\n🎉 <b>EARLY PAYMENT BENEFITS APPLIED!</b>\n"
+                                        f"💰 Discount: ${discount_amount:.2f} (10% off)\n"
+                                        f"💵 Final Amount: ${final_amount:.2f}\n"
+                                        f"👑 FREE Pro Month until {pro_end_date[:10]}\n"
+                                        f"✨ Pro features unlocked:\n"
+                                        f"   • Custom branding\n"
+                                        f"   • API access\n"
+                                        f"   • Priority support\n"
+                                        f"   • Unlimited invoices\n"
+                                        f"   • Advanced reports"
+                                    )
+                                else:
+                                    benefits_message = (
+                                        f"\n\n💰 <b>EARLY PAYMENT DISCOUNT APPLIED!</b>\n"
+                                        f"💰 Discount: ${discount_amount:.2f} (10% off)\n"
+                                        f"💵 Final Amount: ${final_amount:.2f}\n"
+                                        f"ℹ️ Pro reward: {pro_result.get('message', 'Not available')}"
+                                    )
+
+                                note += f". Early payment: ${discount_amount:.2f} discount applied"
+                                if pro_reward_granted:
+                                    note += ", Free Pro month granted"
+
+                except Exception as e:
+                    logger.error(f"Error processing early payment benefits: {e}")
+                    benefits_message = f"\n\n⚠️ Payment verified but early payment benefits processing failed: {str(e)}"
 
             await invoice_service.update_invoice_verification(
                 invoice_id=invoice.get("id"),
@@ -517,6 +613,7 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
                 f"Confidence: {confidence_bar} {confidence:.0%}\n"
                 f"{warnings_text}\n"
                 f"Invoice marked as <b>PAID</b>"
+                f"{benefits_message}"
             )
         elif verification_status == "rejected":
             reason = verification.get("rejectionReason", "Amount or account mismatch")

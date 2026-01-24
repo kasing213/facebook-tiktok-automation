@@ -29,11 +29,17 @@ async def cmd_status(message: types.Message):
         )
         return
 
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
     # Check PostgreSQL schema connections
     services_status = []
 
     try:
-        invoice_stats = await invoice_service.get_stats()
+        invoice_stats = await invoice_service.get_stats(tenant_id)
         services_status.append(("Invoice Generator", invoice_stats.get("status") == "connected"))
     except Exception:
         services_status.append(("Invoice Generator", False))
@@ -51,7 +57,7 @@ async def cmd_status(message: types.Message):
         services_status.append(("Audit Sales", False))
 
     try:
-        promo_stats = await promo_service.get_stats()
+        promo_stats = await promo_service.get_stats(tenant_id)
         services_status.append(("Ads Alert", promo_stats.get("status") == "connected"))
     except Exception:
         services_status.append(("Ads Alert", False))

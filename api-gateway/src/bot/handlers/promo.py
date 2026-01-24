@@ -25,8 +25,14 @@ async def cmd_promo(message: types.Message):
         )
         return
 
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
     # Check if service is connected
-    stats = await promo_service.get_stats()
+    stats = await promo_service.get_stats(tenant_id)
     if stats.get("status") != "connected":
         await message.answer(
             "<b>Promotions</b>\n\n"
@@ -62,7 +68,13 @@ async def cmd_promo_status(message: types.Message):
         await message.answer("Please link your account first.")
         return
 
-    status = await promo_service.get_current_status()
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
+    status = await promo_service.get_current_status(tenant_id)
 
     if not status:
         await message.answer(
@@ -100,7 +112,13 @@ async def cmd_promo_chats(message: types.Message):
         await message.answer("Please link your account first.")
         return
 
-    chats = await promo_service.get_registered_chats()
+    # Get tenant_id for tenant-isolated queries
+    tenant_id = user.get("tenant_id")
+    if not tenant_id:
+        await message.answer("Account configuration error. Please re-link your Telegram account.")
+        return
+
+    chats = await promo_service.get_registered_chats(tenant_id)
 
     if not chats:
         await message.answer(
