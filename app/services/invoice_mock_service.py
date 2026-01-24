@@ -173,6 +173,7 @@ def get_invoice(tenant_id: str, invoice_id: str) -> Optional[Dict]:
         db = next(get_db_sync())
 
         # Query invoice with customer data (matching actual database schema)
+        # CRITICAL: Filter by tenant_id to prevent cross-tenant data access
         result = db.execute(text("""
             SELECT
                 i.id,
@@ -194,8 +195,8 @@ def get_invoice(tenant_id: str, invoice_id: str) -> Optional[Dict]:
                 c.address as customer_address
             FROM invoice.invoice i
             LEFT JOIN invoice.customer c ON i.customer_id = c.id
-            WHERE i.id = :invoice_id
-        """), {"invoice_id": invoice_id}).fetchone()
+            WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
+        """), {"invoice_id": invoice_id, "tenant_id": str(tenant_id)}).fetchone()
 
         if result:
             # Parse items JSON (handle both string and already-parsed list)
@@ -460,11 +461,15 @@ def get_stats() -> Dict:
 # PDF Generation (Real - using fpdf2)
 # ============================================================================
 
-def generate_pdf(invoice_id: str) -> Optional[bytes]:
+def generate_pdf(invoice_id: str, tenant_id: str) -> Optional[bytes]:
     """
     Generate a professional invoice PDF matching the frontend design.
 
     Uses fpdf2 library for real PDF generation with proper styling.
+
+    Args:
+        invoice_id: The invoice ID to generate PDF for
+        tenant_id: The tenant ID - ensures tenant isolation
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -475,11 +480,11 @@ def generate_pdf(invoice_id: str) -> Optional[bytes]:
     except ImportError as e:
         # Fallback if fpdf2 not installed
         logger.error(f"❌ fpdf2 not installed (ImportError: {e}), using fallback PDF for invoice {invoice_id}")
-        return _generate_pdf_fallback(invoice_id)
+        return _generate_pdf_fallback(invoice_id, tenant_id)
 
     # Wrap entire PDF generation in try-catch to log actual errors
     try:
-        invoice = get_invoice(invoice_id)
+        invoice = get_invoice(tenant_id, invoice_id)
         if not invoice:
             logger.error(f"Invoice not found for PDF generation: {invoice_id}")
             return None
@@ -668,9 +673,9 @@ def generate_pdf(invoice_id: str) -> Optional[bytes]:
         return None
 
 
-def _generate_pdf_fallback(invoice_id: str) -> Optional[bytes]:
+def _generate_pdf_fallback(invoice_id: str, tenant_id: str) -> Optional[bytes]:
     """Fallback PDF generation if fpdf2 is not available."""
-    invoice = get_invoice(invoice_id)
+    invoice = get_invoice(tenant_id, invoice_id)
     if not invoice:
         return None
 
