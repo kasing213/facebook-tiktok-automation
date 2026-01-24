@@ -1055,6 +1055,7 @@ async def delete_batch_code(
 async def send_invoice_to_telegram(
     invoice: dict,
     customer: dict,
+    tenant_id: str,
     db: Session
 ) -> dict:
     """
@@ -1086,11 +1087,11 @@ async def send_invoice_to_telegram(
     if not telegram_chat_id:
         return {"sent": False, "reason": "Customer has no Telegram linked"}
 
-    # Generate PDF
+    # Generate PDF with tenant isolation
     from app.services import invoice_mock_service
 
     invoice_id = invoice.get("id")
-    pdf_bytes = invoice_mock_service.generate_pdf(str(invoice_id))
+    pdf_bytes = invoice_mock_service.generate_pdf(str(invoice_id), tenant_id)
 
     if not pdf_bytes:
         # Fall back to text message if PDF generation fails
@@ -1482,6 +1483,7 @@ async def create_invoice(
         telegram_result = await send_invoice_to_telegram(
             invoice=invoice,
             customer=registered_customer,
+            tenant_id=str(current_user.tenant_id),
             db=db
         )
 
@@ -2193,7 +2195,7 @@ async def download_invoice_pdf(
 
     # 2. Fall back to mock mode
     if is_mock_mode():
-        pdf_content = mock_svc.generate_pdf(invoice_id)
+        pdf_content = mock_svc.generate_pdf(invoice_id, str(current_user.tenant_id))
         if not pdf_content:
             raise HTTPException(status_code=404, detail="Invoice not found")
 
@@ -2308,6 +2310,7 @@ async def send_invoice_to_customer(
         telegram_result = await send_invoice_to_telegram(
             invoice=invoice_data,
             customer=customer_data,
+            tenant_id=str(current_user.tenant_id),
             db=db
         )
 
