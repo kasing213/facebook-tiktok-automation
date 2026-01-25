@@ -521,8 +521,10 @@ async def show_pending_invoices_for_payment(
     customer: dict
 ):
     """Show pending invoices with inline buttons for selection."""
+    # SECURITY: Pass tenant_id to ensure tenant isolation
     invoices = await client_linking_service.get_pending_invoices_for_customer(
-        customer_id=customer["id"]
+        customer_id=customer["id"],
+        tenant_id=customer["tenant_id"]
     )
 
     if not invoices:
@@ -604,10 +606,10 @@ async def handle_invoice_selection(callback: types.CallbackQuery, state: FSMCont
         await callback.message.edit_text("Session expired. Please try again.")
         return
 
-    # Get invoice details
-    invoice = await invoice_service.get_invoice_by_id(invoice_id)
-    if not invoice:
-        await callback.message.edit_text("Invoice not found. Please try again.")
+    # SECURITY: Get invoice with tenant validation
+    invoice = await invoice_service.get_invoice_by_id(invoice_id, customer.get("tenant_id"))
+    if not invoice or str(invoice.get("tenant_id")) != str(customer.get("tenant_id")):
+        await callback.message.edit_text("Invoice not found or access denied.")
         return
 
     # Store invoice in state
@@ -655,10 +657,10 @@ async def handle_verify_invoice_button(callback: types.CallbackQuery, state: FSM
         )
         return
 
-    # Get invoice details
-    invoice = await invoice_service.get_invoice_by_id(invoice_id)
-    if not invoice:
-        await callback.message.answer("Invoice not found. Please try again.")
+    # SECURITY: Get invoice with tenant validation
+    invoice = await invoice_service.get_invoice_by_id(invoice_id, customer.get("tenant_id"))
+    if not invoice or str(invoice.get("tenant_id")) != str(customer.get("tenant_id")):
+        await callback.message.answer("Invoice not found or access denied.")
         return
 
     # Store invoice in state for payment verification
@@ -708,9 +710,10 @@ async def handle_view_other_invoices_button(callback: types.CallbackQuery, state
         )
         return
 
-    # Get all pending invoices
+    # SECURITY: Get all pending invoices with tenant isolation
     all_invoices = await client_linking_service.get_pending_invoices_for_customer(
-        customer_id=customer["id"]
+        customer_id=customer["id"],
+        tenant_id=customer["tenant_id"]
     )
 
     # Filter out current invoice
@@ -781,10 +784,17 @@ async def handle_back_to_invoice_button(callback: types.CallbackQuery, state: FS
     await callback.answer()
 
     invoice_id = callback.data.split(":")[1]
+    telegram_id = str(callback.from_user.id)
 
-    # Get invoice details to show invoice number in button
-    invoice = await invoice_service.get_invoice_by_id(invoice_id)
-    if not invoice:
+    # SECURITY: Get customer first for tenant context
+    customer = await client_linking_service.get_customer_by_chat_id(telegram_id)
+    if not customer:
+        await callback.answer("Session expired", show_alert=True)
+        return
+
+    # SECURITY: Get invoice with tenant validation
+    invoice = await invoice_service.get_invoice_by_id(invoice_id, customer.get("tenant_id"))
+    if not invoice or str(invoice.get("tenant_id")) != str(customer.get("tenant_id")):
         await callback.answer("Invoice not found", show_alert=True)
         return
 

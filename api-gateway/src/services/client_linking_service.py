@@ -194,14 +194,28 @@ class ClientLinkingService:
             Result dict with success status
         """
         try:
-            # First check if this telegram_chat_id is already used
+            # Resolve the link code FIRST to get tenant context
+            link_data = await self.resolve_link_code(code)
+            if not link_data:
+                return {
+                    "success": False,
+                    "error": "invalid_code",
+                    "message": "Link code is invalid, expired, or already used"
+                }
+
+            # SECURITY: Check if this telegram_chat_id is already registered IN THIS TENANT
+            # (Same Telegram ID can be registered in different tenants - that's allowed)
             with get_db_session() as db:
                 existing = db.execute(
                     text("""
                         SELECT id, name FROM invoice.customer
                         WHERE telegram_chat_id = :telegram_chat_id
+                          AND tenant_id = :tenant_id
                     """),
-                    {"telegram_chat_id": telegram_chat_id}
+                    {
+                        "telegram_chat_id": telegram_chat_id,
+                        "tenant_id": link_data["tenant_id"]
+                    }
                 ).fetchone()
 
                 if existing:
@@ -210,15 +224,6 @@ class ClientLinkingService:
                         "error": "already_registered",
                         "message": f"This Telegram account is already registered as: {existing.name}"
                     }
-
-            # Resolve the link code
-            link_data = await self.resolve_link_code(code)
-            if not link_data:
-                return {
-                    "success": False,
-                    "error": "invalid_code",
-                    "message": "Link code is invalid, expired, or already used"
-                }
 
             # Update customer with Telegram info and mark code as used
             with get_db_session() as db:
@@ -385,16 +390,20 @@ class ClientLinkingService:
 
     async def get_pending_invoices_for_customer(
         self,
-        customer_id: str
+        customer_id: str,
+        tenant_id: str
     ) -> List[Dict[str, Any]]:
         """
         Get pending (unpaid) invoices for a customer.
 
+        SECURITY: tenant_id is REQUIRED to prevent cross-tenant invoice access.
+
         Args:
             customer_id: Customer UUID
+            tenant_id: Tenant UUID - REQUIRED for tenant isolation
 
         Returns:
-            List of pending invoices
+            List of pending invoices for the specified tenant only
         """
         try:
             with get_db_session() as db:
@@ -406,11 +415,12 @@ class ClientLinkingService:
                             status, verification_status, created_at
                         FROM invoice.invoice
                         WHERE customer_id = :customer_id
+                          AND tenant_id = :tenant_id
                           AND verification_status IN ('pending', 'rejected')
                           AND status != 'cancelled'
                         ORDER BY created_at DESC
                     """),
-                    {"customer_id": customer_id}
+                    {"customer_id": customer_id, "tenant_id": tenant_id}
                 )
                 rows = result.fetchall()
                 return [
@@ -461,17 +471,15 @@ class ClientLinkingService:
             code = secrets.token_urlsafe(32)
 
             with get_db_session() as db:
-                # Build expires_at based on expires_days
-                if expires_days:
-                    expires_sql = f"NOW() + INTERVAL '{expires_days} days'"
-                else:
-                    expires_sql = "NULL"
-
                 result = db.execute(
-                    text(f"""
+                    text("""
                         INSERT INTO invoice.client_link_code
                             (tenant_id, merchant_id, customer_id, code, is_batch, batch_name, max_uses, expires_at)
-                        VALUES (:tenant_id, :merchant_id, NULL, :code, TRUE, :batch_name, :max_uses, {expires_sql})
+                        VALUES (:tenant_id, :merchant_id, NULL, :code, TRUE, :batch_name, :max_uses,
+                                CASE WHEN :expires_days IS NOT NULL
+                                     THEN NOW() + (:expires_days * INTERVAL '1 day')
+                                     ELSE NULL
+                                END)
                         RETURNING id, code, batch_name, max_uses, use_count, expires_at, created_at
                     """),
                     {
@@ -479,7 +487,8 @@ class ClientLinkingService:
                         "merchant_id": merchant_id,
                         "code": code,
                         "batch_name": batch_name,
-                        "max_uses": max_uses
+                        "max_uses": max_uses,
+                        "expires_days": expires_days
                     }
                 )
                 db.commit()
