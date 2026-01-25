@@ -6,9 +6,10 @@ httpx>=0.25.0
 # Telegram bot
 aiogram>=3.3.0
 
-# Database - PostgreSQL only
+# Database - PostgreSQL + MongoDB
 sqlalchemy>=2.0.0
 psycopg[binary]>=3.1.18
+motor>=3.3.0  # MongoDB async driver for OCR pattern learning
 
 # Configuration
 pydantic>=2.5.0
