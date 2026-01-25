@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import settings
 from src.db import init_postgres, close_postgres
 from src.bot import create_bot, run_bot
-from src.api import invoice, scriptclient, audit_sales, ads_alert, ocr, internal
+from src.api import invoice, scriptclient, audit_sales, ads_alert, ocr, internal, auto_learning
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +34,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"PostgreSQL initialization error: {e}")
 
+    # Initialize Auto-Learning OCR System
+    try:
+        from src.services.init_auto_learning import initialize_auto_learning_system
+        success = await initialize_auto_learning_system()
+        if success:
+            logger.info("✅ Auto-Learning OCR System initialized successfully")
+        else:
+            logger.warning("⚠️ Auto-Learning OCR System failed to initialize - using basic OCR")
+    except Exception as e:
+        logger.error(f"Auto-Learning OCR initialization error: {e}")
+
     try:
         # Start Telegram bot in background
         bot_task = asyncio.create_task(run_bot())
@@ -53,6 +64,14 @@ async def lifespan(app: FastAPI):
             await bot_task
         except asyncio.CancelledError:
             pass
+
+    # Shutdown Auto-Learning OCR System
+    try:
+        from src.services.init_auto_learning import shutdown_auto_learning_system
+        await shutdown_auto_learning_system()
+        logger.info("✅ Auto-Learning OCR System shutdown complete")
+    except Exception as e:
+        logger.error(f"Auto-Learning OCR shutdown error: {e}")
 
     close_postgres()
     logger.info("API Gateway shutdown complete")
@@ -82,6 +101,7 @@ app.include_router(audit_sales.router, prefix="/api/audit-sales", tags=["audit-s
 app.include_router(ads_alert.router, prefix="/api/ads-alert", tags=["ads-alert"])
 app.include_router(ocr.router, prefix="/api/ocr", tags=["ocr"])
 app.include_router(internal.router, prefix="/internal", tags=["internal"])
+app.include_router(auto_learning.router, prefix="/api", tags=["auto-learning"])
 
 
 @app.get("/", tags=["system"])
@@ -98,6 +118,7 @@ async def root():
             "audit_sales": "/api/audit-sales",
             "ads_alert": "/api/ads-alert",
             "ocr": "/api/ocr",
+            "auto_learning": "/api/auto-learning",
         }
     }
 

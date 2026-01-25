@@ -995,6 +995,60 @@ Investigated tenant isolation for inventory - **no bug found**. The system alrea
 | `social_automation` | ❌ | ❌ | ✅ | ✅ |
 | `ads_alerts` | ❌ | ❌ | ✅ | ✅ |
 
+#### 5. Dashboard Real Data Implementation
+
+**Problem:** Dashboard overview page displayed hardcoded mock data instead of real database values.
+
+**Solution:** Created unified dashboard stats endpoint and updated frontend to fetch real data.
+
+**Files Created:**
+| File | Purpose |
+|------|---------|
+| `app/routes/dashboard.py` | Backend endpoint `GET /dashboard/stats` with real database queries |
+| `frontend/src/services/dashboardApi.ts` | Frontend API client for dashboard stats |
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `app/main.py` | Registered `dashboard_router` |
+| `frontend/src/components/dashboard/OverviewPage.tsx` | Replaced mock data with API call, shows 0 for empty data |
+
+**Dashboard Stats API Response:**
+```json
+{
+  "revenue_this_month": 0,
+  "revenue_currency": "KHR",
+  "revenue_change_percent": null,
+  "pending_count": 0,
+  "pending_amount": 0,
+  "scheduled_posts": 0,
+  "verified_today": 0,
+  "auto_approved_today": 0,
+  "facebook_pages": 0,
+  "tiktok_accounts": 0,
+  "telegram_linked_users": 0,
+  "recent_activity": []
+}
+```
+
+**Data Sources:**
+| Stat | Database Table | Query |
+|------|----------------|-------|
+| Revenue | `invoice.invoice` | SUM(amount) WHERE status='paid' AND this month |
+| Pending Invoices | `invoice.invoice` | COUNT/SUM WHERE status IN ('pending','sent','draft') |
+| Scheduled Posts | `ads_alert.promotion` | COUNT WHERE status='scheduled' |
+| Verified Today | `scriptclient.screenshot` | COUNT WHERE verified=true AND today |
+| Facebook Pages | `facebook_page` + `social_identity` | COUNT connected pages |
+| TikTok Accounts | `social_identity` | COUNT WHERE platform='tiktok' |
+| Telegram Users | `public.user` | COUNT WHERE telegram_user_id IS NOT NULL |
+| Recent Activity | Combined | Last 10 events from invoices, verifications, promotions, low stock |
+
+**Empty Data Handling:**
+- All stats show `0` when no data exists
+- "No recent activity" message when activity list is empty
+- "Not connected" / "No linked users" for disconnected platforms
+- Status dots are gray for disconnected platforms, green for connected
+
 ---
 
 ### 2026-01-22 - Multi-Tier Subscription System & Role-Based Access Control
