@@ -523,17 +523,19 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
                         from datetime import date
                         today = date.today()
 
-                        # Check eligibility for early payment discount
+                        # Check eligibility for early payment discount (SECURITY: Pass tenant_id)
                         eligibility_result = await invoice_service.check_early_payment_eligibility(
                             invoice.get("id"),
-                            today
+                            today,
+                            invoice.get("tenant_id")  # SECURITY: Always pass tenant_id for tenant isolation
                         )
 
                         if eligibility_result.get("eligible"):
-                            # Apply discount to invoice
+                            # Apply discount to invoice (SECURITY: Pass tenant_id)
                             discount_result = await invoice_service.apply_early_payment_benefits(
                                 invoice.get("id"),
-                                today
+                                today,
+                                invoice.get("tenant_id")  # SECURITY: Always pass tenant_id for tenant isolation
                             )
 
                             if discount_result.get("success"):
@@ -582,6 +584,7 @@ async def handle_invoice_screenshot(message: types.Message, state: FSMContext):
             await invoice_service.update_invoice_verification(
                 invoice_id=invoice.get("id"),
                 verification_status=verification_status,
+                tenant_id=invoice.get("tenant_id"),  # SECURITY: Pass tenant_id for tenant isolation
                 verified_by="telegram-ocr-bot",
                 verification_note=note
             )

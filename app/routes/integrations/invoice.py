@@ -712,12 +712,13 @@ async def get_registered_client(
                         expected_account, status, verification_status, created_at
                     FROM invoice.invoice
                     WHERE customer_id = :client_id
+                      AND tenant_id = :tenant_id
                       AND verification_status IN ('pending', 'rejected')
                       AND status != 'cancelled'
                     ORDER BY created_at DESC
                     LIMIT 10
                 """),
-                {"client_id": client_id}
+                {"client_id": client_id, "tenant_id": str(current_user.tenant_id)}
             )
             pending = []
             for inv in invoices_result.fetchall():

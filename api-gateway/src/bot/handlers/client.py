@@ -913,6 +913,7 @@ async def process_client_payment_screenshot(
             await invoice_service.update_invoice_verification(
                 invoice_id=invoice.get("id"),
                 verification_status=verification_status,
+                tenant_id=invoice.get("tenant_id"),  # SECURITY: Pass tenant_id for tenant isolation
                 verified_by="telegram-client-ocr",
                 verification_note=note
             )

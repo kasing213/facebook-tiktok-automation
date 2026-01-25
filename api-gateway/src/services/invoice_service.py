@@ -162,49 +162,31 @@ class InvoiceService:
             logger.error(f"Error searching customers: {e}")
             return []
 
-    async def get_invoice_by_id(self, invoice_id: str, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Get a single invoice by ID with payment verification fields.
+    async def get_invoice_by_id(self, invoice_id: str, tenant_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single invoice by ID with mandatory tenant isolation.
 
         Args:
             invoice_id: The invoice UUID
-            tenant_id: If provided, enforces tenant isolation (required for user-facing APIs)
+            tenant_id: Tenant ID - REQUIRED for security (prevents cross-tenant data access)
         """
         try:
             with get_db_session() as db:
-                # Build query with optional tenant filter for security
-                if tenant_id:
-                    query = """
-                        SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
-                               i.amount, i.status, i.items, i.meta,
-                               i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
-                               i.verification_status, i.verified_at, i.verified_by, i.verification_note,
-                               i.early_payment_enabled, i.early_payment_discount_percentage,
-                               i.early_payment_deadline, i.original_amount, i.discount_amount,
-                               i.final_amount, i.pro_reward_granted, i.pro_reward_granted_at,
-                               i.created_at, i.updated_at,
-                               c.name as customer_name
-                        FROM invoice.invoice i
-                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
-                        WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
-                    """
-                    params = {"invoice_id": invoice_id, "tenant_id": tenant_id}
-                else:
-                    # Internal use only - bot verifying payments needs to look up by ID only
-                    query = """
-                        SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
-                               i.amount, i.status, i.items, i.meta,
-                               i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
-                               i.verification_status, i.verified_at, i.verified_by, i.verification_note,
-                               i.early_payment_enabled, i.early_payment_discount_percentage,
-                               i.early_payment_deadline, i.original_amount, i.discount_amount,
-                               i.final_amount, i.pro_reward_granted, i.pro_reward_granted_at,
-                               i.created_at, i.updated_at,
-                               c.name as customer_name
-                        FROM invoice.invoice i
-                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
-                        WHERE i.id = :invoice_id
-                    """
-                    params = {"invoice_id": invoice_id}
+                # SECURITY: Always enforce tenant isolation - no unfiltered access
+                query = """
+                    SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
+                           i.amount, i.status, i.items, i.meta,
+                           i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
+                           i.verification_status, i.verified_at, i.verified_by, i.verification_note,
+                           i.early_payment_enabled, i.early_payment_discount_percentage,
+                           i.early_payment_deadline, i.original_amount, i.discount_amount,
+                           i.final_amount, i.pro_reward_granted, i.pro_reward_granted_at,
+                           i.created_at, i.updated_at,
+                           c.name as customer_name
+                    FROM invoice.invoice i
+                    LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                    WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
+                """
+                params = {"invoice_id": invoice_id, "tenant_id": tenant_id}
                 result = db.execute(text(query), params)
                 row = result.fetchone()
                 if not row:
@@ -243,42 +225,28 @@ class InvoiceService:
             logger.error(f"Error getting invoice by ID: {e}")
             return None
 
-    async def get_invoice_by_number(self, invoice_number: str, tenant_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Get a single invoice by invoice number.
+    async def get_invoice_by_number(self, invoice_number: str, tenant_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single invoice by invoice number with mandatory tenant isolation.
 
         Args:
             invoice_number: The invoice number to look up
-            tenant_id: If provided, enforces tenant isolation (required for user-facing APIs)
+            tenant_id: Tenant ID - REQUIRED for security (prevents cross-tenant data access)
         """
         try:
             with get_db_session() as db:
-                # Build query with optional tenant filter for security
-                if tenant_id:
-                    query = """
-                        SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
-                               i.amount, i.status, i.items, i.meta,
-                               i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
-                               i.verification_status, i.verified_at, i.verified_by, i.verification_note,
-                               i.created_at, i.updated_at,
-                               c.name as customer_name
-                        FROM invoice.invoice i
-                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
-                        WHERE i.invoice_number = :invoice_number AND i.tenant_id = :tenant_id
-                    """
-                    params = {"invoice_number": invoice_number, "tenant_id": tenant_id}
-                else:
-                    query = """
-                        SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
-                               i.amount, i.status, i.items, i.meta,
-                               i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
-                               i.verification_status, i.verified_at, i.verified_by, i.verification_note,
-                               i.created_at, i.updated_at,
-                               c.name as customer_name
-                        FROM invoice.invoice i
-                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
-                        WHERE i.invoice_number = :invoice_number
-                    """
-                    params = {"invoice_number": invoice_number}
+                # SECURITY: Always enforce tenant isolation - no unfiltered access
+                query = """
+                    SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
+                           i.amount, i.status, i.items, i.meta,
+                           i.bank, i.expected_account, i.recipient_name, i.due_date, i.currency,
+                           i.verification_status, i.verified_at, i.verified_by, i.verification_note,
+                           i.created_at, i.updated_at,
+                           c.name as customer_name
+                    FROM invoice.invoice i
+                    LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                    WHERE i.invoice_number = :invoice_number AND i.tenant_id = :tenant_id
+                """
+                params = {"invoice_number": invoice_number, "tenant_id": tenant_id}
 
                 result = db.execute(text(query), params)
                 row = result.fetchone()
@@ -322,15 +290,17 @@ class InvoiceService:
         self,
         invoice_id: str,
         verification_status: str,
+        tenant_id: str,
         verified_by: str = "telegram-ocr-bot",
         verification_note: Optional[str] = None
     ) -> bool:
-        """Update invoice verification status."""
+        """Update invoice verification status with mandatory tenant isolation."""
         try:
             with get_db_session() as db:
                 verified_at = datetime.utcnow() if verification_status == "verified" else None
 
-                db.execute(
+                # SECURITY: Always include tenant_id in WHERE clause to prevent cross-tenant updates
+                result = db.execute(
                     text("""
                         UPDATE invoice.invoice
                         SET verification_status = :verification_status,
@@ -339,10 +309,11 @@ class InvoiceService:
                             verification_note = :verification_note,
                             status = CASE WHEN :verification_status = 'verified' THEN 'paid' ELSE status END,
                             updated_at = NOW()
-                        WHERE id = :invoice_id
+                        WHERE id = :invoice_id AND tenant_id = :tenant_id
                     """),
                     {
                         "invoice_id": invoice_id,
+                        "tenant_id": tenant_id,
                         "verification_status": verification_status,
                         "verified_at": verified_at,
                         "verified_by": verified_by,
@@ -385,14 +356,19 @@ class InvoiceService:
     async def check_early_payment_eligibility(
         self,
         invoice_id: str,
-        payment_date: Optional[date] = None
+        payment_date: Optional[date] = None,
+        tenant_id: str = None
     ) -> Dict[str, Any]:
         """Check if payment qualifies for early payment discount."""
         try:
             if not payment_date:
                 payment_date = date.today()
 
-            invoice = await self.get_invoice_by_id(invoice_id)
+            if not tenant_id:
+                return {"eligible": False, "reason": "Tenant ID required for security"}
+
+            # SECURITY: Always require tenant_id to prevent cross-tenant access
+            invoice = await self.get_invoice_by_id(invoice_id, tenant_id)
             if not invoice:
                 return {"eligible": False, "reason": "Invoice not found"}
 
@@ -428,15 +404,21 @@ class InvoiceService:
     async def apply_early_payment_benefits(
         self,
         invoice_id: str,
-        payment_date: Optional[date] = None
+        payment_date: Optional[date] = None,
+        tenant_id: str = None
     ) -> Dict[str, Any]:
         """Apply early payment discount to invoice."""
         try:
-            eligibility = await self.check_early_payment_eligibility(invoice_id, payment_date)
+            if not tenant_id:
+                return {"success": False, "message": "Tenant ID required for security"}
+
+            # SECURITY: Always pass tenant_id to prevent cross-tenant access
+            eligibility = await self.check_early_payment_eligibility(invoice_id, payment_date, tenant_id)
             if not eligibility["eligible"]:
                 return {"success": False, "message": eligibility["reason"]}
 
-            invoice = await self.get_invoice_by_id(invoice_id)
+            # SECURITY: Always require tenant_id to prevent cross-tenant access
+            invoice = await self.get_invoice_by_id(invoice_id, tenant_id)
             if not invoice:
                 return {"success": False, "message": "Invoice not found"}
 
@@ -446,9 +428,9 @@ class InvoiceService:
                 eligibility["discount_percentage"]
             )
 
-            # Update invoice with discount
+            # Update invoice with discount (SECURITY: Include tenant_id for isolation)
             with get_db_session() as db:
-                db.execute(
+                result = db.execute(
                     text("""
                         UPDATE invoice.invoice
                         SET discount_amount = :discount_amount,
@@ -456,10 +438,11 @@ class InvoiceService:
                             amount = :final_amount,
                             status = 'paid',
                             updated_at = NOW()
-                        WHERE id = :invoice_id
+                        WHERE id = :invoice_id AND tenant_id = :tenant_id
                     """),
                     {
                         "invoice_id": invoice_id,
+                        "tenant_id": tenant_id,
                         "discount_amount": discount_info["discount_amount"],
                         "final_amount": discount_info["final_amount"]
                     }
