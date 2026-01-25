@@ -11,6 +11,7 @@ from src.services.ocr_service import ocr_service
 from src.services.invoice_service import invoice_service
 from src.services.pro_reward_service import pro_reward_service
 from src.bot.services.linking import get_user_by_telegram_id
+from src.bot.utils.permissions import require_member_or_owner
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -29,11 +30,7 @@ async def cmd_ocr(message: types.Message, state: FSMContext):
     telegram_id = str(message.from_user.id)
 
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer(
-            "You need to link your Telegram account first.\n"
-            "Go to the dashboard -> Integrations -> Telegram to connect."
-        )
+    if not await require_member_or_owner(user, message):
         return
 
     # Check if OCR service is configured
@@ -86,8 +83,7 @@ async def cmd_ocr_status(message: types.Message):
     telegram_id = str(message.from_user.id)
 
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer("Please link your account first.")
+    if not await require_member_or_owner(user, message):
         return
 
     if not ocr_service.is_configured():
@@ -227,11 +223,7 @@ async def cmd_verify_invoice(message: types.Message, command: CommandObject, sta
     telegram_id = str(message.from_user.id)
 
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer(
-            "You need to link your Telegram account first.\n"
-            "Go to the dashboard -> Integrations -> Telegram to connect."
-        )
+    if not await require_member_or_owner(user, message):
         return
 
     # Get tenant_id for tenant-isolated queries

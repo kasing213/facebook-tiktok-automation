@@ -328,12 +328,26 @@ def create_invoice(tenant_id: str, data: Dict) -> Dict:
     return invoice
 
 
-def update_invoice(invoice_id: str, data: Dict) -> Optional[Dict]:
-    """Update an existing invoice with recalculated totals if items changed."""
-    if invoice_id not in _invoices:
+def update_invoice(tenant_id: str, invoice_id: str, data: Dict) -> Optional[Dict]:
+    """
+    Update an existing invoice with recalculated totals if items changed.
+
+    Args:
+        tenant_id: The tenant ID - ensures tenant isolation (SECURITY: CRITICAL)
+        invoice_id: The invoice ID to update
+        data: Dict with fields to update
+
+    Returns:
+        Updated invoice or None if not found in this tenant
+    """
+    _ensure_tenant_data(tenant_id)
+    tenant_str = str(tenant_id)
+    tenant_invoices = _invoices.get(tenant_str, {})
+
+    if invoice_id not in tenant_invoices:
         return None
 
-    invoice = _invoices[invoice_id]
+    invoice = tenant_invoices[invoice_id]
 
     # Update fields
     for key, value in data.items():
@@ -377,35 +391,54 @@ def update_invoice(invoice_id: str, data: Dict) -> Optional[Dict]:
 
     invoice["updated_at"] = _now_iso()
 
-    # Return with customer info
+    # Return with customer info (from same tenant)
+    tenant_customers = _customers.get(tenant_str, {})
     result = invoice.copy()
-    result["customer"] = _customers.get(invoice["customer_id"])
+    result["customer"] = tenant_customers.get(invoice["customer_id"])
     return result
 
 
-def delete_invoice(invoice_id: str) -> bool:
-    """Delete an invoice."""
-    if invoice_id in _invoices:
-        del _invoices[invoice_id]
+def delete_invoice(tenant_id: str, invoice_id: str) -> bool:
+    """
+    Delete an invoice.
+
+    Args:
+        tenant_id: The tenant ID - ensures tenant isolation (SECURITY: CRITICAL)
+        invoice_id: The invoice ID to delete
+
+    Returns:
+        True if deleted, False if not found in this tenant
+    """
+    _ensure_tenant_data(tenant_id)
+    tenant_str = str(tenant_id)
+    tenant_invoices = _invoices.get(tenant_str, {})
+
+    if invoice_id in tenant_invoices:
+        del tenant_invoices[invoice_id]
         return True
     return False
 
 
-def verify_invoice(invoice_id: str, data: Dict) -> Optional[Dict]:
+def verify_invoice(tenant_id: str, invoice_id: str, data: Dict) -> Optional[Dict]:
     """
     Update verification status of an invoice.
 
     Args:
+        tenant_id: The tenant ID - ensures tenant isolation (SECURITY: CRITICAL)
         invoice_id: The invoice ID
         data: Dict with verificationStatus, verifiedBy, verificationNote
 
     Returns:
-        Updated invoice or None if not found
+        Updated invoice or None if not found in this tenant
     """
-    if invoice_id not in _invoices:
+    _ensure_tenant_data(tenant_id)
+    tenant_str = str(tenant_id)
+    tenant_invoices = _invoices.get(tenant_str, {})
+
+    if invoice_id not in tenant_invoices:
         return None
 
-    invoice = _invoices[invoice_id]
+    invoice = tenant_invoices[invoice_id]
 
     # Update verification fields
     verification_status = data.get("verificationStatus") or data.get("verification_status")
@@ -428,9 +461,10 @@ def verify_invoice(invoice_id: str, data: Dict) -> Optional[Dict]:
 
     invoice["updated_at"] = _now_iso()
 
-    # Return with customer info
+    # Return with customer info (from same tenant)
+    tenant_customers = _customers.get(tenant_str, {})
     result = invoice.copy()
-    result["customer"] = _customers.get(invoice["customer_id"])
+    result["customer"] = tenant_customers.get(invoice["customer_id"])
     return result
 
 
@@ -438,22 +472,33 @@ def verify_invoice(invoice_id: str, data: Dict) -> Optional[Dict]:
 # Statistics
 # ============================================================================
 
-def get_stats() -> Dict:
-    """Get invoice statistics."""
-    invoices = list(_invoices.values())
+def get_stats(tenant_id: str) -> Dict:
+    """
+    Get invoice statistics for a specific tenant.
 
-    total_revenue = sum(i["total"] for i in invoices if i["status"] == "paid")
-    pending_amount = sum(i["total"] for i in invoices if i["status"] in ["pending", "draft"])
+    Args:
+        tenant_id: The tenant ID - ensures tenant isolation (SECURITY: CRITICAL)
+
+    Returns:
+        Dict with statistics for this tenant only
+    """
+    _ensure_tenant_data(tenant_id)
+    tenant_str = str(tenant_id)
+    tenant_invoices = list(_invoices.get(tenant_str, {}).values())
+    tenant_customers = list(_customers.get(tenant_str, {}).values())
+
+    total_revenue = sum(i["total"] for i in tenant_invoices if i["status"] == "paid")
+    pending_amount = sum(i["total"] for i in tenant_invoices if i["status"] in ["pending", "draft"])
     paid_amount = total_revenue
-    overdue_count = len([i for i in invoices if i["status"] == "overdue"])
+    overdue_count = len([i for i in tenant_invoices if i["status"] == "overdue"])
 
     return {
-        "total_invoices": len(invoices),
+        "total_invoices": len(tenant_invoices),
         "total_revenue": round(total_revenue, 2),
         "pending_amount": round(pending_amount, 2),
         "paid_amount": round(paid_amount, 2),
         "overdue_count": overdue_count,
-        "customers_count": len(_customers)
+        "customers_count": len(tenant_customers)
     }
 
 
@@ -718,27 +763,37 @@ startxref 450
 # ============================================================================
 
 def export_invoices(
+    tenant_id: str,
     format: str = "csv",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ) -> bytes:
     """
-    Export invoices to CSV or Excel format.
+    Export invoices to CSV or Excel format for a specific tenant.
+
+    Args:
+        tenant_id: The tenant ID - ensures tenant isolation (SECURITY: CRITICAL)
+        format: Export format ("csv" or "xlsx")
+        start_date: Optional start date filter
+        end_date: Optional end date filter
 
     Uses openpyxl for real XLSX generation with proper styling.
     """
-    invoices = list(_invoices.values())
+    _ensure_tenant_data(tenant_id)
+    tenant_str = str(tenant_id)
+    tenant_invoices = list(_invoices.get(tenant_str, {}).values())
+    tenant_customers = _customers.get(tenant_str, {})
 
     # Filter by date if provided
     if start_date:
-        invoices = [i for i in invoices if i.get("created_at", "") >= start_date]
+        tenant_invoices = [i for i in tenant_invoices if i.get("created_at", "") >= start_date]
     if end_date:
-        invoices = [i for i in invoices if i.get("created_at", "") <= end_date]
+        tenant_invoices = [i for i in tenant_invoices if i.get("created_at", "") <= end_date]
 
     if format == "csv":
         lines = ["Invoice Number,Customer,Status,Subtotal,Tax,Discount,Total,Due Date,Created"]
-        for inv in invoices:
-            customer = _customers.get(inv["customer_id"], {})
+        for inv in tenant_invoices:
+            customer = tenant_customers.get(inv["customer_id"], {})
             customer_name = customer.get("name", "Unknown").replace(",", " ")
             lines.append(
                 f'{inv["invoice_number"]},'
@@ -754,11 +809,20 @@ def export_invoices(
         return "\n".join(lines).encode("utf-8")
     else:
         # XLSX export using openpyxl
-        return _generate_xlsx_export(invoices)
+        return _generate_xlsx_export(tenant_invoices, tenant_customers)
 
 
-def _generate_xlsx_export(invoices: List[Dict]) -> bytes:
-    """Generate real XLSX file using openpyxl."""
+def _generate_xlsx_export(invoices: List[Dict], customers: Dict[str, Dict] = None) -> bytes:
+    """
+    Generate real XLSX file using openpyxl.
+
+    Args:
+        invoices: List of invoice dicts (already filtered by tenant)
+        customers: Dict of customer_id -> customer data (already filtered by tenant)
+    """
+    if customers is None:
+        customers = {}
+
     try:
         import io
         import openpyxl
@@ -790,7 +854,7 @@ def _generate_xlsx_export(invoices: List[Dict]) -> bytes:
 
     # Data rows
     for row_num, inv in enumerate(invoices, 2):
-        customer = _customers.get(inv["customer_id"], {})
+        customer = customers.get(inv["customer_id"], {})
         customer_name = customer.get("name", "Unknown")
 
         ws.cell(row=row_num, column=1, value=inv["invoice_number"])

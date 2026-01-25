@@ -892,7 +892,7 @@ async def generate_batch_code(
                     (tenant_id, merchant_id, customer_id, code, is_batch, batch_name, max_uses, expires_at)
                 VALUES (:tenant_id, :merchant_id, NULL, :code, TRUE, :batch_name, :max_uses,
                         CASE WHEN :expires_days IS NOT NULL
-                             THEN NOW() + INTERVAL :expires_days || ' days'
+                             THEN NOW() + (:expires_days * INTERVAL '1 day')
                              ELSE NULL
                         END)
                 RETURNING id, code, batch_name, max_uses, use_count, expires_at, created_at
@@ -1544,7 +1544,7 @@ async def export_invoices(
             db.close()
 
     if is_mock_mode():
-        content = mock_svc.export_invoices(format=format, start_date=start_date, end_date=end_date)
+        content = mock_svc.export_invoices(str(current_user.tenant_id), format=format, start_date=start_date, end_date=end_date)
 
         content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"invoices.{format}"
@@ -1760,7 +1760,7 @@ async def update_invoice(
                 item.model_dump() if hasattr(item, 'model_dump') else item
                 for item in update_data["items"]
             ]
-        invoice = mock_svc.update_invoice(invoice_id, update_data)
+        invoice = mock_svc.update_invoice(str(current_user.tenant_id), invoice_id, update_data)
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
         return invoice
@@ -1796,7 +1796,7 @@ async def delete_invoice(
 
     # Fall back to mock/external
     if is_mock_mode():
-        if not mock_svc.delete_invoice(invoice_id):
+        if not mock_svc.delete_invoice(str(current_user.tenant_id), invoice_id):
             raise HTTPException(status_code=404, detail="Invoice not found")
         return {"status": "deleted", "id": invoice_id}
 
@@ -1833,7 +1833,7 @@ async def verify_invoice(
         )
 
     if is_mock_mode():
-        invoice = mock_svc.verify_invoice(invoice_id, data.model_dump(exclude_none=True))
+        invoice = mock_svc.verify_invoice(str(current_user.tenant_id), invoice_id, data.model_dump(exclude_none=True))
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
 
@@ -1949,7 +1949,7 @@ async def upload_invoice_screenshot(
     }
 
     if is_mock_mode():
-        updated_invoice = mock_svc.verify_invoice(invoice_id, verify_data)
+        updated_invoice = mock_svc.verify_invoice(str(current_user.tenant_id), invoice_id, verify_data)
     else:
         updated_invoice = await proxy_request(
             "PATCH",

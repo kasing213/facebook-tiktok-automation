@@ -10,6 +10,7 @@ from src.services.screenshot_service import screenshot_service
 from src.services.sales_service import sales_service
 from src.services.promo_service import promo_service
 from src.bot.services.linking import get_user_by_telegram_id
+from src.bot.utils.permissions import require_member_or_owner
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -20,13 +21,9 @@ async def cmd_status(message: types.Message):
     """Handle /status command - show all systems status."""
     telegram_id = str(message.from_user.id)
 
-    # Check if user is linked
+    # Check if user is linked and has member/owner role
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer(
-            "You need to link your Telegram account first.\n"
-            "Go to the dashboard → Integrations → Telegram to connect."
-        )
+    if not await require_member_or_owner(user, message):
         return
 
     # Get tenant_id for tenant-isolated queries

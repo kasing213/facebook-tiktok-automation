@@ -12,6 +12,7 @@ from src.bot.services.linking import get_user_by_telegram_id
 from src.services.client_linking_service import client_linking_service
 from src.services.ocr_service import ocr_service
 from src.services.invoice_service import invoice_service
+from src.bot.utils.permissions import require_member_or_owner, require_owner
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -29,16 +30,12 @@ class ClientStates(StatesGroup):
 
 @router.message(Command("register_client"))
 async def cmd_register_client(message: types.Message, command: CommandObject):
-    """Handle /register_client command - merchant registers a new client."""
+    """Handle /register_client command - merchant registers a new client (OWNER ONLY)."""
     telegram_id = str(message.from_user.id)
 
-    # Check if user is a linked merchant
+    # OWNER ONLY - Only tenant owners can register new clients
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer(
-            "You need to link your Telegram account first.\n"
-            "Go to the dashboard -> Integrations -> Telegram to connect."
-        )
+    if not await require_owner(user, message):
         return
 
     # Get client name from command args
@@ -105,13 +102,9 @@ async def cmd_my_clients(message: types.Message):
     """Handle /my_clients command - list merchant's registered clients."""
     telegram_id = str(message.from_user.id)
 
-    # Check if user is a linked merchant
+    # Check if user is a linked merchant (member or owner)
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer(
-            "You need to link your Telegram account first.\n"
-            "Go to the dashboard -> Integrations -> Telegram to connect."
-        )
+    if not await require_member_or_owner(user, message):
         return
 
     tenant_id = user.get("tenant_id")
@@ -867,15 +860,20 @@ async def process_client_payment_screenshot(
             "tolerancePercent": 5
         }
 
-        logger.info(f"📤 Sending to OCR service: invoice_id={invoice.get('id')}, customer_id={customer.get('id')}, amount={expected_payment['amount']}")
+        logger.info(f"📤 Sending to Smart OCR service: invoice_id={invoice.get('id')}, customer_id={customer.get('id')}, amount={expected_payment['amount']}")
 
-        # Send to OCR service
-        result = await ocr_service.verify_screenshot(
+        # Import smart OCR service
+        from src.services.smart_ocr_service import smart_ocr
+
+        # Send to Smart OCR service (with auto-learning)
+        result = await smart_ocr.verify_screenshot_smart(
             image_data=image_data,
             filename=f"client_{photo.file_id}.jpg",
             invoice_id=invoice.get("id"),
             expected_payment=expected_payment,
-            customer_id=customer.get("id")
+            customer_id=customer.get("id"),
+            tenant_id=customer.get("merchant_id"),  # For merchant-specific learning
+            use_learning=True
         )
 
         logger.info(f"📥 OCR service response: success={result.get('success')}, status={result.get('verification', {}).get('status')}")

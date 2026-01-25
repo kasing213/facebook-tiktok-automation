@@ -224,7 +224,24 @@ class AdsAlertPromotionRepository(BaseRepository[AdsAlertPromotion]):
         ).first()
 
     def get_due_promotions(self) -> List[AdsAlertPromotion]:
-        """Get all scheduled promotions that are due to be sent"""
+        """
+        Get all scheduled promotions that are due to be sent (across ALL tenants).
+
+        SECURITY NOTE: This method intentionally returns promotions from all tenants
+        for use by the background scheduler (ads_alert_scheduler.py). The scheduler
+        then uses `promotion.tenant_id` to:
+        1. Query only the tenant's registered chats
+        2. Send broadcasts isolated to each tenant
+        3. Log operations with tenant context
+
+        This is NOT a tenant isolation breach because:
+        - This method is only called by the trusted background scheduler
+        - The scheduler properly isolates data using promotion.tenant_id
+        - No user-facing endpoints call this method directly
+
+        Returns:
+            List of promotions due for sending from all tenants
+        """
         now = datetime.now(timezone.utc)
         return self.db.query(AdsAlertPromotion).filter(
             and_(

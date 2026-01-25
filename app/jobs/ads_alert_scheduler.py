@@ -36,7 +36,15 @@ async def process_scheduled_promotions() -> dict:
                 log.debug("No scheduled promotions due")
                 return results
 
-            log.info(f"Found {len(due_promotions)} scheduled promotions due for sending")
+            # Log tenant breakdown for audit trail
+            tenant_counts = {}
+            for p in due_promotions:
+                tid = str(p.tenant_id)[:8]  # First 8 chars for brevity
+                tenant_counts[tid] = tenant_counts.get(tid, 0) + 1
+            log.info(
+                f"Found {len(due_promotions)} scheduled promotions due for sending. "
+                f"Tenants: {tenant_counts}"
+            )
 
             for promotion in due_promotions:
                 try:

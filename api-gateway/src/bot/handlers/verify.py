@@ -7,6 +7,7 @@ from aiogram.filters import Command
 
 from src.services.screenshot_service import screenshot_service
 from src.bot.services.linking import get_user_by_telegram_id
+from src.bot.utils.permissions import require_member_or_owner
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -18,11 +19,7 @@ async def cmd_verify(message: types.Message):
     telegram_id = str(message.from_user.id)
 
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer(
-            "You need to link your Telegram account first.\n"
-            "Go to the dashboard → Integrations → Telegram to connect."
-        )
+    if not await require_member_or_owner(user, message):
         return
 
     # Check if service is connected
@@ -48,8 +45,7 @@ async def cmd_verify_pending(message: types.Message):
     telegram_id = str(message.from_user.id)
 
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer("Please link your account first.")
+    if not await require_member_or_owner(user, message):
         return
 
     pending = await screenshot_service.get_pending_screenshots(limit=10)
@@ -73,8 +69,7 @@ async def cmd_verify_stats(message: types.Message):
     telegram_id = str(message.from_user.id)
 
     user = await get_user_by_telegram_id(telegram_id)
-    if not user:
-        await message.answer("Please link your account first.")
+    if not await require_member_or_owner(user, message):
         return
 
     stats = await screenshot_service.get_stats()
