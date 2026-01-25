@@ -914,6 +914,121 @@ After fixing mock service isolation and implementing usage limits:
 
 ## Change Log
 
+### 2026-01-25 - Tenant Isolation Security Indexes & Legacy Data Fix
+
+#### Overview
+Added database indexes for tenant isolation security, fixed migration issues, and created legacy data fix script. Comprehensive security audit confirmed all invoice and inventory systems have proper tenant isolation.
+
+#### 1. Security Indexes Migration
+
+**Migration:** `y0z1a2b3c4d5_add_tenant_isolation_security_indexes.py`
+
+Added 12 compound indexes for efficient tenant-filtered queries:
+
+| Index | Table | Purpose |
+|-------|-------|---------|
+| `idx_invoice_tenant_id_lookup` | invoice.invoice | Invoice lookup by tenant + ID |
+| `idx_invoice_tenant_number_lookup` | invoice.invoice | OCR verification by invoice number |
+| `idx_invoice_tenant_pending_verification` | invoice.invoice | Pending invoices (partial index) |
+| `idx_invoice_tenant_early_payment` | invoice.invoice | Early payment queries |
+| `idx_invoice_tenant_number_unique` | invoice.invoice | Unique invoice numbers per tenant |
+| `idx_customer_tenant_lookup` | invoice.customer | Customer lookup with covering columns |
+| `idx_customer_tenant_name_search` | invoice.customer | Dashboard search |
+| `idx_inventory_products_tenant_lookup` | inventory.products | Product lookup |
+| `idx_inventory_movements_tenant_product` | inventory.stock_movements | Audit trail |
+| `idx_inventory_products_low_stock` | inventory.products | Low stock alerts (partial index) |
+| `idx_user_tenant_lookup` | public.user | Authorization checks |
+| `idx_subscription_tenant_lookup` | public.subscription | Feature gating |
+
+#### 2. Migration Fixes
+
+**Issue 1: GIN Index Error**
+```
+psycopg.errors.UndefinedObject: data type uuid has no default operator class for access method "gin"
+```
+
+**Root Cause:** WSL/Windows file sync issue - `postgresql_using='btree'` parameter was being ignored or cached incorrectly.
+
+**Fix:** Removed `postgresql_using='btree'` parameter entirely. BTREE is PostgreSQL's default, so explicit parameter was unnecessary.
+
+**Issue 2: Unique Constraint Violation**
+```
+could not create unique index "idx_subscription_tenant_lookup"
+Key (tenant_id)=(xxx) is duplicated
+```
+
+**Root Cause:** Subscription index was set to `unique=True`, but tenants can have multiple subscription records (trials, history).
+
+**Fix:** Changed `unique=True` to `unique=False` with explanatory comment.
+
+#### 3. Legacy Data Fix Script
+
+**File:** `scripts/fix_tenant_isolation.py`
+
+Created script to fix tenant_id values for data created before isolation was enforced:
+
+```python
+# Usage
+python scripts/fix_tenant_isolation.py
+
+# Functions
+- fix_invoice_tenant_id()    # Set invoice.tenant_id from merchant's tenant
+- fix_customer_tenant_id()   # Set customer.tenant_id from invoice relationship
+- fix_product_tenant_id()    # Report product distribution by tenant
+- fix_stock_movement_tenant_id()  # Match stock movements to product tenant
+- verify_isolation()         # Final verification report
+```
+
+**pgbouncer Fix:** Script uses `NullPool` + `prepare_threshold=None` to avoid `DuplicatePreparedStatement` errors with Transaction mode.
+
+**Result:** Script ran successfully - all data already had correct tenant_id values. No fixes needed.
+
+#### 4. Tenant Isolation Audit Results
+
+Comprehensive code audit confirmed **NO vulnerabilities** in production code:
+
+| Component | Status | Finding |
+|-----------|--------|---------|
+| Invoice queries | ✅ Secure | All queries include `tenant_id` filter |
+| Inventory queries | ✅ Secure | Repository pattern enforces tenant isolation |
+| Customer queries | ✅ Secure | Proper tenant filtering in all services |
+| OCR verification | ✅ Secure | Invoice lookup includes tenant check |
+| Bot handlers | ✅ Secure | Tenant validation in callback handlers |
+
+**Previous Fixes Applied (commits 88c29b0, 4ee8dda):**
+- Mock service tenant isolation
+- Bot permission checks
+- `get_pending_invoices_for_customer()` tenant parameter
+- Invoice selection handlers tenant validation
+
+#### 5. User Registration Clarification
+
+**User-reported issue:** "Same password making login tenant the same with old one"
+
+**Resolution:** This was expected behavior, not a bug:
+- Logging in with existing credentials → Returns existing account/tenant
+- Registering new account → Creates new tenant with proper isolation
+
+The frontend registration flow correctly:
+1. Calls `POST /api/tenants/register` to create new tenant
+2. Passes `tenant_id` to `POST /api/auth/register`
+3. First user becomes tenant owner (admin role)
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `migrations/versions/y0z1a2b3c4d5_*.py` | Fixed unique constraint, removed postgresql_using |
+| `scripts/fix_tenant_isolation.py` | New - legacy data fix utility |
+
+#### Commits
+
+- `6d862bf` - fix: migration unique constraint and add legacy data fix script
+- `546431e` - fix: remove postgresql_using parameter causing GIN index error
+- `88c29b0` - security: fix critical tenant isolation in invoice OCR/pending system
+
+---
+
 ### 2026-01-23 - Email Verification Disabled & 1-Month Pro Trial System
 
 #### Overview
