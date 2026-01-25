@@ -98,14 +98,12 @@ def upgrade():
     )
 
     # 7. Customer search by tenant + name (dashboard search)
-    # Note: Using BTREE instead of GIN since UUID doesn't support GIN operator class
     op.create_index(
         'idx_customer_tenant_name_search',
         'customer',
         ['tenant_id', 'name'],
         schema='invoice',
-        unique=False,
-        postgresql_using='btree'
+        unique=False
     )
 
     # ========================================
