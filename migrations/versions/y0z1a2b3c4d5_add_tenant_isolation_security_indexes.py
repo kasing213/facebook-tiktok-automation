@@ -155,12 +155,13 @@ def upgrade():
     )
 
     # 12. Tenant subscription lookup (feature gating)
+    # Note: Not unique - tenant may have multiple subscription records (history, trials)
     op.create_index(
         'idx_subscription_tenant_lookup',
         'subscription',
         ['tenant_id'],
         schema='public',
-        unique=True,
+        unique=False,
         postgresql_include=['tier', 'status', 'trial_ends_at']
     )
 
