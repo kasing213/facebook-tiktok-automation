@@ -7,12 +7,13 @@ before they are sent to Telegram to ensure platform compliance and user safety.
 
 import re
 import logging
+import httpx
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone
 from uuid import UUID
 
 from app.core.models import ModerationStatus
-from api_gateway.src.services.ocr_service import OCRService
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,9 @@ class ContentModerationService:
     """
 
     def __init__(self):
-        self.ocr_service = OCRService()
         self.violation_patterns = self._load_violation_patterns()
+        # OCR is done via HTTP to api-gateway, not direct import
+        self.api_gateway_url = getattr(settings, 'API_GATEWAY_URL', None)
 
     def _load_violation_patterns(self) -> List[ViolationPattern]:
         """Load violation patterns for Cambodia market with localized terms."""
@@ -209,66 +211,67 @@ class ContentModerationService:
         image_urls: Optional[List[str]] = None,
         media_files: Optional[List[bytes]] = None
     ) -> List[Dict[str, Any]]:
-        """Extract text from images using OCR and analyze for violations."""
+        """Extract text from images using OCR and analyze for violations.
+
+        Note: OCR is optional. If api-gateway is not available, image analysis
+        is skipped and only text content is moderated.
+        """
         results = []
 
-        # Process image URLs
+        # Skip OCR if no api-gateway configured or no media to process
+        if not (image_urls or media_files):
+            return results
+
+        # Process image URLs (placeholder - not implemented)
         if image_urls:
             for i, url in enumerate(image_urls):
-                try:
-                    # Download image and extract text
-                    # This would require implementing image download functionality
-                    # For now, we'll use a placeholder
-                    extracted_text = f"[OCR extraction from {url} not implemented]"
-                    results.append({
-                        "source": f"url_{i}",
-                        "url": url,
-                        "extracted_text": extracted_text,
-                        "confidence": 0.0,
-                        "error": "OCR URL processing not implemented"
-                    })
-                except Exception as e:
-                    logger.error(f"Error processing image URL {url}: {e}")
-                    results.append({
-                        "source": f"url_{i}",
-                        "url": url,
-                        "error": str(e)
-                    })
+                # URL-based OCR not yet implemented
+                results.append({
+                    "source": f"url_{i}",
+                    "url": url,
+                    "extracted_text": "",
+                    "confidence": 0.0,
+                    "error": "OCR URL processing not implemented - text analysis only"
+                })
 
-        # Process raw media files
-        if media_files:
+        # Process raw media files via api-gateway OCR endpoint
+        if media_files and self.api_gateway_url:
             for i, file_bytes in enumerate(media_files):
                 try:
-                    # Use OCR service for text extraction (moderation mode)
-                    ocr_result = await self.ocr_service.extract_text_from_image(
-                        image_data=file_bytes,
-                        filename=f"moderation_image_{i}.jpg",
-                        extraction_mode="all"
-                    )
+                    # Call api-gateway OCR endpoint via HTTP
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        files = {
+                            'file': (f'moderation_image_{i}.jpg', file_bytes, 'image/jpeg')
+                        }
+                        response = await client.post(
+                            f"{self.api_gateway_url}/ocr/extract-text",
+                            files=files
+                        )
 
-                    if ocr_result.get("success"):
-                        extracted_text = ocr_result.get("extracted_text", "")
-                        raw_text = ocr_result.get("raw_text", "")
-                        confidence = ocr_result.get("confidence", 0)
+                        if response.status_code == 200:
+                            ocr_result = response.json()
+                            extracted_text = ocr_result.get("extracted_text", "")
+                            raw_text = ocr_result.get("raw_text", "")
+                            confidence = ocr_result.get("confidence", 0)
 
-                        # Combine all text sources
-                        all_text = (extracted_text or "") + " " + (raw_text or "")
-                        all_text = all_text.strip()
+                            # Combine all text sources
+                            all_text = (extracted_text or "") + " " + (raw_text or "")
+                            all_text = all_text.strip()
 
-                        results.append({
-                            "source": f"file_{i}",
-                            "extracted_text": all_text,
-                            "confidence": confidence,
-                            "language_detected": ocr_result.get("language_detected", "unknown"),
-                            "text_blocks": ocr_result.get("text_blocks", []),
-                            "ocr_result": ocr_result
-                        })
-                    else:
-                        results.append({
-                            "source": f"file_{i}",
-                            "error": ocr_result.get("message", "OCR text extraction failed"),
-                            "confidence": 0
-                        })
+                            results.append({
+                                "source": f"file_{i}",
+                                "extracted_text": all_text,
+                                "confidence": confidence,
+                                "language_detected": ocr_result.get("language_detected", "unknown"),
+                                "text_blocks": ocr_result.get("text_blocks", [])
+                            })
+                        else:
+                            logger.warning(f"OCR request failed with status {response.status_code}")
+                            results.append({
+                                "source": f"file_{i}",
+                                "error": f"OCR request failed: {response.status_code}",
+                                "confidence": 0
+                            })
 
                 except Exception as e:
                     logger.error(f"Error processing media file {i}: {e}")
@@ -277,6 +280,16 @@ class ContentModerationService:
                         "error": str(e),
                         "confidence": 0
                     })
+        elif media_files:
+            # No api-gateway configured, skip OCR
+            logger.info("OCR skipped - API_GATEWAY_URL not configured")
+            for i, _ in enumerate(media_files):
+                results.append({
+                    "source": f"file_{i}",
+                    "extracted_text": "",
+                    "confidence": 0,
+                    "error": "OCR skipped - api-gateway not configured"
+                })
 
         return results
 
