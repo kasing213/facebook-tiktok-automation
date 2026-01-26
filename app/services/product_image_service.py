@@ -11,7 +11,7 @@ from app.services.ads_alert_service import GridFSStorageService
 logger = logging.getLogger(__name__)
 
 # Product image constraints
-MAX_IMAGE_SIZE_MB = 10
+MAX_IMAGE_SIZE_MB = 50
 MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 
 ALLOWED_IMAGE_TYPES = [

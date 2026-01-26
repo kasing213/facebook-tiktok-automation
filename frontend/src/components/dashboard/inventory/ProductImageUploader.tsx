@@ -2,8 +2,8 @@ import React, { useState, useRef, useCallback } from 'react'
 import styled from 'styled-components'
 import { inventoryService } from '../../../services/inventoryApi'
 
-// Maximum file size: 10MB
-const MAX_FILE_SIZE_MB = 10
+// Maximum file size: 50MB
+const MAX_FILE_SIZE_MB = 50
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
 // Allowed MIME types
