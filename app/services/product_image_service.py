@@ -127,4 +127,4 @@ class ProductImageService:
         Returns:
             URL path to access the image
         """
-        return f"/api/inventory/products/image/{image_id}"
+        return f"/inventory/products/image/{image_id}"
