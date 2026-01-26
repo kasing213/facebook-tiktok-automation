@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 from uuid import UUID
 
 from app.services.ads_alert_service import GridFSStorageService
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -119,12 +120,14 @@ class ProductImageService:
 
     def get_image_url(self, image_id: str) -> str:
         """
-        Get API URL for product image.
+        Get absolute URL for product image.
 
         Args:
             image_id: GridFS file ID
 
         Returns:
-            URL path to access the image
+            Full URL to access the image (includes backend host)
         """
-        return f"/inventory/products/image/{image_id}"
+        settings = get_settings()
+        base_url = str(settings.BASE_URL).rstrip('/')
+        return f"{base_url}/inventory/products/image/{image_id}"
