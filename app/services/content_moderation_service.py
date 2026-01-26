@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from app.core.models import ModerationStatus
-from app.core.config import settings
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,8 @@ class ContentModerationService:
     def __init__(self):
         self.violation_patterns = self._load_violation_patterns()
         # OCR is done via HTTP to api-gateway, not direct import
-        self.api_gateway_url = getattr(settings, 'API_GATEWAY_URL', None)
+        _settings = get_settings()
+        self.api_gateway_url = getattr(_settings, 'API_GATEWAY_URL', None)
 
     def _load_violation_patterns(self) -> List[ViolationPattern]:
         """Load violation patterns for Cambodia market with localized terms."""
