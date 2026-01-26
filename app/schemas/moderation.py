@@ -44,7 +44,7 @@ class ModerationResult(BaseModel):
 
 class ModerationDecision(BaseModel):
     """Admin decision on flagged content."""
-    action: str = Field(regex="^(approve|reject)$", description="Action to take: approve or reject")
+    action: str = Field(pattern="^(approve|reject)$", description="Action to take: approve or reject")
     reason: Optional[str] = Field(description="Reason for the decision")
     bypass_moderation: bool = Field(default=False, description="Skip future moderation for this promotion")
 
