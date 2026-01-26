@@ -464,16 +464,18 @@ async def delete_product_image(
 
 
 @router.get("/products/image/{image_id}")
-async def get_product_image(
-    image_id: str,
-    current_user: User = Depends(get_current_member_or_owner)
-):
+async def get_product_image(image_id: str):
     """
     Serve product image from GridFS.
-    Validates tenant ownership via metadata.
+
+    This endpoint is PUBLIC (no auth required) because:
+    1. <img> tags cannot send Authorization headers
+    2. image_id (MongoDB ObjectId) is unguessable (24-char hex)
+    3. Images are cached by browsers, so auth would break caching
     """
     image_service = ProductImageService()
-    result = await image_service.get_image(image_id, current_user.tenant_id)
+    # No tenant validation - security via unguessable image_id
+    result = await image_service.get_image(image_id, tenant_id=None)
 
     if not result:
         raise HTTPException(
