@@ -290,6 +290,34 @@ const ProductThumbnail = styled.img`
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid ${props => props.theme.border};
+  cursor: zoom-in;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+`
+
+const ImageZoomOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  cursor: pointer;
+`
+
+const ZoomedImage = styled.img`
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
 `
 
 const NoImagePlaceholder = styled.div`
@@ -539,6 +567,8 @@ const InventoryListPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
 
   // Form states
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null)
+
   const [formData, setFormData] = useState<ProductCreate>({
     name: '',
     sku: '',
@@ -572,6 +602,17 @@ const InventoryListPage: React.FC = () => {
   useEffect(() => {
     fetchProducts()
   }, [fetchProducts])
+
+  // Close zoom on ESC key
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZoomImageUrl(null)
+    }
+    if (zoomImageUrl) {
+      document.addEventListener('keydown', handleEsc)
+      return () => document.removeEventListener('keydown', handleEsc)
+    }
+  }, [zoomImageUrl])
 
   const formatCurrency = (amount: number, currency: string = 'USD'): string => {
     if (amount === null || amount === undefined || isNaN(amount)) {
@@ -867,7 +908,11 @@ const InventoryListPage: React.FC = () => {
                   <TableRow key={product.id} $isVisible={rowsVisible[index]} $delay={index * 40}>
                     <TableCell>
                       {product.image_url ? (
-                        <ProductThumbnail src={product.image_url} alt={product.name} />
+                        <ProductThumbnail
+                          src={product.image_url}
+                          alt={product.name}
+                          onClick={() => setZoomImageUrl(product.image_url!)}
+                        />
                       ) : (
                         <NoImagePlaceholder>📦</NoImagePlaceholder>
                       )}
@@ -1159,6 +1204,13 @@ const InventoryListPage: React.FC = () => {
             </ModalActions>
           </ModalContent>
         </ModalOverlay>
+      )}
+
+      {/* Image Zoom Modal */}
+      {zoomImageUrl && (
+        <ImageZoomOverlay onClick={() => setZoomImageUrl(null)}>
+          <ZoomedImage src={zoomImageUrl} alt="Product image" onClick={e => e.stopPropagation()} />
+        </ImageZoomOverlay>
       )}
     </Container>
   )
