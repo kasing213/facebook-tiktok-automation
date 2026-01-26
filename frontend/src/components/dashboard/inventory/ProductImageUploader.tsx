@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react'
 import styled from 'styled-components'
-import { useTranslation } from 'react-i18next'
 import { inventoryService } from '../../../services/inventoryApi'
 
 // Maximum file size: 10MB
@@ -159,7 +158,6 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
   onImageDeleted,
   disabled = false
 }) => {
-  const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)

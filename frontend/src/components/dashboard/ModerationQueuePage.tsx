@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { FaExclamationTriangle, FaCheck, FaTimes, FaEye, FaPlay, FaClock, FaFlag } from 'react-icons/fa';
-import { useTranslation } from 'react-i18next';
+import { FaExclamationTriangle, FaCheck, FaTimes, FaEye, FaClock, FaFlag } from 'react-icons/fa';
 import { format } from 'date-fns';
 
 interface ViolationDetail {
@@ -325,7 +324,6 @@ const LoadingState = styled.div`
 `;
 
 export const ModerationQueuePage: React.FC = () => {
-  const { t } = useTranslation();
   const [queueData, setQueueData] = useState<ModerationQueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
