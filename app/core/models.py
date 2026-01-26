@@ -2,7 +2,7 @@
 import enum, uuid, datetime as dt
 from sqlalchemy import (
     Column, String, DateTime, Enum, JSON, ForeignKey, UniqueConstraint,
-    Boolean, Integer, Text, Index, text, ARRAY, Numeric
+    Boolean, Integer, Text, Index, text, ARRAY, Numeric, Float
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
@@ -65,6 +65,13 @@ class PromotionStatus(str, enum.Enum):
     scheduled = "scheduled"
     sent = "sent"
     cancelled = "cancelled"
+
+class ModerationStatus(str, enum.Enum):
+    pending = "pending"      # Awaiting automatic moderation
+    approved = "approved"    # Passed moderation checks
+    rejected = "rejected"    # Failed moderation, cannot be sent
+    flagged = "flagged"      # Requires manual admin review
+    skipped = "skipped"      # Moderation bypassed (admin override)
 
 class PromotionMediaType(str, enum.Enum):
     text = "text"
@@ -595,6 +602,7 @@ class Product(Base):
     unit_price = Column(Integer, nullable=False, default=0)  # Store in smallest currency unit (e.g., cents, riels)
     cost_price = Column(Integer, nullable=True)  # Store in smallest currency unit
     currency = Column(String(3), nullable=False, default="KHR")
+    image_id = Column(String(255), nullable=True)  # MongoDB GridFS ObjectId for product image
     current_stock = Column(Integer, nullable=False, default=0)
     low_stock_threshold = Column(Integer, nullable=True, default=10)
     track_stock = Column(Boolean, nullable=False, default=True)
@@ -697,6 +705,16 @@ class AdsAlertPromotion(Base):
     target_customer_ids = Column(ARRAY(UUID(as_uuid=True)), nullable=True, default=[])
     sent_at = Column(DateTime(timezone=True), nullable=True)
     meta = Column(JSON, nullable=True)
+
+    # Moderation fields for content compliance
+    moderation_status = Column(Enum(ModerationStatus), nullable=False, default=ModerationStatus.pending)
+    moderation_result = Column(JSON, nullable=True)  # Detailed analysis results
+    moderation_score = Column(Float, nullable=True)  # Confidence score 0-100
+    moderated_at = Column(DateTime(timezone=True), nullable=True)
+    moderated_by = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    requires_moderation = Column(Boolean, nullable=False, default=True)
+
     created_by = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc),
@@ -704,7 +722,8 @@ class AdsAlertPromotion(Base):
 
     # Relationships
     tenant = relationship("Tenant", backref="ads_alert_promotions")
-    creator = relationship("User", backref="created_promotions")
+    creator = relationship("User", foreign_keys=[created_by], backref="created_promotions")
+    moderator = relationship("User", foreign_keys=[moderated_by], backref="moderated_promotions")
 
 
 class AdsAlertPromoStatus(Base):

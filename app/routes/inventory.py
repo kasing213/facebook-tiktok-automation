@@ -1,6 +1,6 @@
 from typing import List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
@@ -9,6 +9,7 @@ from app.core.authorization import get_current_member_or_owner, require_role
 from app.core.models import User, Product, StockMovement, MovementType, UserRole
 from app.repositories.product import ProductRepository
 from app.repositories.stock_movement import StockMovementRepository
+from app.services.product_image_service import ProductImageService
 import datetime as dt
 
 
@@ -47,6 +48,8 @@ class ProductResponse(ProductBase):
     tenant_id: UUID
     current_stock: int
     is_active: bool
+    image_id: Optional[str] = None
+    image_url: Optional[str] = None
     created_at: dt.datetime
     updated_at: dt.datetime
 
@@ -76,6 +79,30 @@ class StockMovementResponse(BaseModel):
         from_attributes = True
 
 
+def _add_image_url(product: Product) -> dict:
+    """Helper to convert product to dict with image_url computed"""
+    image_service = ProductImageService()
+    data = {
+        "id": product.id,
+        "tenant_id": product.tenant_id,
+        "name": product.name,
+        "sku": product.sku,
+        "description": product.description,
+        "unit_price": product.unit_price,
+        "cost_price": product.cost_price,
+        "currency": product.currency,
+        "current_stock": product.current_stock,
+        "low_stock_threshold": product.low_stock_threshold,
+        "track_stock": product.track_stock,
+        "is_active": product.is_active,
+        "image_id": product.image_id,
+        "image_url": image_service.get_image_url(product.image_id) if product.image_id else None,
+        "created_at": product.created_at,
+        "updated_at": product.updated_at,
+    }
+    return data
+
+
 @router.get("/products", response_model=List[ProductResponse])
 def list_products(
     active_only: bool = Query(True, description="Filter active products only"),
@@ -94,7 +121,8 @@ def list_products(
     else:
         products = product_repo.get_by_tenant(current_user.tenant_id, active_only)
 
-    return products
+    # Add image_url to each product
+    return [_add_image_url(p) for p in products]
 
 
 @router.post("/products", response_model=ProductResponse)
@@ -136,7 +164,7 @@ def create_product(
             )
             db.commit()
 
-        return product
+        return _add_image_url(product)
 
     except Exception as e:
         db.rollback()
@@ -162,7 +190,7 @@ def get_product(
             detail="Product not found"
         )
 
-    return product
+    return _add_image_url(product)
 
 
 @router.put("/products/{product_id}", response_model=ProductResponse)
@@ -195,7 +223,7 @@ def update_product(
             )
 
         db.commit()
-        return product
+        return _add_image_url(product)
 
     except Exception as e:
         db.rollback()
@@ -288,7 +316,7 @@ def get_low_stock_products(
     """Get products below their low stock threshold"""
     product_repo = ProductRepository(db)
     products = product_repo.get_low_stock_products(current_user.tenant_id)
-    return products
+    return [_add_image_url(p) for p in products]
 
 
 @router.get("/movements/summary")
@@ -324,3 +352,142 @@ def get_movement_summary(
             for row in summary
         ]
     }
+
+
+# ============================================================================
+# Product Image Endpoints (MongoDB GridFS)
+# ============================================================================
+
+@router.post("/products/{product_id}/image")
+async def upload_product_image(
+    product_id: UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_member_or_owner),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload or replace product image.
+    Max 10MB, supports JPEG, PNG, WebP, GIF.
+    """
+    product_repo = ProductRepository(db)
+
+    # Verify product belongs to tenant
+    product = product_repo.get_by_id_and_tenant(product_id, current_user.tenant_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+
+    # Read and validate image
+    content = await file.read()
+    image_service = ProductImageService()
+
+    validation_error = image_service.validate_image(content, file.content_type)
+    if validation_error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=validation_error
+        )
+
+    try:
+        # Delete old image if exists
+        if product.image_id:
+            await image_service.delete_image(product.image_id)
+
+        # Upload new image
+        image_id, image_url = await image_service.upload_image(
+            tenant_id=current_user.tenant_id,
+            file_content=content,
+            filename=file.filename or "product_image",
+            content_type=file.content_type
+        )
+
+        # Update product with new image_id
+        product_repo.update_by_tenant(product_id, current_user.tenant_id, image_id=image_id)
+        db.commit()
+
+        return {
+            "product_id": str(product_id),
+            "image_id": image_id,
+            "image_url": image_url
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload image: {str(e)}"
+        )
+
+
+@router.delete("/products/{product_id}/image")
+async def delete_product_image(
+    product_id: UUID,
+    current_user: User = Depends(get_current_member_or_owner),
+    db: Session = Depends(get_db)
+):
+    """Delete product image"""
+    product_repo = ProductRepository(db)
+
+    # Verify product belongs to tenant
+    product = product_repo.get_by_id_and_tenant(product_id, current_user.tenant_id)
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found"
+        )
+
+    if not product.image_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product has no image"
+        )
+
+    try:
+        # Delete from GridFS
+        image_service = ProductImageService()
+        await image_service.delete_image(product.image_id)
+
+        # Clear image_id on product
+        product_repo.update_by_tenant(product_id, current_user.tenant_id, image_id=None)
+        db.commit()
+
+        return {"message": "Image deleted successfully"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete image: {str(e)}"
+        )
+
+
+@router.get("/products/image/{image_id}")
+async def get_product_image(
+    image_id: str,
+    current_user: User = Depends(get_current_member_or_owner)
+):
+    """
+    Serve product image from GridFS.
+    Validates tenant ownership via metadata.
+    """
+    image_service = ProductImageService()
+    result = await image_service.get_image(image_id, current_user.tenant_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found"
+        )
+
+    content, content_type, filename = result
+
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "public, max-age=86400"  # 1 day cache
+        }
+    )

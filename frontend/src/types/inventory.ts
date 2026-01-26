@@ -13,6 +13,8 @@ export interface Product {
   low_stock_threshold: number
   track_stock: boolean
   is_active: boolean
+  image_id?: string
+  image_url?: string
   created_at: string
   updated_at: string
 }
@@ -83,4 +85,10 @@ export interface ProductListParams {
   active_only?: boolean
   search?: string
   low_stock_only?: boolean
+}
+
+export interface ProductImageUploadResponse {
+  product_id: string
+  image_id: string
+  image_url: string
 }

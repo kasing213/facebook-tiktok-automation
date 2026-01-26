@@ -4,6 +4,7 @@ import { inventoryService } from '../../../services/inventoryApi'
 import { Product, ProductCreate, ProductUpdate } from '../../../types/inventory'
 import { fadeInDown, scaleIn, shake, easings, reduceMotion } from '../../../styles/animations'
 import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
+import { ProductImageUploader } from './ProductImageUploader'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -283,6 +284,27 @@ const MutedText = styled.span`
   color: ${props => props.theme.textSecondary};
 `
 
+const ProductThumbnail = styled.img`
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid ${props => props.theme.border};
+`
+
+const NoImagePlaceholder = styled.div`
+  width: 48px;
+  height: 48px;
+  background: ${props => props.theme.backgroundTertiary};
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: ${props => props.theme.textMuted};
+  border: 1px dashed ${props => props.theme.border};
+`
+
 const ModalDescription = styled.p`
   color: ${props => props.theme.textSecondary};
   margin-bottom: 1.5rem;
@@ -530,6 +552,7 @@ const InventoryListPage: React.FC = () => {
   })
   const [newStockLevel, setNewStockLevel] = useState(0)
   const [stockNotes, setStockNotes] = useState('')
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -607,7 +630,19 @@ const InventoryListPage: React.FC = () => {
         unit_price: priceToBackend(formData.unit_price, currency),
         cost_price: formData.cost_price ? priceToBackend(formData.cost_price, currency) : undefined
       }
-      await inventoryService.createProduct(submitData)
+      const newProduct = await inventoryService.createProduct(submitData)
+
+      // Upload image if selected
+      if (pendingImageFile && newProduct.id) {
+        try {
+          await inventoryService.uploadProductImage(newProduct.id, pendingImageFile)
+        } catch (imgErr: any) {
+          console.error('Image upload failed:', imgErr)
+          // Don't fail the whole operation, just warn
+          setError('Product created but image upload failed: ' + extractErrorMessage(imgErr))
+        }
+      }
+
       setSuccess('Product created successfully')
       setShowCreateModal(false)
       resetForm()
@@ -727,6 +762,7 @@ const InventoryListPage: React.FC = () => {
       track_stock: true
     })
     setSelectedProduct(null)
+    setPendingImageFile(null)
   }
 
   // Stats calculations
@@ -816,6 +852,7 @@ const InventoryListPage: React.FC = () => {
           <Table>
             <TableHeader>
               <tr>
+                <TableHeaderCell style={{ width: '60px' }}>Image</TableHeaderCell>
                 <TableHeaderCell>Product</TableHeaderCell>
                 <TableHeaderCell>Price</TableHeaderCell>
                 <TableHeaderCell>Stock</TableHeaderCell>
@@ -828,6 +865,13 @@ const InventoryListPage: React.FC = () => {
                 const isLowStock = product.track_stock && product.current_stock <= product.low_stock_threshold
                 return (
                   <TableRow key={product.id} $isVisible={rowsVisible[index]} $delay={index * 40}>
+                    <TableCell>
+                      {product.image_url ? (
+                        <ProductThumbnail src={product.image_url} alt={product.name} />
+                      ) : (
+                        <NoImagePlaceholder>📦</NoImagePlaceholder>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <ProductName>{product.name}</ProductName>
                       {product.sku && <ProductSku>SKU: {product.sku}</ProductSku>}
@@ -907,6 +951,18 @@ const InventoryListPage: React.FC = () => {
         }}>
           <ModalContent onClick={e => e.stopPropagation()}>
             <h2>{showCreateModal ? 'Add Product' : 'Edit Product'}</h2>
+
+            <FormGroup>
+              <FormLabel>Product Image (Optional)</FormLabel>
+              <ProductImageUploader
+                productId={selectedProduct?.id}
+                currentImageUrl={selectedProduct?.image_url}
+                onImageSelected={(file) => setPendingImageFile(file)}
+                onImageUploaded={() => fetchProducts()}
+                onImageDeleted={() => fetchProducts()}
+                disabled={saving}
+              />
+            </FormGroup>
 
             <FormGroup>
               <FormLabel>Product Name *</FormLabel>

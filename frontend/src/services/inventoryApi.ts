@@ -6,7 +6,8 @@ import {
   StockMovement,
   StockAdjustmentRequest,
   MovementSummary,
-  ProductListParams
+  ProductListParams,
+  ProductImageUploadResponse
 } from '../types/inventory'
 
 // Use same API base URL as main api.ts
@@ -102,6 +103,37 @@ export const inventoryService = {
   }> {
     const response = await inventoryApi.get('/movements/summary', { params })
     return response.data
+  },
+
+  // Product Images (MongoDB GridFS)
+  async uploadProductImage(productId: string, file: File): Promise<ProductImageUploadResponse> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await inventoryApi.post(
+      `/products/${productId}/image`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000, // 60 second timeout for uploads
+      }
+    )
+    return response.data
+  },
+
+  async deleteProductImage(productId: string): Promise<{ message: string }> {
+    const response = await inventoryApi.delete(`/products/${productId}/image`)
+    return response.data
+  },
+
+  /**
+   * Get the full URL for a product image
+   * Constructs the URL based on the image_id
+   */
+  getProductImageUrl(imageId: string): string {
+    return `${API_URL}/inventory/products/image/${imageId}`
   }
 }
 

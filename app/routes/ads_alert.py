@@ -5,11 +5,12 @@ Ads Alert API routes for promotional messaging system.
 import logging
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status, Response
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.models import User, PromotionStatus
+from app.core.models import User, PromotionStatus, ModerationStatus
 from app.core.dependencies import get_current_user
 from app.core.authorization import get_current_owner, get_current_member_or_owner, require_subscription_feature
 from app.schemas.ads_alert import (
@@ -26,6 +27,7 @@ from app.repositories.ads_alert import (
     AdsAlertMediaRepository, AdsAlertMediaFolderRepository
 )
 from app.services.ads_alert_service import AdsAlertService
+from app.services.content_moderation_service import content_moderation_service
 from app.core.usage_limits import (
     check_promotion_limit, increment_promotion_counter,
     check_broadcast_limit, increment_broadcast_counter
@@ -223,9 +225,55 @@ async def create_promotion(
         target_customer_type=PromotionCustomerTargetType[data.target_customer_type.value] if data.target_customer_type else PromotionCustomerTargetType.none,
         target_customer_ids=data.target_customer_ids,
         scheduled_at=data.scheduled_at,
-        status=initial_status
+        status=initial_status,
+        # Moderation fields - default to pending
+        moderation_status=ModerationStatus.pending,
+        requires_moderation=True
     )
     db.commit()
+
+    # Perform automatic content moderation
+    try:
+        moderation_result = await content_moderation_service.moderate_content(
+            text_content=data.content,
+            image_urls=data.media_urls if data.media_urls else None
+        )
+
+        # Update promotion with moderation results
+        now = datetime.now(timezone.utc)
+        moderation_status = ModerationStatus[moderation_result["moderation_status"]]
+
+        promotion_repo.update_by_tenant(
+            promotion.id,
+            current_user.tenant_id,
+            moderation_status=moderation_status,
+            moderation_result=moderation_result,
+            moderation_score=moderation_result["moderation_score"],
+            moderated_at=now,
+            rejection_reason=moderation_result["recommendation"]
+        )
+        db.commit()
+
+        # If content is rejected, inform the user immediately
+        if moderation_status == ModerationStatus.rejected:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "content_violation",
+                    "message": "Content violates platform policies and cannot be published",
+                    "violations": moderation_result.get("violations", []),
+                    "recommendation": moderation_result["recommendation"],
+                    "moderation_score": moderation_result["moderation_score"]
+                }
+            )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (content violations)
+        raise
+    except Exception as e:
+        logger.error(f"Content moderation failed for promotion {promotion.id}: {e}")
+        # Continue without blocking - moderation can be done manually later
+        pass
 
     # Increment promotion counter after successful creation
     increment_promotion_counter(current_user.tenant_id, db)
@@ -311,6 +359,39 @@ async def send_promotion(
     promotion = promotion_repo.get_by_tenant(promotion_id, current_user.tenant_id)
     if not promotion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promotion not found")
+
+    # CRITICAL: Check content moderation status before sending
+    if promotion.moderation_status == ModerationStatus.rejected:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "content_rejected",
+                "message": "Cannot send promotion: content has been rejected due to policy violations",
+                "rejection_reason": promotion.rejection_reason,
+                "moderation_score": promotion.moderation_score
+            }
+        )
+
+    if promotion.moderation_status == ModerationStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail={
+                "error": "content_pending_moderation",
+                "message": "Cannot send promotion: content is still being reviewed for policy compliance",
+                "moderation_status": "pending"
+            }
+        )
+
+    if promotion.moderation_status == ModerationStatus.flagged:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail={
+                "error": "content_flagged_for_review",
+                "message": "Cannot send promotion: content requires manual admin approval before sending",
+                "moderation_status": "flagged",
+                "admin_action_required": True
+            }
+        )
 
     # Estimate recipient count for broadcast limit check
     chat_repo = AdsAlertChatRepository(db)

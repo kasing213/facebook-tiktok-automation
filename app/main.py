@@ -27,6 +27,7 @@ from app.routes.subscription_payment import router as subscription_payment_route
 from app.routes.inventory import router as inventory_router
 from app.routes.email_verification import router as email_verification_router
 from app.routes.ads_alert import router as ads_alert_router
+from app.routes.moderation import router as moderation_router
 from app.routes.usage import router as usage_router
 from app.routes.dashboard import router as dashboard_router
 
@@ -185,6 +186,7 @@ app.include_router(subscription_payment_router)
 app.include_router(inventory_router)
 app.include_router(email_verification_router)
 app.include_router(ads_alert_router)
+app.include_router(moderation_router)
 app.include_router(usage_router)
 app.include_router(dashboard_router)
 

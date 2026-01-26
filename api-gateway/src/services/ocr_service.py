@@ -315,6 +315,107 @@ class OCRService:
             logger.error(f"OCR status check error: {e}")
             return {"status": "error", "message": str(e)}
 
+    async def extract_text_from_image(
+        self,
+        image_data: bytes,
+        filename: str = "image.jpg",
+        extraction_mode: str = "all"
+    ) -> Dict[str, Any]:
+        """
+        Extract all text from an image for content moderation purposes.
+
+        Args:
+            image_data: Raw image bytes
+            filename: Original filename
+            extraction_mode: Type of extraction ("all", "structural", "raw")
+
+        Returns:
+            Dictionary with extracted text and metadata
+        """
+        # Use mock mode if enabled or external API not configured
+        if self.is_mock_mode():
+            logger.info(f"Using mock OCR for text extraction: {filename}")
+
+            # Mock text extraction based on image size for consistent testing
+            image_size = len(image_data)
+            mock_texts = [
+                "Sample promotional text",
+                "Special offer available now",
+                "Contact us for more information",
+                "Limited time discount"
+            ]
+
+            # Generate mock extracted text based on image characteristics
+            selected_text = mock_texts[image_size % len(mock_texts)]
+
+            return {
+                "success": True,
+                "mode": "mock",
+                "filename": filename,
+                "extracted_text": selected_text,
+                "raw_text": selected_text,
+                "confidence": 0.85,
+                "language_detected": "en",
+                "text_blocks": [
+                    {
+                        "text": selected_text,
+                        "confidence": 0.85,
+                        "bbox": [0, 0, 100, 50]
+                    }
+                ],
+                "metadata": {
+                    "image_size": image_size,
+                    "processing_time": 1.2,
+                    "extraction_mode": extraction_mode
+                }
+            }
+
+        # External API mode - add text extraction endpoint
+        if not self.base_url or not self.api_key:
+            return {
+                "success": False,
+                "error": "not_configured",
+                "message": "OCR service not configured for text extraction"
+            }
+
+        try:
+            files = {"image": (filename, image_data)}
+            data = {"extraction_mode": extraction_mode}
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/extract-text",
+                    headers=self._get_headers(),
+                    files=files,
+                    data=data
+                )
+                response.raise_for_status()
+                return response.json()
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"OCR text extraction HTTP error: {e}")
+            error_detail = e.response.json() if e.response.content else {}
+            return {
+                "success": False,
+                "error": "http_error",
+                "status_code": e.response.status_code,
+                "message": error_detail.get("message", str(e))
+            }
+        except httpx.RequestError as e:
+            logger.error(f"OCR text extraction connection error: {e}")
+            return {
+                "success": False,
+                "error": "connection_error",
+                "message": f"Failed to connect to OCR service: {str(e)}"
+            }
+        except Exception as e:
+            logger.error(f"OCR text extraction unexpected error: {e}")
+            return {
+                "success": False,
+                "error": "unexpected_error",
+                "message": str(e)
+            }
+
     async def verify_screenshot(
         self,
         image_data: bytes,

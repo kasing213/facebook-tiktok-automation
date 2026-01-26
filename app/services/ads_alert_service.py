@@ -23,7 +23,7 @@ from app.core.config import get_settings
 from app.core.models import (
     AdsAlertChat, AdsAlertPromotion, AdsAlertMedia, AdsAlertMediaFolder,
     AdsAlertBroadcastLog, PromotionStatus, BroadcastStatus, PromotionTargetType,
-    PromotionCustomerTargetType
+    PromotionCustomerTargetType, ModerationStatus
 )
 from app.repositories.ads_alert import (
     AdsAlertChatRepository, AdsAlertPromotionRepository,
@@ -343,6 +343,16 @@ class AdsAlertService:
 
         if promotion.status == PromotionStatus.sent:
             raise ValueError("Promotion has already been sent")
+
+        # CRITICAL: Check content moderation status before sending
+        if promotion.moderation_status == ModerationStatus.rejected:
+            raise ValueError(f"Cannot send promotion: content has been rejected due to policy violations. Reason: {promotion.rejection_reason}")
+
+        if promotion.moderation_status == ModerationStatus.pending:
+            raise ValueError("Cannot send promotion: content is still being reviewed for policy compliance")
+
+        if promotion.moderation_status == ModerationStatus.flagged:
+            raise ValueError("Cannot send promotion: content requires manual admin approval before sending")
 
         # Build target chats list
         chats = []
