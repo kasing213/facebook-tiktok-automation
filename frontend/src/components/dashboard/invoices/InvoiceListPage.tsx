@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { useInvoices } from '../../../hooks/useInvoices'
 import { useSubscription } from '../../../hooks/useSubscription'
@@ -243,6 +244,7 @@ const ModalActions = styled.div`
 `
 
 const InvoiceListPage: React.FC = () => {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const {
     invoices,
@@ -358,24 +360,24 @@ const InvoiceListPage: React.FC = () => {
   return (
     <Container>
       <Header>
-        <Title>Invoices</Title>
+        <Title>{t('invoices.title')}</Title>
         <HeaderActions>
           <Button
             onClick={() => handleExport('csv')}
             disabled={!canAccessExport}
-            title={!canAccessExport ? 'Upgrade to Pro for export access' : undefined}
+            title={!canAccessExport ? t('invoices.upgradeToPro') : undefined}
           >
-            Export CSV {!canAccessExport && '(Pro)'}
+            {t('invoices.exportCsv')} {!canAccessExport && '(Pro)'}
           </Button>
           <Button
             onClick={() => handleExport('xlsx')}
             disabled={!canAccessExport}
-            title={!canAccessExport ? 'Upgrade to Pro for export access' : undefined}
+            title={!canAccessExport ? t('invoices.upgradeToPro') : undefined}
           >
-            Export Excel {!canAccessExport && '(Pro)'}
+            {t('invoices.exportExcel')} {!canAccessExport && '(Pro)'}
           </Button>
           <Button $variant="primary" onClick={() => navigate('/dashboard/invoices/new')}>
-            + Create Invoice
+            + {t('invoices.createNew')}
           </Button>
         </HeaderActions>
       </Header>
@@ -383,25 +385,25 @@ const InvoiceListPage: React.FC = () => {
       {error && (
         <ErrorMessage>
           {error}
-          <button onClick={clearError} style={{ marginLeft: '1rem' }}>Dismiss</button>
+          <button onClick={clearError} style={{ marginLeft: '1rem' }}>{t('invoices.dismiss')}</button>
         </ErrorMessage>
       )}
 
       <StatsGrid>
         <StatCard $isVisible={statsVisible[0]} $delay={0}>
-          <StatLabel>Total Invoices</StatLabel>
+          <StatLabel>{t('invoices.totalInvoices')}</StatLabel>
           <StatValue>{stats?.total_invoices || invoices.length}</StatValue>
         </StatCard>
         <StatCard $isVisible={statsVisible[1]} $delay={100}>
-          <StatLabel>Total Revenue</StatLabel>
+          <StatLabel>{t('invoices.totalRevenue')}</StatLabel>
           <StatValue $color="#28a745">{formatCurrency(stats?.total_revenue || 0)}</StatValue>
         </StatCard>
         <StatCard $isVisible={statsVisible[2]} $delay={200}>
-          <StatLabel>Pending Amount</StatLabel>
+          <StatLabel>{t('invoices.pendingAmount')}</StatLabel>
           <StatValue $color="#ffc107">{formatCurrency(stats?.pending_amount || 0)}</StatValue>
         </StatCard>
         <StatCard $isVisible={statsVisible[3]} $delay={300}>
-          <StatLabel>Overdue</StatLabel>
+          <StatLabel>{t('invoices.overdue')}</StatLabel>
           <StatValue $color="#dc3545">{stats?.overdue_count || 0}</StatValue>
         </StatCard>
       </StatsGrid>
@@ -415,7 +417,7 @@ const InvoiceListPage: React.FC = () => {
           </SearchIcon>
           <SearchInput
             type="text"
-            placeholder="Search invoices..."
+            placeholder={t('invoices.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -424,12 +426,12 @@ const InvoiceListPage: React.FC = () => {
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as InvoiceStatus | 'all')}
         >
-          <option value="all">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-          <option value="overdue">Overdue</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="all">{t('invoices.allStatuses')}</option>
+          <option value="draft">{t('invoices.draft')}</option>
+          <option value="pending">{t('invoices.pending')}</option>
+          <option value="paid">{t('invoices.paid')}</option>
+          <option value="overdue">{t('invoices.overdue')}</option>
+          <option value="cancelled">{t('invoices.cancelled')}</option>
         </FilterSelect>
       </FilterToolbar>
 
@@ -454,20 +456,20 @@ const InvoiceListPage: React.FC = () => {
       {deleteTarget && (
         <ConfirmModal onClick={() => setDeleteTarget(null)}>
           <ModalContent onClick={(e) => e.stopPropagation()}>
-            <h3>Delete Invoice</h3>
+            <h3>{t('invoices.deleteInvoice')}</h3>
             <p>
-              Are you sure you want to delete invoice <strong>{deleteTarget.invoice_number}</strong>?
-              This action cannot be undone.
+              {t('invoices.deleteConfirmation')} <strong>{deleteTarget.invoice_number}</strong>?
+              {t('invoices.cannotUndo')}
             </p>
             <ModalActions>
-              <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
+              <Button onClick={() => setDeleteTarget(null)}>{t('common.cancel')}</Button>
               <Button
                 $variant="primary"
                 onClick={handleDelete}
                 disabled={deleting}
                 style={{ background: '#dc3545' }}
               >
-                {deleting ? 'Deleting...' : 'Delete'}
+                {deleting ? t('invoices.deleting') : t('common.delete')}
               </Button>
             </ModalActions>
           </ModalContent>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { inventoryService } from '../../../services/inventoryApi'
 import { Product, ProductCreate, ProductUpdate } from '../../../types/inventory'
@@ -547,6 +548,7 @@ const FormRow = styled.div`
 `
 
 const InventoryListPage: React.FC = () => {
+  const { t } = useTranslation()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -816,10 +818,10 @@ const InventoryListPage: React.FC = () => {
   return (
     <Container>
       <Header>
-        <Title>Inventory</Title>
+        <Title>{t('inventory.title')}</Title>
         <HeaderActions>
           <Button $variant="primary" onClick={() => setShowCreateModal(true)}>
-            + Add Product
+            + {t('inventory.addProduct')}
           </Button>
         </HeaderActions>
       </Header>
@@ -827,7 +829,7 @@ const InventoryListPage: React.FC = () => {
       {error && (
         <ErrorMessage>
           {error}
-          <button onClick={() => setError(null)} style={{ marginLeft: '1rem' }}>Dismiss</button>
+          <button onClick={() => setError(null)} style={{ marginLeft: '1rem' }}>{t('invoices.dismiss')}</button>
         </ErrorMessage>
       )}
 
@@ -835,19 +837,19 @@ const InventoryListPage: React.FC = () => {
 
       <StatsGrid>
         <StatCard $isVisible={statsVisible[0]} $delay={0}>
-          <StatLabel>Total Products</StatLabel>
+          <StatLabel>{t('inventory.totalProducts')}</StatLabel>
           <StatValue>{totalProducts}</StatValue>
         </StatCard>
         <StatCard $isVisible={statsVisible[1]} $delay={80}>
-          <StatLabel>Active Products</StatLabel>
+          <StatLabel>{t('inventory.activeProducts')}</StatLabel>
           <StatValue $color="#28a745">{activeProducts}</StatValue>
         </StatCard>
         <StatCard $isVisible={statsVisible[2]} $delay={160}>
-          <StatLabel>Low Stock</StatLabel>
+          <StatLabel>{t('inventory.lowStock')}</StatLabel>
           <StatValue $color={lowStockCount > 0 ? '#dc3545' : '#28a745'}>{lowStockCount}</StatValue>
         </StatCard>
         <StatCard $isVisible={statsVisible[3]} $delay={240}>
-          <StatLabel>Total Stock Value</StatLabel>
+          <StatLabel>{t('inventory.totalStockValue')}</StatLabel>
           <StatValue $color="#4a90e2">{formatCurrency(totalStockValue)}</StatValue>
         </StatCard>
       </StatsGrid>
@@ -861,7 +863,7 @@ const InventoryListPage: React.FC = () => {
           </SearchIcon>
           <SearchInput
             type="text"
-            placeholder="Search products by name or SKU..."
+            placeholder={t('inventory.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -872,7 +874,7 @@ const InventoryListPage: React.FC = () => {
             checked={showLowStockOnly}
             onChange={(e) => setShowLowStockOnly(e.target.checked)}
           />
-          Low Stock Only
+          {t('inventory.lowStockOnly')}
         </FilterCheckbox>
       </FilterToolbar>
 
@@ -883,22 +885,22 @@ const InventoryListPage: React.FC = () => {
           </LoadingSpinner>
         ) : products.length === 0 ? (
           <EmptyState>
-            <h3>No products found</h3>
-            <p>Create your first product to start tracking inventory.</p>
+            <h3>{t('inventory.noProducts')}</h3>
+            <p>{t('inventory.createFirstProduct')}</p>
             <Button $variant="primary" onClick={() => setShowCreateModal(true)} style={{ marginTop: '1rem' }}>
-              + Add Product
+              + {t('inventory.addProduct')}
             </Button>
           </EmptyState>
         ) : (
           <Table>
             <TableHeader>
               <tr>
-                <TableHeaderCell style={{ width: '60px' }}>Image</TableHeaderCell>
-                <TableHeaderCell>Product</TableHeaderCell>
-                <TableHeaderCell>Price</TableHeaderCell>
-                <TableHeaderCell>Stock</TableHeaderCell>
-                <TableHeaderCell>Status</TableHeaderCell>
-                <TableHeaderCell>Actions</TableHeaderCell>
+                <TableHeaderCell style={{ width: '60px' }}>{t('inventory.image')}</TableHeaderCell>
+                <TableHeaderCell>{t('inventory.product')}</TableHeaderCell>
+                <TableHeaderCell>{t('inventory.price')}</TableHeaderCell>
+                <TableHeaderCell>{t('inventory.stock')}</TableHeaderCell>
+                <TableHeaderCell>{t('inventory.status')}</TableHeaderCell>
+                <TableHeaderCell>{t('inventory.actions')}</TableHeaderCell>
               </tr>
             </TableHeader>
             <TableBody>
@@ -925,30 +927,30 @@ const InventoryListPage: React.FC = () => {
                     <TableCell>
                       {product.track_stock ? (
                         <StockBadge $isLow={isLowStock}>
-                          {product.current_stock} units
+                          {product.current_stock} {t('inventory.units')}
                         </StockBadge>
                       ) : (
-                        <MutedText>Not tracked</MutedText>
+                        <MutedText>{t('inventory.notTracked')}</MutedText>
                       )}
                     </TableCell>
                     <TableCell>
                       <StatusText $active={product.is_active}>
-                        {product.is_active ? 'Active' : 'Inactive'}
+                        {product.is_active ? t('inventory.active') : t('inventory.inactive')}
                       </StatusText>
                     </TableCell>
                     <TableCell>
                       <ActionButtons>
-                        <IconButton title="Edit" onClick={() => openEditModal(product)}>
+                        <IconButton title={t('inventory.edit')} onClick={() => openEditModal(product)}>
                           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
                         </IconButton>
-                        <IconButton title="Adjust Stock" onClick={() => openStockModal(product)}>
+                        <IconButton title={t('inventory.adjustStock')} onClick={() => openStockModal(product)}>
                           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                           </svg>
                         </IconButton>
-                        <IconButton title="Duplicate" onClick={() => {
+                        <IconButton title={t('inventory.duplicate')} onClick={() => {
                           setFormData({
                             name: product.name + ' (Copy)',
                             sku: product.sku ? product.sku + '-COPY' : '',
@@ -967,7 +969,7 @@ const InventoryListPage: React.FC = () => {
                           </svg>
                         </IconButton>
                         <IconButton
-                          title="Delete"
+                          title={t('common.delete')}
                           onClick={() => {
                             setSelectedProduct(product)
                             setShowDeleteModal(true)
@@ -995,10 +997,10 @@ const InventoryListPage: React.FC = () => {
           resetForm()
         }}>
           <ModalContent onClick={e => e.stopPropagation()}>
-            <h2>{showCreateModal ? 'Add Product' : 'Edit Product'}</h2>
+            <h2>{showCreateModal ? t('inventory.addProduct') : t('inventory.editProduct')}</h2>
 
             <FormGroup>
-              <FormLabel>Product Image (Optional)</FormLabel>
+              <FormLabel>{t('inventory.productImage')}</FormLabel>
               <ProductImageUploader
                 productId={selectedProduct?.id}
                 currentImageUrl={selectedProduct?.image_url}
@@ -1010,27 +1012,27 @@ const InventoryListPage: React.FC = () => {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel>Product Name *</FormLabel>
+              <FormLabel>{t('inventory.productName')} *</FormLabel>
               <FormInput
                 type="text"
                 value={formData.name}
                 onChange={e => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter product name"
+                placeholder={t('inventory.productName')}
               />
             </FormGroup>
 
             <FormRow>
               <FormGroup>
-                <FormLabel>SKU</FormLabel>
+                <FormLabel>{t('inventory.sku')}</FormLabel>
                 <FormInput
                   type="text"
                   value={formData.sku}
                   onChange={e => setFormData({ ...formData, sku: e.target.value })}
-                  placeholder="e.g., PROD-001"
+                  placeholder={t('inventory.skuPlaceholder')}
                 />
               </FormGroup>
               <FormGroup>
-                <FormLabel>Currency</FormLabel>
+                <FormLabel>{t('inventory.currency')}</FormLabel>
                 <FormSelect
                   value={formData.currency}
                   onChange={e => setFormData({ ...formData, currency: e.target.value })}
@@ -1042,17 +1044,17 @@ const InventoryListPage: React.FC = () => {
             </FormRow>
 
             <FormGroup>
-              <FormLabel>Description</FormLabel>
+              <FormLabel>{t('inventory.description')}</FormLabel>
               <FormTextarea
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Product description (optional)"
+                placeholder={t('inventory.descriptionPlaceholder')}
               />
             </FormGroup>
 
             <FormRow>
               <FormGroup>
-                <FormLabel>Unit Price *</FormLabel>
+                <FormLabel>{t('inventory.unitPrice')} *</FormLabel>
                 <FormInput
                   type="number"
                   min="0"
@@ -1062,7 +1064,7 @@ const InventoryListPage: React.FC = () => {
                 />
               </FormGroup>
               <FormGroup>
-                <FormLabel>Cost Price</FormLabel>
+                <FormLabel>{t('inventory.costPrice')}</FormLabel>
                 <FormInput
                   type="number"
                   min="0"
@@ -1075,7 +1077,7 @@ const InventoryListPage: React.FC = () => {
 
             {showCreateModal && (
               <FormGroup>
-                <FormLabel>Initial Stock</FormLabel>
+                <FormLabel>{t('inventory.initialStock')}</FormLabel>
                 <FormInput
                   type="number"
                   min="0"
@@ -1087,7 +1089,7 @@ const InventoryListPage: React.FC = () => {
 
             <FormRow>
               <FormGroup>
-                <FormLabel>Low Stock Threshold</FormLabel>
+                <FormLabel>{t('inventory.lowStockThreshold')}</FormLabel>
                 <FormInput
                   type="number"
                   min="0"
@@ -1102,7 +1104,7 @@ const InventoryListPage: React.FC = () => {
                     checked={formData.track_stock}
                     onChange={e => setFormData({ ...formData, track_stock: e.target.checked })}
                   />
-                  Track Stock
+                  {t('inventory.trackStock')}
                 </FormCheckbox>
               </FormGroup>
             </FormRow>
@@ -1112,13 +1114,13 @@ const InventoryListPage: React.FC = () => {
                 setShowCreateModal(false)
                 setShowEditModal(false)
                 resetForm()
-              }}>Cancel</Button>
+              }}>{t('common.cancel')}</Button>
               <Button
                 $variant="primary"
                 onClick={showCreateModal ? handleCreate : handleUpdate}
                 disabled={saving || !formData.name}
               >
-                {saving ? 'Saving...' : (showCreateModal ? 'Create Product' : 'Save Changes')}
+                {saving ? t('inventory.saving') : (showCreateModal ? t('inventory.createProduct') : t('inventory.saveChanges'))}
               </Button>
             </ModalActions>
           </ModalContent>
@@ -1132,17 +1134,17 @@ const InventoryListPage: React.FC = () => {
           setSelectedProduct(null)
         }}>
           <ModalContent onClick={e => e.stopPropagation()}>
-            <h2>Adjust Stock</h2>
+            <h2>{t('inventory.adjustStock')}</h2>
             <ModalDescription>
-              Adjust stock level for <strong>{selectedProduct.name}</strong>
+              {t('inventory.adjustStock')} <strong>{selectedProduct.name}</strong>
             </ModalDescription>
 
             <FormGroup>
-              <FormLabel>Current Stock: {selectedProduct.current_stock} units</FormLabel>
+              <FormLabel>{t('inventory.currentStock')}: {selectedProduct.current_stock} {t('inventory.units')}</FormLabel>
             </FormGroup>
 
             <FormGroup>
-              <FormLabel>New Stock Level *</FormLabel>
+              <FormLabel>{t('inventory.newStockLevel')} *</FormLabel>
               <FormInput
                 type="number"
                 min="0"
@@ -1152,11 +1154,11 @@ const InventoryListPage: React.FC = () => {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel>Notes</FormLabel>
+              <FormLabel>{t('inventory.notes')}</FormLabel>
               <FormTextarea
                 value={stockNotes}
                 onChange={e => setStockNotes(e.target.value)}
-                placeholder="Reason for adjustment (optional)"
+                placeholder={t('inventory.adjustmentReason')}
               />
             </FormGroup>
 
@@ -1164,13 +1166,13 @@ const InventoryListPage: React.FC = () => {
               <Button onClick={() => {
                 setShowStockModal(false)
                 setSelectedProduct(null)
-              }}>Cancel</Button>
+              }}>{t('common.cancel')}</Button>
               <Button
                 $variant="primary"
                 onClick={handleStockAdjustment}
                 disabled={saving}
               >
-                {saving ? 'Saving...' : 'Adjust Stock'}
+                {saving ? t('inventory.saving') : t('inventory.adjustStock')}
               </Button>
             </ModalActions>
           </ModalContent>
@@ -1184,22 +1186,22 @@ const InventoryListPage: React.FC = () => {
           setSelectedProduct(null)
         }}>
           <ModalContent onClick={e => e.stopPropagation()}>
-            <h2>Delete Product</h2>
+            <h2>{t('inventory.deleteProduct')}</h2>
             <ModalDescription>
-              Are you sure you want to delete <strong>{selectedProduct.name}</strong>?
-              This action cannot be undone.
+              {t('inventory.deleteConfirmation')} <strong>{selectedProduct.name}</strong>?
+              {t('invoices.cannotUndo')}
             </ModalDescription>
             <ModalActions>
               <Button onClick={() => {
                 setShowDeleteModal(false)
                 setSelectedProduct(null)
-              }}>Cancel</Button>
+              }}>{t('common.cancel')}</Button>
               <Button
                 $variant="danger"
                 onClick={handleDelete}
                 disabled={saving}
               >
-                {saving ? 'Deleting...' : 'Delete Product'}
+                {saving ? t('inventory.deletingProduct') : t('inventory.deleteProduct')}
               </Button>
             </ModalActions>
           </ModalContent>
