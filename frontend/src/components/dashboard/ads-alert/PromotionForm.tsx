@@ -322,21 +322,41 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
   const [mediaTab, setMediaTab] = useState<MediaSourceTab>('browse')
   const [chats, setChats] = useState<Chat[]>([])
   const [loading, setLoading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
   // Load chats for targeting
-  useEffect(() => {
-    const loadChats = async () => {
-      try {
-        const loadedChats = await adsAlertService.listChats({ subscribed_only: true })
-        setChats(loadedChats)
-      } catch (err) {
-        console.error('Failed to load chats:', err)
-      }
+  const loadChats = async () => {
+    try {
+      const loadedChats = await adsAlertService.listChats({ subscribed_only: true })
+      setChats(loadedChats)
+    } catch (err) {
+      console.error('Failed to load chats:', err)
     }
+  }
+
+  useEffect(() => {
     loadChats()
   }, [])
+
+  // Sync invoice customers to ads_alert chats
+  const handleSyncClients = async () => {
+    setSyncing(true)
+    setError(null)
+    try {
+      const result = await adsAlertService.syncCustomers()
+      setSuccess(result.message)
+      // Reload chats after sync
+      await loadChats()
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000)
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to sync clients')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   // Load existing media if editing
   useEffect(() => {
@@ -619,8 +639,20 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
         {targetType === 'selected' && (
           <ChatSelector>
             {chats.length === 0 ? (
-              <ChatItem as="div">
+              <ChatItem as="div" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
                 <span style={{ color: '#9ca3af' }}>No subscribed chats available</span>
+                <Button
+                  type="button"
+                  $variant="primary"
+                  onClick={handleSyncClients}
+                  disabled={syncing}
+                  style={{ padding: '8px 16px', fontSize: '13px' }}
+                >
+                  {syncing ? 'Syncing...' : 'Sync Clients from Invoice'}
+                </Button>
+                <span style={{ color: '#9ca3af', fontSize: '12px' }}>
+                  Click to sync linked customers from your client list
+                </span>
               </ChatItem>
             ) : (
               chats.map(chat => (

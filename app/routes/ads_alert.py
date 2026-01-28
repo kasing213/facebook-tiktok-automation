@@ -49,6 +49,51 @@ async def get_stats(
     return service.get_stats(current_user.tenant_id)
 
 
+# ==================== Sync Customers ====================
+
+@router.post("/sync-customers")
+async def sync_customers_to_ads_alert(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_owner)
+):
+    """
+    Sync all linked invoice customers to ads_alert.chat for campaign targeting.
+
+    This backfills existing customers who registered before the ads_alert integration,
+    ensuring they appear in the chat selection for promotional broadcasts.
+    """
+    from sqlalchemy import text
+
+    result = db.execute(text("""
+        INSERT INTO ads_alert.chat (tenant_id, customer_id, platform, chat_id, chat_name, customer_name, subscribed, is_active)
+        SELECT
+            c.tenant_id,
+            c.id as customer_id,
+            'telegram' as platform,
+            c.telegram_chat_id as chat_id,
+            c.name as chat_name,
+            c.name as customer_name,
+            TRUE as subscribed,
+            TRUE as is_active
+        FROM invoice.customer c
+        WHERE c.tenant_id = :tenant_id
+          AND c.telegram_chat_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM ads_alert.chat ac
+            WHERE ac.tenant_id = c.tenant_id
+              AND (ac.customer_id = c.id OR ac.chat_id = c.telegram_chat_id)
+          )
+        RETURNING id
+    """), {"tenant_id": str(current_user.tenant_id)})
+
+    synced = result.fetchall()
+    db.commit()
+
+    logger.info(f"Synced {len(synced)} customers to ads_alert for tenant {current_user.tenant_id}")
+
+    return {"synced": len(synced), "message": f"Synced {len(synced)} customers to ads alert"}
+
+
 # ==================== Chat Endpoints ====================
 
 @router.get("/chats", response_model=List[ChatResponse])

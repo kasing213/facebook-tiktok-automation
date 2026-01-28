@@ -48,6 +48,12 @@ export const adsAlertService = {
     return response.data
   },
 
+  // ==================== Sync Customers ====================
+  async syncCustomers(): Promise<{ synced: number; message: string }> {
+    const response = await adsAlertApi.post('/sync-customers')
+    return response.data
+  },
+
   // ==================== Chats ====================
   async listChats(params?: ChatListParams): Promise<Chat[]> {
     const response = await adsAlertApi.get('/chats', { params })
