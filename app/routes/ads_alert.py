@@ -444,7 +444,7 @@ async def send_promotion(
     # Estimate recipient count for broadcast limit check
     chat_repo = AdsAlertChatRepository(db)
     if promotion.target_type == "all":
-        recipient_count = chat_repo.count_active_by_tenant(current_user.tenant_id)
+        recipient_count = chat_repo.count_by_tenant(current_user.tenant_id)
     else:
         recipient_count = len(promotion.target_chat_ids or [])
 
