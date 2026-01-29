@@ -31,7 +31,8 @@ from app.services.ads_alert_service import AdsAlertService
 from app.services.content_moderation_service import content_moderation_service
 from app.core.usage_limits import (
     check_promotion_limit, increment_promotion_counter,
-    check_broadcast_limit, increment_broadcast_counter
+    check_broadcast_limit, increment_broadcast_counter,
+    check_storage_limit, increment_storage_usage
 )
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,7 @@ async def list_chats(
 
 
 @router.post("/chats", response_model=ChatResponse, status_code=status.HTTP_201_CREATED)
+@require_subscription_feature('marketing_chats')
 async def create_chat(
     data: ChatCreate,
     db: Session = Depends(get_db),
@@ -522,6 +524,7 @@ async def get_folder_tree(
 
 
 @router.post("/folders", response_model=FolderResponse, status_code=status.HTTP_201_CREATED)
+@require_subscription_feature('marketing_media')
 async def create_folder(
     data: FolderCreate,
     db: Session = Depends(get_db),
@@ -655,6 +658,7 @@ async def search_media(
 
 
 @router.post("/media/upload", response_model=MediaUploadResponse, status_code=status.HTTP_201_CREATED)
+@require_subscription_feature('marketing_media')
 async def upload_media(
     file: UploadFile = File(...),
     folder_id: Optional[UUID] = Form(None),
@@ -678,6 +682,10 @@ async def upload_media(
 
     # Read file content
     content = await file.read()
+    file_size_mb = len(content) / (1024 * 1024)  # Convert to MB
+
+    # Check storage limit before uploading
+    await check_storage_limit(current_user.tenant_id, file_size_mb, db)
 
     # Check file size (max 50MB)
     max_size = 50 * 1024 * 1024
@@ -699,6 +707,9 @@ async def upload_media(
             created_by=current_user.id
         )
         db.commit()
+
+        # Increment storage usage after successful upload
+        increment_storage_usage(current_user.tenant_id, file_size_mb, db)
 
         return {
             "id": media.id,
@@ -740,15 +751,17 @@ async def delete_media(
 
 
 @router.get("/media/file/{file_id}")
+@require_subscription_feature('marketing_media')
 async def get_media_file(
     file_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_member_or_owner)
 ):
     """
-    Stream media file from MongoDB GridFS.
+    Stream media file from MongoDB GridFS with proper tenant security.
 
-    The file_id is the GridFS ObjectId string stored in the media record's storage_path field.
+    Requires authentication and validates tenant access to prevent
+    unauthorized access to media files from other tenants.
     """
     service = AdsAlertService(db)
 
@@ -765,6 +778,6 @@ async def get_media_file(
         media_type=content_type,
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "public, max-age=31536000"  # 1 year cache
+            "Cache-Control": "private, max-age=86400"  # Private cache for security, 1 day
         }
     )

@@ -438,3 +438,48 @@ def update_subscription_limits(tenant_id: UUID, tier: SubscriptionTier, db: Sess
         WHERE id = :tenant_id
     """), {**limits, "tenant_id": tenant_id})
     db.commit()
+
+
+async def check_storage_limit(tenant_id: UUID, size_mb: float, db: Session) -> None:
+    """Check if tenant can store additional file of given size"""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Set limits based on subscription tier
+    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
+    if subscription_tier == SubscriptionTier.invoice_plus:
+        storage_limit = 1024  # 1 GB for Invoice Plus
+    elif subscription_tier == SubscriptionTier.marketing_plus:
+        storage_limit = 512   # 500 MB for Marketing Plus
+    elif subscription_tier == SubscriptionTier.pro:
+        storage_limit = 2048  # 2 GB for Pro
+    else:
+        storage_limit = 100   # 100 MB for free tier
+
+    current_storage = float(tenant.storage_used_mb) if tenant.storage_used_mb else 0.0
+    new_total = current_storage + size_mb
+
+    if new_total > storage_limit:
+        raise UsageLimitExceeded(
+            resource="storage",
+            current=int(current_storage),
+            limit=storage_limit
+        )
+
+
+def increment_storage_usage(tenant_id: UUID, size_mb: float, db: Session) -> None:
+    """Increment storage usage counter after successful file upload"""
+    db.execute(text("""
+        UPDATE tenant
+        SET storage_used_mb = COALESCE(storage_used_mb, 0) + :size_mb
+        WHERE id = :tenant_id
+    """), {"tenant_id": tenant_id, "size_mb": size_mb})
+    db.commit()
+
+
+def increment_product_counter(tenant_id: UUID, db: Session) -> None:
+    """Increment product counter after successful creation (for analytics)"""
+    # Note: Product limit is checked by counting actual products,
+    # not by counter, so this is just for analytics/reporting
+    pass

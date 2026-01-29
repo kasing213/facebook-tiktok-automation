@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from app.deps import get_db
-from app.core.authorization import get_current_member_or_owner, require_role
+from app.core.authorization import get_current_member_or_owner, require_role, require_subscription_feature
 from app.core.models import User, Product, StockMovement, MovementType, UserRole
 from app.repositories.product import ProductRepository
 from app.repositories.stock_movement import StockMovementRepository
 from app.services.product_image_service import ProductImageService
+from app.core.usage_limits import check_product_limit, check_storage_limit, increment_storage_usage
 import datetime as dt
 
 
@@ -126,12 +127,16 @@ def list_products(
 
 
 @router.post("/products", response_model=ProductResponse)
-def create_product(
+@require_subscription_feature('inventory_management')
+async def create_product(
     product_data: ProductCreate,
     current_user: User = Depends(get_current_member_or_owner),
     db: Session = Depends(get_db)
 ):
     """Create a new product"""
+    # Check product limit before creating (anti-abuse)
+    await check_product_limit(current_user.tenant_id, db)
+
     product_repo = ProductRepository(db)
 
     # Check for duplicate SKU if provided
@@ -194,6 +199,7 @@ def get_product(
 
 
 @router.put("/products/{product_id}", response_model=ProductResponse)
+@require_subscription_feature('inventory_management')
 def update_product(
     product_id: UUID,
     product_data: ProductUpdate,
@@ -254,6 +260,7 @@ def delete_product(
 
 
 @router.post("/adjust-stock")
+@require_subscription_feature('inventory_management')
 def adjust_stock(
     adjustment: StockAdjustmentRequest,
     current_user: User = Depends(get_current_member_or_owner),
@@ -359,6 +366,7 @@ def get_movement_summary(
 # ============================================================================
 
 @router.post("/products/{product_id}/image")
+@require_subscription_feature('inventory_management')
 async def upload_product_image(
     product_id: UUID,
     file: UploadFile = File(...),
@@ -381,6 +389,11 @@ async def upload_product_image(
 
     # Read and validate image
     content = await file.read()
+    file_size_mb = len(content) / (1024 * 1024)  # Convert to MB
+
+    # Check storage limit before uploading
+    await check_storage_limit(current_user.tenant_id, file_size_mb, db)
+
     image_service = ProductImageService()
 
     validation_error = image_service.validate_image(content, file.content_type)
@@ -407,6 +420,9 @@ async def upload_product_image(
         product_repo.update_by_tenant(product_id, current_user.tenant_id, image_id=image_id)
         db.commit()
 
+        # Increment storage usage after successful upload
+        increment_storage_usage(current_user.tenant_id, file_size_mb, db)
+
         return {
             "product_id": str(product_id),
             "image_id": image_id,
@@ -422,6 +438,7 @@ async def upload_product_image(
 
 
 @router.delete("/products/{product_id}/image")
+@require_subscription_feature('inventory_management')
 async def delete_product_image(
     product_id: UUID,
     current_user: User = Depends(get_current_member_or_owner),
@@ -464,18 +481,19 @@ async def delete_product_image(
 
 
 @router.get("/products/image/{image_id}")
-async def get_product_image(image_id: str):
+async def get_product_image(
+    image_id: str,
+    current_user: User = Depends(get_current_member_or_owner)
+):
     """
-    Serve product image from GridFS.
+    Serve product image from GridFS with proper tenant security.
 
-    This endpoint is PUBLIC (no auth required) because:
-    1. <img> tags cannot send Authorization headers
-    2. image_id (MongoDB ObjectId) is unguessable (24-char hex)
-    3. Images are cached by browsers, so auth would break caching
+    Now requires authentication and validates tenant access to prevent
+    unauthorized access to product images from other tenants.
     """
     image_service = ProductImageService()
-    # No tenant validation - security via unguessable image_id
-    result = await image_service.get_image(image_id, tenant_id=None)
+    # Validate tenant access to image
+    result = await image_service.get_image(image_id, tenant_id=current_user.tenant_id)
 
     if not result:
         raise HTTPException(
@@ -490,6 +508,6 @@ async def get_product_image(image_id: str):
         media_type=content_type,
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "public, max-age=86400"  # 1 day cache
+            "Cache-Control": "private, max-age=86400"  # Private cache for security
         }
     )
