@@ -41,6 +41,14 @@ class BroadcastStatusEnum(str, Enum):
     failed = "failed"
 
 
+class ModerationStatusEnum(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    flagged = "flagged"
+    skipped = "skipped"
+
+
 # Chat Schemas
 class ChatCreate(BaseModel):
     """Create a new chat registration"""
@@ -128,6 +136,12 @@ class PromotionResponse(BaseModel):
     created_by: Optional[UUID]
     created_at: datetime
     updated_at: datetime
+    # Moderation fields
+    moderation_status: Optional[ModerationStatusEnum] = None
+    moderation_result: Optional[dict] = None
+    moderation_score: Optional[float] = None
+    rejection_reason: Optional[str] = None
+    moderated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -19,7 +19,8 @@ from app.schemas.ads_alert import (
     PromotionScheduleRequest, BroadcastResponse,
     FolderCreate, FolderResponse, FolderTreeResponse,
     MediaResponse, MediaUploadResponse, MediaDeleteResponse,
-    AdsAlertStats, PromotionStatusEnum, MediaTypeEnum, CustomerTargetTypeEnum
+    AdsAlertStats, PromotionStatusEnum, MediaTypeEnum, CustomerTargetTypeEnum,
+    ModerationStatusEnum
 )
 from app.core.models import PromotionCustomerTargetType
 from app.repositories.ads_alert import (
