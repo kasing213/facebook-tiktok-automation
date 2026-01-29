@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.core.config import get_settings
-from app.routes.auth import get_current_user
+from app.core.dependencies import get_current_user
 from app.core.models import User
 from app.core.db import get_db
 from app.routes.subscriptions import require_pro_tier

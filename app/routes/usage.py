@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.routes.auth import get_current_user
+from app.core.dependencies import get_current_user
 from app.core.models import User
 from app.core.usage_limits import get_tenant_usage_limits, check_and_notify_usage_warnings
 

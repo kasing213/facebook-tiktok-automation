@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.config import get_settings
 from app.core.models import User, Subscription, SubscriptionTier, SubscriptionStatus
-from app.routes.auth import get_current_user
+from app.core.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
 

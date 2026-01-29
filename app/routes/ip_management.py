@@ -12,13 +12,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.deps import LoggerDep
-from app.routes.auth import get_current_user
+from app.core.dependencies import get_current_user
+from app.core.authorization import get_current_owner
 from app.core.models import User, UserRole, IPRuleType, IPAccessRule, RateLimitViolation
 from app.core.db import SessionLocal
 from app.repositories.ip_access import IPAccessRepository
 from app.core.exceptions import (
     IPAlreadyWhitelisted, IPAlreadyBlacklisted, IPRuleNotFound, IPNotBanned,
-    InvalidIPAddress, IPRuleCreationFailed, AdminAccessRequired, DatabaseError
+    InvalidIPAddress, IPRuleCreationFailed, DatabaseError
 )
 
 
@@ -87,18 +88,11 @@ def validate_ip_address(ip_address: str) -> bool:
         return False
 
 
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """Dependency to require admin role"""
-    if current_user.role != UserRole.admin:
-        raise AdminAccessRequired(action="manage IP access rules")
-    return current_user
-
-
 @router.post("/rules", response_model=IPRuleResponse)
 def create_ip_rule(
     request: CreateIPRuleRequest,
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin)
+    admin_user: User = Depends(get_current_owner)
 ):
     """
     Create IP access rule (whitelist/blacklist)
@@ -165,7 +159,7 @@ def create_ip_rule(
 @router.get("/rules", response_model=List[IPRuleResponse])
 def list_ip_rules(
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin),
+    admin_user: User = Depends(get_current_owner),
     rule_type: Optional[IPRuleType] = Query(None, description="Filter by rule type")
 ):
     """
@@ -207,7 +201,7 @@ def list_ip_rules(
 def remove_ip_rule(
     ip_address: str,
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin),
+    admin_user: User = Depends(get_current_owner),
     rule_type: IPRuleType = Query(..., description="Rule type to remove")
 ):
     """
@@ -252,7 +246,7 @@ def remove_ip_rule(
 def unban_ip(
     ip_address: str,
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin)
+    admin_user: User = Depends(get_current_owner)
 ):
     """
     Manually unban an IP address (removes auto-ban and blacklist)
@@ -309,7 +303,7 @@ def unban_ip(
 @router.get("/violations", response_model=List[RateLimitViolationResponse])
 def list_rate_violations(
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin),
+    admin_user: User = Depends(get_current_owner),
     limit: int = Query(100, description="Maximum violations to return", ge=1, le=500),
     ip_address: Optional[str] = Query(None, description="Filter by IP address")
 ):
@@ -365,7 +359,7 @@ def list_rate_violations(
 def check_ip_status(
     ip_address: str,
     logger: LoggerDep,
-    admin_user: User = Depends(require_admin)
+    admin_user: User = Depends(get_current_owner)
 ):
     """
     Check IP access status

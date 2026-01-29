@@ -18,7 +18,7 @@ from app.deps import (
     AuthSvc, LoggerDep, SettingsDep
 )
 from app.core.models import Platform, User
-from app.routes.auth import get_current_user
+from app.core.dependencies import get_current_user
 from app.core.authorization import get_current_owner, require_owner
 from app.core.exceptions import (
     OAuthInitiationFailed, OAuthStateMismatch, OAuthCodeExchangeFailed,

@@ -13,7 +13,7 @@ from app.core.db import get_db
 from app.core.config import get_settings
 from app.core.models import User
 from app.repositories import TelegramRepository
-from app.routes.auth import get_current_user
+from app.core.dependencies import get_current_user
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
