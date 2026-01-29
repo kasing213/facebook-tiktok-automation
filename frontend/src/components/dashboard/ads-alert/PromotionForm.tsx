@@ -299,6 +299,54 @@ const SuccessMessage = styled.div`
   font-size: 14px;
 `
 
+const ModerationInfo = styled.div<{ $status: string }>`
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  border: 1px solid;
+
+  ${props => {
+    switch (props.$status) {
+      case 'approved':
+        return `
+          background: #f0fdf4;
+          border-color: #bbf7d0;
+          color: #16a34a;
+        `
+      case 'pending':
+        return `
+          background: #fefbf3;
+          border-color: #fde68a;
+          color: #d97706;
+        `
+      case 'rejected':
+        return `
+          background: #fef2f2;
+          border-color: #fecaca;
+          color: #dc2626;
+        `
+      case 'flagged':
+        return `
+          background: #fefbf3;
+          border-color: #fde68a;
+          color: #d97706;
+        `
+      default:
+        return `
+          background: #f9fafb;
+          border-color: #d1d5db;
+          color: #6b7280;
+        `
+    }
+  }}
+`
+
+const ModerationDetails = styled.div`
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+`
+
 type MediaSourceTab = 'browse' | 'upload'
 
 const PromotionForm: React.FC<PromotionFormProps> = ({
@@ -498,8 +546,33 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
       }
 
       onSave?.(savedPromotion)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save promotion')
+    } catch (err: any) {
+      console.error('Failed to save/send promotion:', err)
+
+      // Handle specific error responses from the backend
+      if (err.response?.data?.detail) {
+        const errorDetail = err.response.data.detail
+
+        if (typeof errorDetail === 'object') {
+          // Handle structured error responses (content violations)
+          if (errorDetail.error === 'content_violation') {
+            setError(`❌ Content Violation: ${errorDetail.message}\n\nViolations found: ${errorDetail.violations?.join(', ')}\n\nPlease edit your content to remove policy violations and try again.`)
+          } else if (errorDetail.error === 'content_rejected') {
+            setError(`❌ Content Rejected: ${errorDetail.message}\n\nRecommendation: ${errorDetail.recommendation}`)
+          } else if (errorDetail.error === 'content_pending_moderation') {
+            setError(`⏳ Content Under Review: ${errorDetail.message}`)
+          } else if (errorDetail.error === 'content_flagged_for_review') {
+            setError(`⚠️ Content Flagged: ${errorDetail.message}`)
+          } else {
+            setError(`❌ Error: ${errorDetail.message || 'Failed to save promotion'}`)
+          }
+        } else {
+          // Handle simple string error messages
+          setError(`❌ Failed to save promotion: ${errorDetail}`)
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to save promotion')
+      }
     } finally {
       setLoading(false)
     }
@@ -532,6 +605,45 @@ const PromotionForm: React.FC<PromotionFormProps> = ({
     <Form onSubmit={(e) => e.preventDefault()}>
       {error && <ErrorMessage>{error}</ErrorMessage>}
       {success && <SuccessMessage>{success}</SuccessMessage>}
+
+      {/* Display moderation status for existing promotions */}
+      {promotion?.moderation_status && (
+        <ModerationInfo $status={promotion.moderation_status}>
+          {promotion.moderation_status === 'approved' && (
+            <>
+              ✅ <strong>Content Approved</strong> - This promotion has passed content moderation checks and can be sent.
+            </>
+          )}
+          {promotion.moderation_status === 'pending' && (
+            <>
+              ⏳ <strong>Under Review</strong> - Content is being reviewed for policy compliance.
+            </>
+          )}
+          {promotion.moderation_status === 'rejected' && (
+            <>
+              ❌ <strong>Content Rejected</strong> - This promotion contains policy violations and cannot be sent.
+              {promotion.rejection_reason && (
+                <ModerationDetails>
+                  <strong>Reason:</strong> {promotion.rejection_reason}
+                </ModerationDetails>
+              )}
+            </>
+          )}
+          {promotion.moderation_status === 'flagged' && (
+            <>
+              ⚠️ <strong>Flagged for Review</strong> - Content requires manual admin approval before sending.
+            </>
+          )}
+          {promotion.moderated_at && (
+            <ModerationDetails>
+              Reviewed: {new Date(promotion.moderated_at).toLocaleString()}
+              {promotion.moderation_score && (
+                <> | Score: {Math.round(promotion.moderation_score)}%</>
+              )}
+            </ModerationDetails>
+          )}
+        </ModerationInfo>
+      )}
 
       <FormSection>
         <Label>Title *</Label>

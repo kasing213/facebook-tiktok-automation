@@ -181,6 +181,49 @@ const StatusBadge = styled.span<{ $status: string }>`
   }}
 `
 
+const ModerationBadge = styled.span<{ $status: string }>`
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+
+  ${props => {
+    switch (props.$status) {
+      case 'approved':
+        return `
+          background: #d1fae5;
+          color: #059669;
+        `
+      case 'pending':
+        return `
+          background: #fef3c7;
+          color: #d97706;
+        `
+      case 'rejected':
+        return `
+          background: #fee2e2;
+          color: #dc2626;
+        `
+      case 'flagged':
+        return `
+          background: #fde68a;
+          color: #f59e0b;
+        `
+      case 'skipped':
+        return `
+          background: #e5e7eb;
+          color: #6b7280;
+        `
+      default:
+        return `
+          background: #f3f4f6;
+          color: #6b7280;
+        `
+    }
+  }}
+`
+
 const Actions = styled.div`
   display: flex;
   gap: 8px;
@@ -285,14 +328,55 @@ const PromotionList: React.FC<PromotionListProps> = ({
 
   const handleSend = async (promotion: Promotion, e: React.MouseEvent) => {
     e.stopPropagation()
+
+    // Check if promotion can be sent based on moderation status
+    if (promotion.moderation_status === 'rejected') {
+      const reason = promotion.rejection_reason || 'Content violates platform policies'
+      alert(`❌ Cannot send promotion: ${reason}\n\nPlease edit the content to remove policy violations.`)
+      return
+    }
+
+    if (promotion.moderation_status === 'pending') {
+      alert('⏳ Cannot send promotion: Content is still being reviewed for policy compliance. Please wait for approval.')
+      return
+    }
+
+    if (promotion.moderation_status === 'flagged') {
+      alert('⚠️ Cannot send promotion: Content requires manual admin approval before sending.')
+      return
+    }
+
     if (!confirm('Send this promotion now?')) return
 
     try {
       await adsAlertService.sendPromotion(promotion.id)
       loadPromotions()
-    } catch (error) {
+      alert('✅ Promotion sent successfully!')
+    } catch (error: any) {
       console.error('Failed to send promotion:', error)
-      alert('Failed to send promotion')
+
+      // Handle specific error responses from the backend
+      if (error.response?.data?.detail) {
+        const errorDetail = error.response.data.detail
+
+        if (typeof errorDetail === 'object') {
+          // Handle structured error responses (content violations)
+          if (errorDetail.error === 'content_rejected') {
+            alert(`❌ Content Violation: ${errorDetail.message}\n\nViolations found: ${errorDetail.violations?.join(', ')}\n\nRecommendation: ${errorDetail.recommendation}`)
+          } else if (errorDetail.error === 'content_pending_moderation') {
+            alert(`⏳ ${errorDetail.message}`)
+          } else if (errorDetail.error === 'content_flagged_for_review') {
+            alert(`⚠️ ${errorDetail.message}`)
+          } else {
+            alert(`❌ Error: ${errorDetail.message || 'Failed to send promotion'}`)
+          }
+        } else {
+          // Handle simple string error messages
+          alert(`❌ Failed to send promotion: ${errorDetail}`)
+        }
+      } else {
+        alert('❌ Failed to send promotion. Please try again.')
+      }
     }
   }
 
@@ -449,13 +533,27 @@ const PromotionList: React.FC<PromotionListProps> = ({
                   {promotion.status.charAt(0).toUpperCase() + promotion.status.slice(1)}
                 </StatusBadge>
 
+                {promotion.moderation_status && (
+                  <ModerationBadge $status={promotion.moderation_status}>
+                    {promotion.moderation_status}
+                  </ModerationBadge>
+                )}
+
                 <Actions onClick={e => e.stopPropagation()}>
                   {promotion.status === 'draft' && (
                     <>
                       <ActionButton onClick={(e) => { e.stopPropagation(); onEdit?.(promotion) }}>
                         Edit
                       </ActionButton>
-                      <ActionButton $variant="primary" onClick={(e) => handleSend(promotion, e)}>
+                      <ActionButton
+                        $variant="primary"
+                        onClick={(e) => handleSend(promotion, e)}
+                        disabled={promotion.moderation_status === 'rejected' || promotion.moderation_status === 'pending' || promotion.moderation_status === 'flagged'}
+                        style={{
+                          opacity: (promotion.moderation_status === 'rejected' || promotion.moderation_status === 'pending' || promotion.moderation_status === 'flagged') ? 0.5 : 1,
+                          cursor: (promotion.moderation_status === 'rejected' || promotion.moderation_status === 'pending' || promotion.moderation_status === 'flagged') ? 'not-allowed' : 'pointer'
+                        }}
+                      >
                         Send
                       </ActionButton>
                     </>

@@ -4,6 +4,7 @@ export type PromotionStatus = 'draft' | 'scheduled' | 'sent' | 'cancelled'
 export type MediaType = 'text' | 'image' | 'video' | 'document' | 'mixed'
 export type TargetType = 'all' | 'selected'
 export type BroadcastStatus = 'pending' | 'sent' | 'failed'
+export type ModerationStatus = 'pending' | 'approved' | 'rejected' | 'flagged' | 'skipped'
 
 // Chat types
 export interface Chat {
@@ -51,6 +52,12 @@ export interface Promotion {
   created_by?: string
   created_at: string
   updated_at: string
+  // Moderation fields
+  moderation_status?: ModerationStatus
+  moderation_result?: any
+  moderation_score?: number
+  rejection_reason?: string
+  moderated_at?: string
 }
 
 export interface PromotionCreate {
