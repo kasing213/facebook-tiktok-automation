@@ -7,7 +7,24 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.models import Tenant, SubscriptionTier
+from app.core.models import Tenant, SubscriptionTier, Subscription, User, UserRole
+
+
+def get_tenant_subscription_tier(tenant_id: UUID, db: Session) -> SubscriptionTier:
+    """
+    Get the subscription tier for a tenant by checking the owner's subscription.
+    Returns SubscriptionTier.free if no subscription found.
+    """
+    # Query the owner's subscription to determine tier
+    owner_subscription = db.query(Subscription).join(User).filter(
+        User.tenant_id == tenant_id,
+        User.role == UserRole.admin
+    ).first()
+
+    if owner_subscription and owner_subscription.tier:
+        return owner_subscription.tier
+
+    return SubscriptionTier.free
 
 
 class UsageLimitExceeded(HTTPException):
@@ -50,8 +67,8 @@ def get_tenant_usage_limits(tenant_id: UUID, db: Session) -> Dict:
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Get subscription tier to determine if limits apply
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
 
     return {
         "limits": {
@@ -83,8 +100,8 @@ async def check_invoice_limit(tenant_id: UUID, db: Session) -> None:
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Invoice Plus and Pro tiers have higher limits
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
     if subscription_tier in [SubscriptionTier.invoice_plus, SubscriptionTier.pro]:
         # High limit for paid tiers (effectively unlimited)
         if tenant.current_month_invoices >= 200:
@@ -111,8 +128,8 @@ async def check_customer_limit(tenant_id: UUID, db: Session) -> None:
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Set limits based on subscription tier
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
     if subscription_tier in [SubscriptionTier.invoice_plus, SubscriptionTier.pro]:
         limit = 250  # Paid tiers get higher limit
     else:
@@ -141,8 +158,8 @@ async def check_product_limit(tenant_id: UUID, db: Session) -> None:
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Set limits based on subscription tier
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
     if subscription_tier in [SubscriptionTier.invoice_plus, SubscriptionTier.pro]:
         limit = 500  # Paid tiers get higher limit
     else:
@@ -214,8 +231,8 @@ async def check_export_limit(tenant_id: UUID, db: Session) -> None:
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Set limits based on subscription tier
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
     if subscription_tier in [SubscriptionTier.invoice_plus, SubscriptionTier.pro]:
         export_limit = 100  # Paid tiers get higher limit
     else:
@@ -255,8 +272,10 @@ async def check_promotion_limit(tenant_id: UUID, db: Session) -> None:
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
+
     # Free tier: NO promotions allowed (prevent spam)
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
     if subscription_tier == SubscriptionTier.free:
         raise UsageLimitExceeded(
             resource="promotion",
@@ -286,8 +305,10 @@ async def check_broadcast_limit(tenant_id: UUID, recipient_count: int, db: Sessi
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
+
     # Free tier: NO broadcasts allowed (prevent spam)
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
     if subscription_tier == SubscriptionTier.free:
         raise UsageLimitExceeded(
             resource="broadcast",
@@ -446,8 +467,8 @@ async def check_storage_limit(tenant_id: UUID, size_mb: float, db: Session) -> N
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Set limits based on subscription tier
-    subscription_tier = getattr(tenant, 'subscription_tier', SubscriptionTier.free)
+    # Get actual subscription tier from Subscription table
+    subscription_tier = get_tenant_subscription_tier(tenant_id, db)
     if subscription_tier == SubscriptionTier.invoice_plus:
         storage_limit = 1024  # 1 GB for Invoice Plus
     elif subscription_tier == SubscriptionTier.marketing_plus:
