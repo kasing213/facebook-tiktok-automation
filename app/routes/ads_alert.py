@@ -404,7 +404,7 @@ async def send_promotion(
     """Send a promotion immediately to all target chats"""
     # Get promotion and check recipient count before sending (anti-abuse)
     promotion_repo = AdsAlertPromotionRepository(db)
-    promotion = promotion_repo.get_by_tenant(promotion_id, current_user.tenant_id)
+    promotion = promotion_repo.get_by_id_and_tenant(promotion_id, current_user.tenant_id)
     if not promotion:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Promotion not found")
 
