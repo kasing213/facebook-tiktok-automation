@@ -277,6 +277,7 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [imageBlobs, setImageBlobs] = useState<Record<string, string>>({})
 
   // Load folder tree
   useEffect(() => {
@@ -328,6 +329,47 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({
   useEffect(() => {
     setSelectedFiles(new Set(selectedIds))
   }, [selectedIds])
+
+  // Fetch blob URLs for images when files change
+  useEffect(() => {
+    const loadImageBlobs = async () => {
+      const blobMap: Record<string, string> = {}
+      for (const file of files) {
+        if (file.file_type.startsWith('image/')) {
+          const url = file.thumbnail_url || file.url
+          if (url && url.includes('/ads-alert/media/file/')) {
+            try {
+              const blobUrl = await adsAlertService.getMediaBlobUrl(url)
+              if (blobUrl) {
+                blobMap[file.id] = blobUrl
+              }
+            } catch (error) {
+              console.error(`Failed to load image for file ${file.id}:`, error)
+            }
+          } else if (url) {
+            // External URL, use directly
+            blobMap[file.id] = url
+          }
+        }
+      }
+      setImageBlobs(blobMap)
+    }
+
+    if (files.length > 0) {
+      loadImageBlobs()
+    } else {
+      setImageBlobs({})
+    }
+
+    // Cleanup blob URLs on unmount or when files change
+    return () => {
+      Object.values(imageBlobs).forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url)
+        }
+      })
+    }
+  }, [files])
 
   const handleFolderClick = useCallback((folderId: string | null, folderName: string) => {
     setCurrentFolder(folderId)
@@ -556,10 +598,10 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({
                 onDoubleClick={() => handleFileDoubleClick(file)}
               >
                 <FileThumbnail>
-                  {file.file_type.startsWith('image/') && file.thumbnail_url ? (
-                    <ThumbnailImage src={file.thumbnail_url} alt={file.filename} />
-                  ) : file.file_type.startsWith('image/') && file.url ? (
-                    <ThumbnailImage src={file.url} alt={file.filename} />
+                  {file.file_type.startsWith('image/') && imageBlobs[file.id] ? (
+                    <ThumbnailImage src={imageBlobs[file.id]} alt={file.filename} />
+                  ) : file.file_type.startsWith('image/') ? (
+                    <ThumbnailIcon>{getFileIcon(file.file_type)}</ThumbnailIcon>
                   ) : (
                     <ThumbnailIcon>{getFileIcon(file.file_type)}</ThumbnailIcon>
                   )}
