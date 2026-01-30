@@ -271,6 +271,8 @@ class BroadcastRequest(BaseModel):
     content: str
     media_type: str = "text"  # text, image, video, document, mixed
     media_urls: list[str] = []
+    # Base64-encoded file data for internal media (when URLs are not publicly accessible)
+    media_data: list[dict] = []  # [{data: base64, content_type: str, filename: str}]
 
 
 class BroadcastResult(BaseModel):
@@ -294,12 +296,14 @@ async def broadcast_message(data: BroadcastRequest):
 
     Called by the main backend's ads-alert system for promotional broadcasts.
     """
-    from aiogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
+    import base64
+    from aiogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument, BufferedInputFile
 
     # Entry log
     logger.info(
         f"Broadcast request received: chat_count={len(data.chat_ids)}, "
         f"media_type={data.media_type}, media_urls={len(data.media_urls)}, "
+        f"media_data={len(data.media_data)}, "
         f"content_len={len(data.content) if data.content else 0}"
     )
 
@@ -311,6 +315,24 @@ async def broadcast_message(data: BroadcastRequest):
             status_code=503,
             detail="Telegram bot not configured"
         )
+
+    # Prepare BufferedInputFile from base64 media_data if provided
+    media_files = []
+    if data.media_data:
+        logger.info(f"Processing {len(data.media_data)} base64 media files")
+        for i, item in enumerate(data.media_data):
+            try:
+                file_bytes = base64.b64decode(item.get("data", ""))
+                filename = item.get("filename", f"media_{i}")
+                content_type = item.get("content_type", "application/octet-stream")
+                media_files.append({
+                    "file": BufferedInputFile(file_bytes, filename=filename),
+                    "content_type": content_type,
+                    "filename": filename
+                })
+                logger.debug(f"Prepared media file {i}: {filename} ({content_type}, {len(file_bytes)} bytes)")
+            except Exception as e:
+                logger.error(f"Failed to decode media_data[{i}]: {e}")
 
     # Log media processing details
     if data.media_urls:
@@ -330,37 +352,66 @@ async def broadcast_message(data: BroadcastRequest):
                 )
                 results.append(BroadcastResult(chat_id=chat_id, success=True))
 
-            elif data.media_type == "image" and data.media_urls:
+            elif data.media_type == "image" and (media_files or data.media_urls):
                 # Single image with caption
-                logger.debug(f"Sending image to {chat_id}: {data.media_urls[0]}")
-                await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=data.media_urls[0],
-                    caption=data.content[:1024] if data.content else None,
-                    parse_mode="HTML"
-                )
+                if media_files:
+                    # Use base64 decoded file (BufferedInputFile)
+                    logger.debug(f"Sending image to {chat_id} using BufferedInputFile: {media_files[0]['filename']}")
+                    await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=media_files[0]["file"],
+                        caption=data.content[:1024] if data.content else None,
+                        parse_mode="HTML"
+                    )
+                else:
+                    # Fallback to URL (for external images)
+                    logger.debug(f"Sending image to {chat_id}: {data.media_urls[0]}")
+                    await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=data.media_urls[0],
+                        caption=data.content[:1024] if data.content else None,
+                        parse_mode="HTML"
+                    )
                 results.append(BroadcastResult(chat_id=chat_id, success=True))
 
-            elif data.media_type == "video" and data.media_urls:
+            elif data.media_type == "video" and (media_files or data.media_urls):
                 # Single video with caption
-                logger.debug(f"Sending video to {chat_id}: {data.media_urls[0]}")
-                await bot.send_video(
-                    chat_id=chat_id,
-                    video=data.media_urls[0],
-                    caption=data.content[:1024] if data.content else None,
-                    parse_mode="HTML"
-                )
+                if media_files:
+                    logger.debug(f"Sending video to {chat_id} using BufferedInputFile: {media_files[0]['filename']}")
+                    await bot.send_video(
+                        chat_id=chat_id,
+                        video=media_files[0]["file"],
+                        caption=data.content[:1024] if data.content else None,
+                        parse_mode="HTML"
+                    )
+                else:
+                    logger.debug(f"Sending video to {chat_id}: {data.media_urls[0]}")
+                    await bot.send_video(
+                        chat_id=chat_id,
+                        video=data.media_urls[0],
+                        caption=data.content[:1024] if data.content else None,
+                        parse_mode="HTML"
+                    )
                 results.append(BroadcastResult(chat_id=chat_id, success=True))
 
-            elif data.media_type == "document" and data.media_urls:
+            elif data.media_type == "document" and (media_files or data.media_urls):
                 # Single document with caption
-                logger.debug(f"Sending document to {chat_id}: {data.media_urls[0]}")
-                await bot.send_document(
-                    chat_id=chat_id,
-                    document=data.media_urls[0],
-                    caption=data.content[:1024] if data.content else None,
-                    parse_mode="HTML"
-                )
+                if media_files:
+                    logger.debug(f"Sending document to {chat_id} using BufferedInputFile: {media_files[0]['filename']}")
+                    await bot.send_document(
+                        chat_id=chat_id,
+                        document=media_files[0]["file"],
+                        caption=data.content[:1024] if data.content else None,
+                        parse_mode="HTML"
+                    )
+                else:
+                    logger.debug(f"Sending document to {chat_id}: {data.media_urls[0]}")
+                    await bot.send_document(
+                        chat_id=chat_id,
+                        document=data.media_urls[0],
+                        caption=data.content[:1024] if data.content else None,
+                        parse_mode="HTML"
+                    )
                 results.append(BroadcastResult(chat_id=chat_id, success=True))
 
             elif data.media_type == "mixed" and data.media_urls:

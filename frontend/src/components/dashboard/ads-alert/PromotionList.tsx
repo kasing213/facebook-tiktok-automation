@@ -306,6 +306,7 @@ const PromotionList: React.FC<PromotionListProps> = ({
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [imageBlobs, setImageBlobs] = useState<Record<string, string>>({})
 
   // Animation for promotion cards (max 10 for performance)
   const cardsVisible = useStaggeredAnimation(Math.min(promotions.length, 10), 80)
@@ -313,6 +314,40 @@ const PromotionList: React.FC<PromotionListProps> = ({
   useEffect(() => {
     loadPromotions()
   }, [filter])
+
+  // Fetch blob URLs for images when promotions change
+  useEffect(() => {
+    const loadImageBlobs = async () => {
+      const blobMap: Record<string, string> = {}
+      for (const promotion of promotions) {
+        const imageUrl = getFirstImageUrl(promotion)
+        if (imageUrl && imageUrl.includes('/ads-alert/media/file/')) {
+          try {
+            const blobUrl = await adsAlertService.getMediaBlobUrl(imageUrl)
+            if (blobUrl) {
+              blobMap[promotion.id] = blobUrl
+            }
+          } catch (error) {
+            console.error(`Failed to load image for promotion ${promotion.id}:`, error)
+          }
+        }
+      }
+      setImageBlobs(blobMap)
+    }
+
+    if (promotions.length > 0) {
+      loadImageBlobs()
+    }
+
+    // Cleanup blob URLs on unmount or when promotions change
+    return () => {
+      Object.values(imageBlobs).forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url)
+        }
+      })
+    }
+  }, [promotions])
 
   const loadPromotions = async () => {
     setLoading(true)
@@ -515,7 +550,14 @@ const PromotionList: React.FC<PromotionListProps> = ({
               >
                 <MediaPreview>
                   {imageUrl ? (
-                    <PreviewImage src={imageUrl} alt="" />
+                    <PreviewImage
+                      src={imageBlobs[promotion.id] || imageUrl}
+                      alt=""
+                      onError={(e) => {
+                        // Hide broken images
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
                   ) : (
                     <PreviewIcon>{getMediaIcon(promotion.media_type)}</PreviewIcon>
                   )}
@@ -592,7 +634,7 @@ const PromotionList: React.FC<PromotionListProps> = ({
                       Edit
                     </ActionButton>
                   )}
-                  {(promotion.status === 'draft' || promotion.status === 'cancelled') && (
+                  {(promotion.status === 'draft' || promotion.status === 'cancelled' || promotion.status === 'sent') && (
                     <ActionButton
                       $variant="danger"
                       onClick={(e) => handleDelete(promotion, e)}

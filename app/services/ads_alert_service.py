@@ -6,6 +6,7 @@ Handles media uploads to MongoDB GridFS and broadcasting to Telegram.
 import uuid
 import logging
 import httpx
+import base64
 from typing import List, Optional, Tuple
 from uuid import UUID
 from datetime import datetime, timezone
@@ -161,15 +162,61 @@ class GridFSStorageService:
 class BroadcastService:
     """Handle broadcasting promotions to Telegram chats via API Gateway"""
 
-    def __init__(self):
+    def __init__(self, storage_service: 'GridFSStorageService' = None):
         self.api_gateway_url = settings.API_GATEWAY_URL
+        self.storage_service = storage_service
+
+    async def _prepare_media_data(
+        self,
+        media_urls: List[str],
+        tenant_id: UUID
+    ) -> Tuple[List[str], List[dict]]:
+        """
+        Prepare media for broadcast by converting internal URLs to base64.
+
+        Returns:
+            Tuple of (external_urls, base64_media_data)
+            - external_urls: URLs Telegram can fetch directly
+            - base64_media_data: List of {data, content_type, filename} for internal media
+        """
+        external_urls = []
+        media_data = []
+
+        if not self.storage_service:
+            logger.warning("No storage service configured - returning URLs as-is")
+            return media_urls, []
+
+        for url in media_urls:
+            if '/ads-alert/media/file/' in url:
+                # Internal URL - extract file_id and fetch from GridFS
+                file_id = url.split('/ads-alert/media/file/')[-1]
+                try:
+                    result = await self.storage_service.get_file(file_id, tenant_id)
+                    if result:
+                        content, content_type, filename = result
+                        media_data.append({
+                            "data": base64.b64encode(content).decode('utf-8'),
+                            "content_type": content_type,
+                            "filename": filename
+                        })
+                        logger.debug(f"Prepared media file: {filename} ({content_type}, {len(content)} bytes)")
+                    else:
+                        logger.warning(f"Could not fetch file {file_id} from GridFS")
+                except Exception as e:
+                    logger.error(f"Error fetching file {file_id} from GridFS: {e}")
+            else:
+                # External URL - Telegram can fetch directly
+                external_urls.append(url)
+
+        return external_urls, media_data
 
     async def send_promotion_to_chat(
         self,
         chat_id: str,
         content: str,
         media_type: str,
-        media_urls: List[str]
+        media_urls: List[str],
+        tenant_id: UUID = None
     ) -> Tuple[bool, Optional[str]]:
         """
         Send a promotion to a single chat via API Gateway.
@@ -181,17 +228,24 @@ class BroadcastService:
             logger.warning("API Gateway URL not configured")
             return False, "API Gateway not configured"
 
-        logger.debug(f"Sending promotion to chat {chat_id}: media_type={media_type}, media_count={len(media_urls)}, content_len={len(content)}")
+        # Prepare media - convert internal URLs to base64
+        external_urls = media_urls
+        media_data = []
+        if tenant_id and media_urls:
+            external_urls, media_data = await self._prepare_media_data(media_urls, tenant_id)
+
+        logger.debug(f"Sending promotion to chat {chat_id}: media_type={media_type}, external_urls={len(external_urls)}, media_data={len(media_data)}, content_len={len(content)}")
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:  # Increased timeout for base64 payloads
                 response = await client.post(
                     f"{self.api_gateway_url}/internal/telegram/broadcast",
                     json={
                         "chat_ids": [chat_id],
                         "content": content,
                         "media_type": media_type,
-                        "media_urls": media_urls
+                        "media_urls": external_urls,
+                        "media_data": media_data
                     }
                 )
 
@@ -260,12 +314,13 @@ class BroadcastService:
                 status=BroadcastStatus.pending
             )
 
-            # Send to chat
+            # Send to chat (pass tenant_id for GridFS media access)
             success, error = await self.send_promotion_to_chat(
                 chat_id=chat.chat_id,
                 content=promotion.content or "",
                 media_type=promotion.media_type.value if promotion.media_type else "text",
-                media_urls=promotion.media_urls or []
+                media_urls=promotion.media_urls or [],
+                tenant_id=promotion.tenant_id
             )
 
             if success:
@@ -315,7 +370,7 @@ class AdsAlertService:
         self.folder_repo = AdsAlertMediaFolderRepository(db)
         self.broadcast_log_repo = AdsAlertBroadcastLogRepository(db)
         self.storage_service = GridFSStorageService()
-        self.broadcast_service = BroadcastService()
+        self.broadcast_service = BroadcastService(storage_service=self.storage_service)
 
     # ==================== Media Operations ====================
 

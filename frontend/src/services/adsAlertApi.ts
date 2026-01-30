@@ -199,6 +199,29 @@ export const adsAlertService = {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ]
     return allowedTypes.includes(mimeType)
+  },
+
+  /**
+   * Fetch authenticated media as blob URL for img tags.
+   * Converts internal API URLs to blob URLs that can be used in <img> src.
+   */
+  async getMediaBlobUrl(url: string): Promise<string> {
+    // Return external URLs as-is
+    if (!url.includes('/ads-alert/media/file/')) {
+      return url
+    }
+
+    try {
+      // Strip /api prefix if present and fetch with auth
+      const apiPath = url.replace('/api/ads-alert', '').replace('/ads-alert', '')
+      const response = await adsAlertApi.get(apiPath, {
+        responseType: 'blob'
+      })
+      return URL.createObjectURL(response.data)
+    } catch (error) {
+      console.error('Failed to fetch media:', error)
+      return ''
+    }
   }
 }
 
