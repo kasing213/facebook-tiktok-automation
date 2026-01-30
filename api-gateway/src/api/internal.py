@@ -296,13 +296,25 @@ async def broadcast_message(data: BroadcastRequest):
     """
     from aiogram.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
 
+    # Entry log
+    logger.info(
+        f"Broadcast request received: chat_count={len(data.chat_ids)}, "
+        f"media_type={data.media_type}, media_urls={len(data.media_urls)}, "
+        f"content_len={len(data.content) if data.content else 0}"
+    )
+
     bot, _ = create_bot()
 
     if not bot:
+        logger.error("Broadcast failed: Telegram bot not configured")
         raise HTTPException(
             status_code=503,
             detail="Telegram bot not configured"
         )
+
+    # Log media processing details
+    if data.media_urls:
+        logger.debug(f"Processing media URLs: {data.media_urls}")
 
     results = []
 
@@ -310,6 +322,7 @@ async def broadcast_message(data: BroadcastRequest):
         try:
             if data.media_type == "text":
                 # Plain text message
+                logger.debug(f"Sending text to {chat_id}")
                 await bot.send_message(
                     chat_id=chat_id,
                     text=data.content,
@@ -319,6 +332,7 @@ async def broadcast_message(data: BroadcastRequest):
 
             elif data.media_type == "image" and data.media_urls:
                 # Single image with caption
+                logger.debug(f"Sending image to {chat_id}: {data.media_urls[0]}")
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=data.media_urls[0],
@@ -329,6 +343,7 @@ async def broadcast_message(data: BroadcastRequest):
 
             elif data.media_type == "video" and data.media_urls:
                 # Single video with caption
+                logger.debug(f"Sending video to {chat_id}: {data.media_urls[0]}")
                 await bot.send_video(
                     chat_id=chat_id,
                     video=data.media_urls[0],
@@ -339,6 +354,7 @@ async def broadcast_message(data: BroadcastRequest):
 
             elif data.media_type == "document" and data.media_urls:
                 # Single document with caption
+                logger.debug(f"Sending document to {chat_id}: {data.media_urls[0]}")
                 await bot.send_document(
                     chat_id=chat_id,
                     document=data.media_urls[0],
@@ -349,17 +365,20 @@ async def broadcast_message(data: BroadcastRequest):
 
             elif data.media_type == "mixed" and data.media_urls:
                 # Media group (up to 10 items)
+                logger.debug(f"Sending media group to {chat_id}: {len(data.media_urls)} items")
                 media_group = []
                 for i, url in enumerate(data.media_urls[:10]):
                     # Determine media type from URL extension
                     url_lower = url.lower()
                     if any(ext in url_lower for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                        logger.debug(f"Media {i}: {url} -> InputMediaPhoto")
                         media_item = InputMediaPhoto(
                             media=url,
                             caption=data.content[:1024] if i == 0 and data.content else None,
                             parse_mode="HTML" if i == 0 else None
                         )
                     elif any(ext in url_lower for ext in ['.mp4', '.webm', '.mov']):
+                        logger.debug(f"Media {i}: {url} -> InputMediaVideo")
                         media_item = InputMediaVideo(
                             media=url,
                             caption=data.content[:1024] if i == 0 and data.content else None,
@@ -367,6 +386,7 @@ async def broadcast_message(data: BroadcastRequest):
                         )
                     else:
                         # Default to document for other file types
+                        logger.debug(f"Media {i}: {url} -> InputMediaDocument")
                         media_item = InputMediaDocument(
                             media=url,
                             caption=data.content[:1024] if i == 0 and data.content else None,
@@ -380,6 +400,7 @@ async def broadcast_message(data: BroadcastRequest):
 
             else:
                 # Fallback to text if media type unknown or no media URLs
+                logger.debug(f"Fallback text send to {chat_id}")
                 await bot.send_message(
                     chat_id=chat_id,
                     text=data.content or "No content",
@@ -400,6 +421,12 @@ async def broadcast_message(data: BroadcastRequest):
     # Calculate stats
     sent_count = sum(1 for r in results if r.success)
     failed_count = sum(1 for r in results if not r.success)
+
+    # Summary log
+    logger.info(
+        f"Broadcast completed: total={len(results)}, sent={sent_count}, "
+        f"failed={failed_count}, media_type={data.media_type}"
+    )
 
     return {
         "total": len(results),

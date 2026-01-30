@@ -181,6 +181,8 @@ class BroadcastService:
             logger.warning("API Gateway URL not configured")
             return False, "API Gateway not configured"
 
+        logger.debug(f"Sending promotion to chat {chat_id}: media_type={media_type}, media_count={len(media_urls)}, content_len={len(content)}")
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
@@ -198,11 +200,16 @@ class BroadcastService:
                     if result.get("results") and len(result["results"]) > 0:
                         first_result = result["results"][0]
                         if first_result.get("success"):
+                            logger.debug(f"Successfully sent to chat {chat_id}")
                             return True, None
                         else:
-                            return False, first_result.get("error", "Unknown error")
+                            error_msg = first_result.get("error", "Unknown error")
+                            logger.warning(f"Failed to send to chat {chat_id}: {error_msg}")
+                            return False, error_msg
+                    logger.warning(f"No results returned for chat {chat_id}")
                     return False, "No results returned"
 
+                logger.error(f"HTTP error sending to chat {chat_id}: status={response.status_code}")
                 return False, f"HTTP {response.status_code}: {response.text}"
 
         except Exception as e:
@@ -221,6 +228,13 @@ class BroadcastService:
         Returns:
             dict with broadcast statistics
         """
+        # Entry log with promotion details
+        logger.info(
+            f"Starting broadcast for promotion {promotion.id}: "
+            f"title='{promotion.title}', target_chats={len(chats)}, "
+            f"media_type={promotion.media_type}, media_count={len(promotion.media_urls or [])}"
+        )
+
         broadcast_log_repo = AdsAlertBroadcastLogRepository(db)
         results = {
             "total": len(chats),
@@ -229,7 +243,15 @@ class BroadcastService:
             "results": []
         }
 
-        for chat in chats:
+        # Log media processing if present
+        if promotion.media_urls:
+            logger.info(f"Processing {len(promotion.media_urls)} media files for broadcast")
+
+        for i, chat in enumerate(chats):
+            # Progress log every 10 chats
+            if (i + 1) % 10 == 0:
+                logger.info(f"Broadcast progress: {i + 1}/{len(chats)} chats processed")
+
             # Create broadcast log entry
             log = broadcast_log_repo.create_log(
                 tenant_id=promotion.tenant_id,
@@ -261,6 +283,23 @@ class BroadcastService:
                     "success": False,
                     "error": error
                 })
+
+        # Summary log
+        success_rate = (results['sent'] / results['total'] * 100) if results['total'] > 0 else 0
+        logger.info(
+            f"Broadcast completed for promotion {promotion.id}: "
+            f"total={results['total']}, sent={results['sent']}, failed={results['failed']}, "
+            f"success_rate={success_rate:.1f}%"
+        )
+
+        # Log failures summary if any
+        if results["failed"] > 0:
+            failed_chats = [r["chat_id"] for r in results["results"] if not r["success"]]
+            failed_preview = failed_chats[:5]
+            logger.warning(
+                f"Failed chats for promotion {promotion.id}: {failed_preview}"
+                f"{'...' if len(failed_chats) > 5 else ''}"
+            )
 
         return results
 

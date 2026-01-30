@@ -305,6 +305,7 @@ const PromotionList: React.FC<PromotionListProps> = ({
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<StatusFilter>('all')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // Animation for promotion cards (max 10 for performance)
   const cardsVisible = useStaggeredAnimation(Math.min(promotions.length, 10), 80)
@@ -384,12 +385,26 @@ const PromotionList: React.FC<PromotionListProps> = ({
     e.stopPropagation()
     if (!confirm('Delete this promotion?')) return
 
+    setDeletingId(promotion.id)
     try {
       await adsAlertService.deletePromotion(promotion.id)
       loadPromotions()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete promotion:', error)
-      alert('Failed to delete promotion')
+
+      // Handle specific error responses
+      if (error.response?.status === 403) {
+        alert('Permission denied: You do not have permission to delete this promotion.')
+      } else if (error.response?.status === 404) {
+        alert('Promotion not found. It may have already been deleted.')
+        loadPromotions()  // Refresh list
+      } else if (error.response?.data?.detail) {
+        alert(`Failed to delete promotion: ${error.response.data.detail}`)
+      } else {
+        alert('Failed to delete promotion. Please try again.')
+      }
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -434,12 +449,26 @@ const PromotionList: React.FC<PromotionListProps> = ({
   }
 
   const getFirstImageUrl = (promotion: Promotion): string | null => {
-    if (promotion.media_urls && promotion.media_urls.length > 0) {
-      const url = promotion.media_urls[0]
-      if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    if (!promotion.media_urls || promotion.media_urls.length === 0) {
+      return null
+    }
+
+    const url = promotion.media_urls[0]
+
+    // Check 1: URL has image extension (external URLs)
+    if (url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      return url
+    }
+
+    // Check 2: API endpoint URL (GridFS - no extension)
+    // These URLs are like /api/ads-alert/media/file/{file_id}
+    if (url.includes('/ads-alert/media/file/')) {
+      // Only return if media_type indicates image content
+      if (promotion.media_type === 'image' || promotion.media_type === 'mixed') {
         return url
       }
     }
+
     return null
   }
 
@@ -564,8 +593,16 @@ const PromotionList: React.FC<PromotionListProps> = ({
                     </ActionButton>
                   )}
                   {(promotion.status === 'draft' || promotion.status === 'cancelled') && (
-                    <ActionButton $variant="danger" onClick={(e) => handleDelete(promotion, e)}>
-                      Delete
+                    <ActionButton
+                      $variant="danger"
+                      onClick={(e) => handleDelete(promotion, e)}
+                      disabled={deletingId === promotion.id}
+                      style={{
+                        opacity: deletingId === promotion.id ? 0.6 : 1,
+                        cursor: deletingId === promotion.id ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {deletingId === promotion.id ? 'Deleting...' : 'Delete'}
                     </ActionButton>
                   )}
                 </Actions>

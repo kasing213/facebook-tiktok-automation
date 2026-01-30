@@ -386,7 +386,7 @@ async def update_promotion(
 async def delete_promotion(
     promotion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_owner)  # Owner only
+    current_user: User = Depends(get_current_member_or_owner)  # Members can delete their promotions
 ):
     """Delete a promotion"""
     promotion_repo = AdsAlertPromotionRepository(db)
