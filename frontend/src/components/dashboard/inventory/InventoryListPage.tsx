@@ -625,6 +625,7 @@ const InventoryListPage: React.FC = () => {
 
   // Form states
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null)
+  const [imageBlobs, setImageBlobs] = useState<Record<string, string>>({})
 
   const [formData, setFormData] = useState<ProductCreate>({
     name: '',
@@ -655,6 +656,41 @@ const InventoryListPage: React.FC = () => {
       return () => document.removeEventListener('keydown', handleEsc)
     }
   }, [zoomImageUrl])
+
+  // Fetch blob URLs for product images (auth required)
+  useEffect(() => {
+    const loadImageBlobs = async () => {
+      const blobMap: Record<string, string> = {}
+      for (const product of products) {
+        if (product.image_url) {
+          try {
+            const blobUrl = await inventoryService.getImageBlobUrl(product.image_url)
+            if (blobUrl) {
+              blobMap[product.id] = blobUrl
+            }
+          } catch (error) {
+            console.error(`Failed to load image for product ${product.id}:`, error)
+          }
+        }
+      }
+      setImageBlobs(blobMap)
+    }
+
+    if (products.length > 0) {
+      loadImageBlobs()
+    } else {
+      setImageBlobs({})
+    }
+
+    // Cleanup blob URLs on unmount or when products change
+    return () => {
+      Object.values(imageBlobs).forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url)
+        }
+      })
+    }
+  }, [products])
 
   const formatCurrency = (amount: number, currency: string = 'USD'): string => {
     if (amount === null || amount === undefined || isNaN(amount)) {
@@ -936,12 +972,18 @@ const InventoryListPage: React.FC = () => {
                 return (
                   <TableRow key={product.id} $isVisible={rowsVisible[index]} $delay={index * 40}>
                     <TableCell>
-                      {product.image_url ? (
+                      {product.image_url && imageBlobs[product.id] ? (
                         <ProductThumbnail
-                          src={product.image_url}
+                          src={imageBlobs[product.id]}
                           alt={product.name}
-                          onClick={() => setZoomImageUrl(product.image_url!)}
+                          onClick={() => setZoomImageUrl(imageBlobs[product.id])}
                         />
+                      ) : product.image_url ? (
+                        <NoImagePlaceholder title="Loading image...">
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </NoImagePlaceholder>
                       ) : (
                         <NoImagePlaceholder>
                           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">

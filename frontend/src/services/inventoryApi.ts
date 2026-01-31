@@ -134,6 +134,41 @@ export const inventoryService = {
    */
   getProductImageUrl(imageId: string): string {
     return `${API_URL}/inventory/products/image/${imageId}`
+  },
+
+  /**
+   * Fetch authenticated product image as blob URL for img tags.
+   * Converts internal API URLs to blob URLs that can be used in <img> src.
+   */
+  async getImageBlobUrl(imageUrl: string): Promise<string> {
+    // Return empty for no URL
+    if (!imageUrl) return ''
+
+    // Return external URLs as-is
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      // Check if it's our API URL that needs auth
+      if (!imageUrl.includes('/inventory/products/image/')) {
+        return imageUrl
+      }
+    }
+
+    try {
+      // Extract the image path and fetch with auth
+      let apiPath = imageUrl
+      if (imageUrl.includes('/inventory/products/image/')) {
+        apiPath = imageUrl.substring(imageUrl.indexOf('/inventory/products/image/') + '/inventory'.length)
+      } else if (imageUrl.startsWith('/products/image/')) {
+        apiPath = imageUrl
+      }
+
+      const response = await inventoryApi.get(apiPath, {
+        responseType: 'blob'
+      })
+      return URL.createObjectURL(response.data)
+    } catch (error) {
+      console.error('Failed to fetch product image:', error)
+      return ''
+    }
   }
 }
 
