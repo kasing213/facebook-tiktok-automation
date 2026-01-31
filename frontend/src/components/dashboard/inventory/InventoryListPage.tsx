@@ -6,6 +6,8 @@ import { Product, ProductCreate, ProductUpdate } from '../../../types/inventory'
 import { fadeInDown, scaleIn, shake, easings, reduceMotion } from '../../../styles/animations'
 import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 import { ProductImageUploader } from './ProductImageUploader'
+import { LoadingButton } from '../../common/LoadingButton'
+import { useAsyncAction, useFormSubmission, useRefreshAction } from '../../../hooks/useAsyncAction'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -560,6 +562,56 @@ const InventoryListPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
 
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await inventoryService.listProducts({
+        search: searchQuery || undefined,
+        low_stock_only: showLowStockOnly || undefined
+      })
+      setProducts(data)
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch products')
+    } finally {
+      setLoading(false)
+    }
+  }, [searchQuery, showLowStockOnly])
+
+  // Enhanced async actions
+  const productAction = useFormSubmission<Product>({
+    onSuccess: (product) => {
+      setSuccess(product ? `Product "${product.name}" saved successfully!` : 'Product saved successfully!')
+      setTimeout(() => setSuccess(null), 3000)
+      fetchProducts()
+    },
+    onError: (error) => setError(extractErrorMessage(error))
+  })
+
+  const stockAction = useFormSubmission({
+    onSuccess: () => {
+      setSuccess('Stock level updated successfully!')
+      setTimeout(() => setSuccess(null), 3000)
+      fetchProducts()
+    },
+    onError: (error) => setError(extractErrorMessage(error))
+  })
+
+  const deleteAction = useAsyncAction({
+    onSuccess: () => {
+      setSuccess('Product deleted successfully!')
+      setTimeout(() => setSuccess(null), 3000)
+      fetchProducts()
+    },
+    onError: (error) => setError(extractErrorMessage(error))
+  })
+
+  const { refresh: refreshProducts, loading: refreshLoading } = useRefreshAction(
+    fetchProducts,
+    {
+      onError: (error) => setError(extractErrorMessage(error))
+    }
+  )
+
   // Animation hooks
   const statsVisible = useStaggeredAnimation(4, 80) // 4 stat cards
   const rowsVisible = useStaggeredAnimation(products.length, 40)
@@ -570,7 +622,6 @@ const InventoryListPage: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showStockModal, setShowStockModal] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [saving, setSaving] = useState(false)
 
   // Form states
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null)
@@ -589,21 +640,6 @@ const InventoryListPage: React.FC = () => {
   const [newStockLevel, setNewStockLevel] = useState(0)
   const [stockNotes, setStockNotes] = useState('')
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
-
-  const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true)
-      const data = await inventoryService.listProducts({
-        search: searchQuery || undefined,
-        low_stock_only: showLowStockOnly || undefined
-      })
-      setProducts(data)
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch products')
-    } finally {
-      setLoading(false)
-    }
-  }, [searchQuery, showLowStockOnly])
 
   useEffect(() => {
     fetchProducts()
@@ -668,15 +704,14 @@ const InventoryListPage: React.FC = () => {
   }
 
   const handleCreate = async () => {
-    try {
-      setSaving(true)
-      // Convert prices to backend format (cents for USD)
-      const currency = formData.currency || 'USD'
-      const submitData: ProductCreate = {
-        ...formData,
-        unit_price: priceToBackend(formData.unit_price, currency),
-        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, currency) : undefined
-      }
+    const currency = formData.currency || 'USD'
+    const submitData: ProductCreate = {
+      ...formData,
+      unit_price: priceToBackend(formData.unit_price, currency),
+      cost_price: formData.cost_price ? priceToBackend(formData.cost_price, currency) : undefined
+    }
+
+    await productAction.execute(async () => {
       const newProduct = await inventoryService.createProduct(submitData)
 
       // Upload image if selected
@@ -685,90 +720,63 @@ const InventoryListPage: React.FC = () => {
           await inventoryService.uploadProductImage(newProduct.id, pendingImageFile)
         } catch (imgErr: any) {
           console.error('Image upload failed:', imgErr)
-          // Don't fail the whole operation, just warn
           setError('Product created but image upload failed: ' + extractErrorMessage(imgErr))
         }
       }
 
-      setSuccess('Product created successfully')
       setShowCreateModal(false)
       resetForm()
-      fetchProducts()
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(extractErrorMessage(err))
-    } finally {
-      setSaving(false)
-    }
+      return newProduct
+    })
   }
 
   const handleUpdate = async () => {
     if (!selectedProduct) return
-    try {
-      setSaving(true)
-      // Convert prices to backend format (cents for USD)
-      const currency = formData.currency || 'USD'
-      const updateData: ProductUpdate = {
-        name: formData.name,
-        sku: formData.sku,
-        description: formData.description,
-        unit_price: priceToBackend(formData.unit_price, currency),
-        cost_price: formData.cost_price ? priceToBackend(formData.cost_price, currency) : undefined,
-        currency: currency,
-        low_stock_threshold: formData.low_stock_threshold,
-        track_stock: formData.track_stock
-      }
-      await inventoryService.updateProduct(selectedProduct.id, updateData)
-      setSuccess('Product updated successfully')
+
+    const currency = formData.currency || 'USD'
+    const updateData: ProductUpdate = {
+      name: formData.name,
+      sku: formData.sku,
+      description: formData.description,
+      unit_price: priceToBackend(formData.unit_price, currency),
+      cost_price: formData.cost_price ? priceToBackend(formData.cost_price, currency) : undefined,
+      currency: currency,
+      low_stock_threshold: formData.low_stock_threshold,
+      track_stock: formData.track_stock
+    }
+
+    await productAction.execute(async () => {
+      const updatedProduct = await inventoryService.updateProduct(selectedProduct.id, updateData)
       setShowEditModal(false)
       resetForm()
-      fetchProducts()
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(extractErrorMessage(err))
-    } finally {
-      setSaving(false)
-    }
+      return updatedProduct
+    })
   }
 
   const handleDelete = async () => {
     if (!selectedProduct) return
-    try {
-      setSaving(true)
+
+    await deleteAction.execute(async () => {
       await inventoryService.deleteProduct(selectedProduct.id)
-      setSuccess('Product deleted successfully')
       setShowDeleteModal(false)
       setSelectedProduct(null)
-      fetchProducts()
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(extractErrorMessage(err))
-    } finally {
-      setSaving(false)
-    }
+    })
   }
 
   const handleStockAdjustment = async () => {
     if (!selectedProduct) return
-    try {
-      setSaving(true)
+
+    await stockAction.execute(async () => {
       await inventoryService.adjustStock({
         product_id: selectedProduct.id,
         new_stock_level: newStockLevel,
         notes: stockNotes || undefined
       })
-      setSuccess('Stock adjusted successfully')
       setShowStockModal(false)
       setSelectedProduct(null)
       setNewStockLevel(0)
       setStockNotes('')
-      fetchProducts()
-      setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(extractErrorMessage(err))
-    } finally {
-      setSaving(false)
-    }
+    })
   }
 
   const openEditModal = (product: Product) => {
@@ -824,9 +832,20 @@ const InventoryListPage: React.FC = () => {
       <Header>
         <Title>{t('inventory.title')}</Title>
         <HeaderActions>
-          <Button $variant="primary" onClick={() => setShowCreateModal(true)}>
+          <LoadingButton
+            variant="secondary"
+            onClick={refreshProducts}
+            loading={refreshLoading}
+            size="medium"
+          >
+            🔄 Refresh
+          </LoadingButton>
+          <LoadingButton
+            variant="primary"
+            onClick={() => setShowCreateModal(true)}
+          >
             + {t('inventory.addProduct')}
-          </Button>
+          </LoadingButton>
         </HeaderActions>
       </Header>
 
@@ -891,9 +910,13 @@ const InventoryListPage: React.FC = () => {
           <EmptyState>
             <h3>{t('inventory.noProducts')}</h3>
             <p>{t('inventory.createFirstProduct')}</p>
-            <Button $variant="primary" onClick={() => setShowCreateModal(true)} style={{ marginTop: '1rem' }}>
+            <LoadingButton
+              variant="primary"
+              onClick={() => setShowCreateModal(true)}
+              style={{ marginTop: '1rem' }}
+            >
               + {t('inventory.addProduct')}
-            </Button>
+            </LoadingButton>
           </EmptyState>
         ) : (
           <Table>
@@ -1015,7 +1038,7 @@ const InventoryListPage: React.FC = () => {
                 onImageSelected={(file) => setPendingImageFile(file)}
                 onImageUploaded={() => fetchProducts()}
                 onImageDeleted={() => fetchProducts()}
-                disabled={saving}
+                disabled={productAction.state.loading}
               />
             </FormGroup>
 
@@ -1123,13 +1146,14 @@ const InventoryListPage: React.FC = () => {
                 setShowEditModal(false)
                 resetForm()
               }}>{t('common.cancel')}</Button>
-              <Button
-                $variant="primary"
+              <LoadingButton
+                variant="primary"
                 onClick={showCreateModal ? handleCreate : handleUpdate}
-                disabled={saving || !formData.name}
+                loading={productAction.state.loading}
+                disabled={!formData.name}
               >
-                {saving ? t('inventory.saving') : (showCreateModal ? t('inventory.createProduct') : t('inventory.saveChanges'))}
-              </Button>
+                {showCreateModal ? t('inventory.createProduct') : t('inventory.saveChanges')}
+              </LoadingButton>
             </ModalActions>
           </ModalContent>
         </ModalOverlay>
@@ -1175,13 +1199,13 @@ const InventoryListPage: React.FC = () => {
                 setShowStockModal(false)
                 setSelectedProduct(null)
               }}>{t('common.cancel')}</Button>
-              <Button
-                $variant="primary"
+              <LoadingButton
+                variant="primary"
                 onClick={handleStockAdjustment}
-                disabled={saving}
+                loading={stockAction.state.loading}
               >
-                {saving ? t('inventory.saving') : t('inventory.adjustStock')}
-              </Button>
+                {t('inventory.adjustStock')}
+              </LoadingButton>
             </ModalActions>
           </ModalContent>
         </ModalOverlay>
@@ -1204,13 +1228,13 @@ const InventoryListPage: React.FC = () => {
                 setShowDeleteModal(false)
                 setSelectedProduct(null)
               }}>{t('common.cancel')}</Button>
-              <Button
-                $variant="danger"
+              <LoadingButton
+                variant="danger"
                 onClick={handleDelete}
-                disabled={saving}
+                loading={deleteAction.state.loading}
               >
-                {saving ? t('inventory.deletingProduct') : t('inventory.deleteProduct')}
-              </Button>
+                {t('inventory.deleteProduct')}
+              </LoadingButton>
             </ModalActions>
           </ModalContent>
         </ModalOverlay>

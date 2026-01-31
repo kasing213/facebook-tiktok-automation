@@ -8,6 +8,8 @@ import { InvoiceTable } from '../../invoice'
 import { Invoice, InvoiceStatus } from '../../../types/invoice'
 import { easings, reduceMotion } from '../../../styles/animations'
 import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
+import { LoadingButton } from '../../common/LoadingButton'
+import { useAsyncAction } from '../../../hooks/useAsyncAction'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -271,6 +273,12 @@ const InvoiceListPage: React.FC = () => {
   const [sendingInvoiceId, setSendingInvoiceId] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState<string | null>(null)
 
+  // Enhanced async actions for exports and operations
+  const exportAction = useAsyncAction({
+    onSuccess: () => console.log('Export completed successfully'),
+    onError: (error) => console.error('Export failed:', error)
+  })
+
   useEffect(() => {
     fetchInvoices()
     fetchStats()
@@ -303,11 +311,7 @@ const InvoiceListPage: React.FC = () => {
   }
 
   const handleExport = async (format: 'csv' | 'xlsx') => {
-    try {
-      await exportInvoices(format)
-    } catch (err) {
-      // Error handled by hook
-    }
+    await exportAction.execute(() => exportInvoices(format))
   }
 
   const handleSendToCustomer = async (invoice: Invoice) => {
@@ -362,23 +366,28 @@ const InvoiceListPage: React.FC = () => {
       <Header>
         <Title>{t('invoices.title')}</Title>
         <HeaderActions>
-          <Button
-            onClick={() => handleExport('csv')}
+          <LoadingButton
+            variant="secondary"
+            loading={exportAction.state.loading}
             disabled={!canAccessExport}
-            title={!canAccessExport ? t('invoices.upgradeToPro') : undefined}
+            onClick={() => handleExport('csv')}
           >
             {t('invoices.exportCsv')} {!canAccessExport && '(Pro)'}
-          </Button>
-          <Button
-            onClick={() => handleExport('xlsx')}
+          </LoadingButton>
+          <LoadingButton
+            variant="secondary"
+            loading={exportAction.state.loading}
             disabled={!canAccessExport}
-            title={!canAccessExport ? t('invoices.upgradeToPro') : undefined}
+            onClick={() => handleExport('xlsx')}
           >
             {t('invoices.exportExcel')} {!canAccessExport && '(Pro)'}
-          </Button>
-          <Button $variant="primary" onClick={() => navigate('/dashboard/invoices/new')}>
+          </LoadingButton>
+          <LoadingButton
+            variant="primary"
+            onClick={() => navigate('/dashboard/invoices/new')}
+          >
             + {t('invoices.createNew')}
-          </Button>
+          </LoadingButton>
         </HeaderActions>
       </Header>
 

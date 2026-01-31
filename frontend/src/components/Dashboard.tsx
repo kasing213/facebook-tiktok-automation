@@ -6,6 +6,8 @@ import { LoadingSpinner } from './LoadingSpinner'
 import { ErrorMessage } from './ErrorMessage'
 import SocialIcon from './SocialIcon'
 import EmailVerificationBanner from './EmailVerificationBanner'
+import { LoadingButton } from './common/LoadingButton'
+import { useRefreshAction } from '../hooks/useAsyncAction'
 
 const DashboardContainer = styled.div`
   max-width: 800px;
@@ -145,28 +147,6 @@ const TokenMeta = styled.div`
   margin-top: 0.25rem;
 `
 
-const RefreshButton = styled.button`
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: background 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-
-  &:hover:not(:disabled) {
-    background: #0056b3;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`
 
 const ConnectButton = styled.button<{ platform: 'facebook' | 'tiktok' }>`
   ${props => props.platform === 'facebook' ? `
@@ -244,9 +224,15 @@ const Dashboard: React.FC = () => {
   const { authStatus, loading, error, refreshAuthStatus } = useAuth(tenantId || null)
   const { initiating, errors: oauthErrors, clearErrors, initiateFacebookOAuth, initiateTikTokOAuth } = useOAuth()
 
-  const handleRefresh = () => {
-    refreshAuthStatus()
-  }
+  // Enhanced refresh with loading state
+  const { refresh: handleRefresh, loading: refreshLoading } = useRefreshAction(
+    async () => {
+      await refreshAuthStatus()
+    },
+    {
+      onError: (error) => console.error('Refresh failed:', error)
+    }
+  )
 
   const handleConnectFacebook = async () => {
     if (!tenantId) return
@@ -293,10 +279,14 @@ const Dashboard: React.FC = () => {
         <Header>
         <Title>Dashboard</Title>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <RefreshButton onClick={handleRefresh} disabled={loading}>
-            {loading && <LoadingSpinner size="small" />}
+          <LoadingButton
+            variant="primary"
+            size="medium"
+            loading={refreshLoading}
+            onClick={handleRefresh}
+          >
             Refresh
-          </RefreshButton>
+          </LoadingButton>
           <BackButton onClick={handleBackToLogin}>
             Back to Login
           </BackButton>
