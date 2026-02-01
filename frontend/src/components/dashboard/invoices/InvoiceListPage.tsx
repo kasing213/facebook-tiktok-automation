@@ -9,7 +9,10 @@ import { Invoice, InvoiceStatus } from '../../../types/invoice'
 import { easings, reduceMotion } from '../../../styles/animations'
 import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 import { LoadingButton } from '../../common/LoadingButton'
+import { RefreshButton } from '../../common/RefreshButton'
 import { useAsyncAction } from '../../../hooks/useAsyncAction'
+import { useExportOperation } from '../../../hooks/useEnhancedAsyncAction'
+import { LoadingOverlay } from '../../common/LoadingOverlay'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -38,7 +41,9 @@ const Title = styled.h1`
 const HeaderActions = styled.div`
   display: flex;
   gap: 0.75rem;
+  align-items: center;
 `
+
 
 const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   padding: 0.75rem 1.25rem;
@@ -272,17 +277,45 @@ const InvoiceListPage: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
   const [sendingInvoiceId, setSendingInvoiceId] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   // Enhanced async actions for exports and operations
-  const exportAction = useAsyncAction({
-    onSuccess: () => console.log('Export completed successfully'),
-    onError: (error) => console.error('Export failed:', error)
+  const exportAction = useExportOperation({
+    onSuccess: (result) => {
+      if (result?.filename) {
+        setSendSuccess(`${result.format.toUpperCase()} export complete: ${result.filename}`)
+        setTimeout(() => setSendSuccess(null), 3000)
+      }
+    },
+    onError: (error) => {
+      console.error('Export failed:', error)
+      setError(error.message || 'Export failed. Please try again.')
+    },
+    progressTitle: 'Exporting Invoices',
+    progressMessage: 'Preparing your invoice export...'
   })
 
   useEffect(() => {
     fetchInvoices()
     fetchStats()
+    setLastUpdated(new Date())
   }, [fetchInvoices, fetchStats])
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([
+        fetchInvoices(),
+        fetchStats()
+      ])
+      setLastUpdated(new Date())
+    } catch (error) {
+      console.error('Refresh failed:', error)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const handleView = (invoice: Invoice) => {
     navigate(`/dashboard/invoices/${invoice.id}`)
@@ -311,7 +344,25 @@ const InvoiceListPage: React.FC = () => {
   }
 
   const handleExport = async (format: 'csv' | 'xlsx') => {
-    await exportAction.execute(() => exportInvoices(format))
+    await exportAction.executeWithSteps(async (progress) => {
+      progress.setCurrentStep('prepare', `Preparing ${format.toUpperCase()} export...`)
+      await new Promise(resolve => setTimeout(resolve, 300))
+      progress.completeStep('prepare')
+
+      progress.setCurrentStep('format', 'Formatting data...')
+      await new Promise(resolve => setTimeout(resolve, 200))
+      progress.completeStep('format')
+
+      progress.setCurrentStep('generate', 'Generating file...')
+      const result = await exportInvoices(format)
+      progress.completeStep('generate')
+
+      progress.setCurrentStep('download', 'Preparing download...')
+      await new Promise(resolve => setTimeout(resolve, 100))
+      progress.completeStep('download')
+
+      return result
+    })
   }
 
   const handleSendToCustomer = async (invoice: Invoice) => {
@@ -366,6 +417,12 @@ const InvoiceListPage: React.FC = () => {
       <Header>
         <Title>{t('invoices.title')}</Title>
         <HeaderActions>
+          <RefreshButton
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            disabled={loading}
+            lastUpdated={lastUpdated}
+          />
           <LoadingButton
             variant="secondary"
             loading={exportAction.state.loading}
@@ -484,6 +541,23 @@ const InvoiceListPage: React.FC = () => {
           </ModalContent>
         </ConfirmModal>
       )}
+
+      {/* Loading Overlay for Exports */}
+      <LoadingOverlay
+        visible={exportAction.state.showOverlay}
+        title="Exporting Invoices"
+        message="Please wait while we prepare your export..."
+        variant="steps"
+        steps={[
+          { id: 'prepare', label: 'Preparing data...' },
+          { id: 'format', label: 'Formatting export...' },
+          { id: 'generate', label: 'Generating file...' },
+          { id: 'download', label: 'Preparing download...' }
+        ]}
+        currentStep={exportAction.state.currentStep}
+        onCancel={() => exportAction.hideOverlay()}
+        cancelLabel="Close"
+      />
     </Container>
   )
 }

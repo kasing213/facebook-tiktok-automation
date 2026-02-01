@@ -13,7 +13,7 @@ from app.core.config import get_settings
 
 # JWT settings
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 15  # Reduced from 30 for better security
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Extended for better UX, still secure with refresh
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 

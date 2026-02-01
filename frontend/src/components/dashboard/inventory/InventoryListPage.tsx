@@ -7,6 +7,7 @@ import { fadeInDown, scaleIn, shake, easings, reduceMotion } from '../../../styl
 import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 import { ProductImageUploader } from './ProductImageUploader'
 import { LoadingButton } from '../../common/LoadingButton'
+import { RefreshButton } from '../../common/RefreshButton'
 import { useAsyncAction, useFormSubmission, useRefreshAction } from '../../../hooks/useAsyncAction'
 
 const Container = styled.div`
@@ -561,6 +562,8 @@ const InventoryListPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showLowStockOnly, setShowLowStockOnly] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -570,6 +573,7 @@ const InventoryListPage: React.FC = () => {
         low_stock_only: showLowStockOnly || undefined
       })
       setProducts(data)
+      setLastUpdated(new Date())
     } catch (err: any) {
       setError(err.message || 'Failed to fetch products')
     } finally {
@@ -611,6 +615,17 @@ const InventoryListPage: React.FC = () => {
       onError: (error) => setError(extractErrorMessage(error))
     }
   )
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await fetchProducts()
+    } catch (error) {
+      console.error('Refresh failed:', error)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   // Animation hooks
   const statsVisible = useStaggeredAnimation(4, 80) // 4 stat cards
@@ -868,14 +883,12 @@ const InventoryListPage: React.FC = () => {
       <Header>
         <Title>{t('inventory.title')}</Title>
         <HeaderActions>
-          <LoadingButton
-            variant="secondary"
-            onClick={refreshProducts}
-            loading={refreshLoading}
-            size="medium"
-          >
-            🔄 Refresh
-          </LoadingButton>
+          <RefreshButton
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            disabled={loading}
+            lastUpdated={lastUpdated}
+          />
           <LoadingButton
             variant="primary"
             onClick={() => setShowCreateModal(true)}

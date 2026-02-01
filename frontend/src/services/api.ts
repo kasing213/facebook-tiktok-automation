@@ -33,6 +33,16 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+function shouldProactivelyRefresh(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    // Proactively refresh when token has less than 5 minutes remaining
+    return payload.exp * 1000 < Date.now() + 5 * 60 * 1000
+  } catch {
+    return true
+  }
+}
+
 // Flag to prevent multiple simultaneous refresh attempts
 let isRefreshing = false
 let refreshSubscribers: ((token: string) => void)[] = []
@@ -71,10 +81,30 @@ async function refreshAccessToken(): Promise<string | null> {
 
 // Request interceptor
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Add JWT token to requests if available
-    const token = localStorage.getItem('access_token')
+    let token = localStorage.getItem('access_token')
+
     if (token) {
+      // Proactively refresh token if needed
+      if (shouldProactivelyRefresh(token) && !isRefreshing) {
+        console.log('[API] Proactively refreshing token (< 5 minutes remaining)')
+
+        try {
+          isRefreshing = true
+          const newToken = await refreshAccessToken()
+          isRefreshing = false
+
+          if (newToken) {
+            token = newToken
+            onTokenRefreshed(newToken)
+          }
+        } catch (error) {
+          isRefreshing = false
+          console.error('[API] Proactive refresh failed:', error)
+        }
+      }
+
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
