@@ -257,7 +257,8 @@ async def list_customers(
 @router.post("/customers")
 async def create_customer(
     data: CustomerCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Create a new customer."""
     # Check customer limit before creating
