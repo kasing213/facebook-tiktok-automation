@@ -137,7 +137,7 @@ export const ProgressIndicator: React.FC<ProgressIndicatorProps> = ({
 }
 
 export const LoadingDots: React.FC<LoadingDotsProps> = ({
-  size = 'medium',
+  size: _size = 'medium',
   className
 }) => {
   return (

@@ -10,7 +10,6 @@ import { easings, reduceMotion } from '../../../styles/animations'
 import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 import { LoadingButton } from '../../common/LoadingButton'
 import { RefreshButton } from '../../common/RefreshButton'
-import { useAsyncAction } from '../../../hooks/useAsyncAction'
 import { useExportOperation } from '../../../hooks/useEnhancedAsyncAction'
 import { LoadingOverlay } from '../../common/LoadingOverlay'
 
@@ -277,6 +276,7 @@ const InvoiceListPage: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null)
   const [sendingInvoiceId, setSendingInvoiceId] = useState<string | null>(null)
   const [sendSuccess, setSendSuccess] = useState<string | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
@@ -290,7 +290,8 @@ const InvoiceListPage: React.FC = () => {
     },
     onError: (error) => {
       console.error('Export failed:', error)
-      setError(error.message || 'Export failed. Please try again.')
+      setSendError(error.message || 'Export failed. Please try again.')
+      setTimeout(() => setSendError(null), 5000)
     },
     progressTitle: 'Exporting Invoices',
     progressMessage: 'Preparing your invoice export...'
@@ -503,6 +504,10 @@ const InvoiceListPage: React.FC = () => {
 
       {sendSuccess && (
         <SuccessMessage>{sendSuccess}</SuccessMessage>
+      )}
+
+      {sendError && (
+        <ErrorMessage>{sendError}</ErrorMessage>
       )}
 
       <TableSection>

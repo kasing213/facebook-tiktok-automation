@@ -15,7 +15,7 @@ const StyledRefreshButton = styled.button<{ $refreshing?: boolean }>`
   justify-content: center;
 
   &:hover {
-    background: ${props => props.theme.hover};
+    background: ${props => props.theme.backgroundSecondary};
     color: ${props => props.theme.textPrimary};
   }
 

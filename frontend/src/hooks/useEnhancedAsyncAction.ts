@@ -37,6 +37,7 @@ interface UseEnhancedAsyncActionReturn<T = any> {
   setData: (data: T | null) => void
   clearError: () => void
   hideOverlay: () => void
+  handleCancel: () => void
 }
 
 interface ProgressController {
@@ -56,7 +57,7 @@ export const useEnhancedAsyncAction = <T = any>(
     showSuccessFor = 3000,
     progressSteps = [],
     showProgressOverlay = false,
-    progressTitle = 'Processing',
+    progressTitle: _progressTitle = 'Processing',
     progressMessage = 'Please wait...',
     onCancel
   } = options
@@ -77,7 +78,7 @@ export const useEnhancedAsyncAction = <T = any>(
   })
 
   const cancelRef = useRef<(() => void) | null>(null)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
   const reset = useCallback(() => {
     if (timeoutRef.current) {
@@ -294,7 +295,8 @@ export const useEnhancedAsyncAction = <T = any>(
     reset,
     setData,
     clearError,
-    hideOverlay
+    hideOverlay,
+    handleCancel
   }
 }
 

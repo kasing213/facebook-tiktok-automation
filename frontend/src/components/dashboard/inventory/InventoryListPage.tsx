@@ -8,7 +8,7 @@ import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 import { ProductImageUploader } from './ProductImageUploader'
 import { LoadingButton } from '../../common/LoadingButton'
 import { RefreshButton } from '../../common/RefreshButton'
-import { useAsyncAction, useFormSubmission, useRefreshAction } from '../../../hooks/useAsyncAction'
+import { useAsyncAction, useFormSubmission } from '../../../hooks/useAsyncAction'
 
 const Container = styled.div`
   max-width: 1200px;
@@ -608,13 +608,6 @@ const InventoryListPage: React.FC = () => {
     },
     onError: (error) => setError(extractErrorMessage(error))
   })
-
-  const { refresh: refreshProducts, loading: refreshLoading } = useRefreshAction(
-    fetchProducts,
-    {
-      onError: (error) => setError(extractErrorMessage(error))
-    }
-  )
 
   const handleRefresh = async () => {
     setRefreshing(true)

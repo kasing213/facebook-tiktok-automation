@@ -35,7 +35,7 @@ export const useProgressState = (options: UseProgressStateOptions = {}) => {
   })
 
   const startTimeRef = useRef<number>()
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
   const start = useCallback((message?: string) => {
     startTimeRef.current = Date.now()
