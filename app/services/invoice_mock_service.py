@@ -294,7 +294,7 @@ def create_invoice(tenant_id: str, data: Dict) -> Dict:
 
     invoice = {
         "id": invoice_id,
-        "invoice_number": f"INV-{_invoice_counter:05d}",
+        "invoice_number": f"INV-{_invoice_counters[tenant_str]:05d}",
         "customer_id": data["customer_id"],
         "items": processed_items,
         "subtotal": round(subtotal, 2),

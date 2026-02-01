@@ -192,17 +192,31 @@ export const invoiceService = {
   // Helper to trigger file download
   downloadFile(blob: Blob, filename: string): void {
     try {
+      if (!blob || blob.size === 0) {
+        throw new Error('File is empty or invalid')
+      }
+
+      console.log(`Creating download for ${filename} (${blob.size} bytes, type: ${blob.type})`)
+
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
       link.download = filename
+      link.style.display = 'none'
+
       document.body.appendChild(link)
       link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+      }, 100)
+
+      console.log(`Download initiated for ${filename}`)
     } catch (error) {
-      console.error('Failed to download file:', error)
-      throw new Error('Failed to download file. Please try again.')
+      console.error('Failed to download file:', error, { blob, filename })
+      throw new Error(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   },
 

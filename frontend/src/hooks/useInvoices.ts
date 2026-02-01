@@ -142,12 +142,25 @@ export function useInvoices() {
   // Export invoices
   const exportInvoices = useCallback(async (format: 'csv' | 'xlsx', startDate?: string, endDate?: string) => {
     try {
+      console.log(`Starting export in ${format} format...`)
       const blob = await invoiceService.exportInvoices({ format, start_date: startDate, end_date: endDate })
-      const filename = `invoices.${format}`
+
+      if (!blob || blob.size === 0) {
+        throw new Error('Export returned empty file')
+      }
+
+      const filename = `invoices_${new Date().toISOString().split('T')[0]}.${format}`
+      console.log(`Downloading file: ${filename}`)
+
       invoiceService.downloadFile(blob, filename)
+
+      console.log(`Export completed successfully: ${format}`)
+      return { success: true, filename, format }
     } catch (err: any) {
-      setError(err.message || 'Failed to export invoices')
-      throw err
+      console.error('Export failed:', err)
+      const errorMessage = err.message || 'Failed to export invoices'
+      setError(errorMessage)
+      throw new Error(errorMessage)
     }
   }, [])
 
