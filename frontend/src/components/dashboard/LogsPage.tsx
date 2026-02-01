@@ -202,6 +202,30 @@ const Message = styled.div`
   }
 `
 
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+`
+
+const EmptyIcon = styled.div`
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+`
+
+const EmptyTitle = styled.h3`
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+`
+
+const EmptyDescription = styled.p`
+  font-size: 0.875rem;
+  color: #6b7280;
+`
+
 const PaginationSection = styled.div`
   display: flex;
   justify-content: space-between;
@@ -246,34 +270,15 @@ const PageButton = styled.button<{ $active?: boolean }>`
   }
 `
 
-// Mock log data
-const mockLogs = [
-  { id: 1, timestamp: '2024-01-15 14:32:15', service: 'Facebook', eventType: 'Post Published', status: 'success' as const, message: 'Successfully published post to timeline' },
-  { id: 2, timestamp: '2024-01-15 14:28:42', service: 'TikTok', eventType: 'Video Upload', status: 'success' as const, message: 'Video uploaded successfully, processing started' },
-  { id: 3, timestamp: '2024-01-15 14:15:30', service: 'Facebook', eventType: 'OAuth Refresh', status: 'success' as const, message: 'Access token refreshed successfully' },
-  { id: 4, timestamp: '2024-01-15 13:58:21', service: 'TikTok', eventType: 'Authentication', status: 'error' as const, message: 'Failed to authenticate: Invalid credentials' },
-  { id: 5, timestamp: '2024-01-15 13:45:18', service: 'Facebook', eventType: 'Campaign Update', status: 'success' as const, message: 'Campaign settings updated successfully' },
-  { id: 6, timestamp: '2024-01-15 13:30:55', service: 'TikTok', eventType: 'Rate Limit', status: 'warning' as const, message: 'Approaching rate limit: 80% capacity' },
-  { id: 7, timestamp: '2024-01-15 13:12:44', service: 'Facebook', eventType: 'Post Scheduled', status: 'success' as const, message: 'Post scheduled for 2024-01-16 10:00 AM' },
-  { id: 8, timestamp: '2024-01-15 12:58:33', service: 'TikTok', eventType: 'Analytics Fetch', status: 'success' as const, message: 'Successfully fetched video analytics' },
-  { id: 9, timestamp: '2024-01-15 12:42:20', service: 'Facebook', eventType: 'Token Refresh', status: 'success' as const, message: 'Page access token refreshed' },
-  { id: 10, timestamp: '2024-01-15 12:25:15', service: 'TikTok', eventType: 'Video Published', status: 'success' as const, message: 'Video published successfully to feed' },
-  { id: 11, timestamp: '2024-01-15 12:08:40', service: 'Facebook', eventType: 'Ad Campaign', status: 'success' as const, message: 'New ad campaign created and activated' },
-  { id: 12, timestamp: '2024-01-15 11:55:28', service: 'TikTok', eventType: 'Upload Failed', status: 'error' as const, message: 'Video upload failed: File size exceeds limit' },
-  { id: 13, timestamp: '2024-01-15 11:38:12', service: 'Facebook', eventType: 'Comment Reply', status: 'success' as const, message: 'Successfully replied to 5 comments' },
-  { id: 14, timestamp: '2024-01-15 11:20:55', service: 'TikTok', eventType: 'Profile Update', status: 'success' as const, message: 'Profile information updated successfully' },
-  { id: 15, timestamp: '2024-01-15 11:02:30', service: 'Facebook', eventType: 'Page Insights', status: 'success' as const, message: 'Page insights data retrieved' },
-  { id: 16, timestamp: '2024-01-15 10:45:18', service: 'TikTok', eventType: 'API Error', status: 'error' as const, message: 'API request failed: Server timeout' },
-  { id: 17, timestamp: '2024-01-15 10:28:44', service: 'Facebook', eventType: 'Media Upload', status: 'success' as const, message: 'Media files uploaded to library' },
-  { id: 18, timestamp: '2024-01-15 10:12:33', service: 'TikTok', eventType: 'Hashtag Check', status: 'warning' as const, message: 'Some hashtags may be restricted' },
-  { id: 19, timestamp: '2024-01-15 09:58:20', service: 'Facebook', eventType: 'Audience Sync', status: 'success' as const, message: 'Custom audience synced successfully' },
-  { id: 20, timestamp: '2024-01-15 09:42:15', service: 'TikTok', eventType: 'Content Check', status: 'warning' as const, message: 'Content flagged for manual review' },
-  { id: 21, timestamp: '2024-01-15 09:25:10', service: 'Facebook', eventType: 'Post Deleted', status: 'success' as const, message: 'Post deleted successfully' },
-  { id: 22, timestamp: '2024-01-15 09:08:44', service: 'TikTok', eventType: 'Video Processing', status: 'success' as const, message: 'Video processing completed' },
-  { id: 23, timestamp: '2024-01-15 08:52:30', service: 'Facebook', eventType: 'API Request', status: 'success' as const, message: 'API request completed successfully' },
-  { id: 24, timestamp: '2024-01-15 08:35:18', service: 'TikTok', eventType: 'Token Expired', status: 'error' as const, message: 'Access token expired, re-authentication required' },
-  { id: 25, timestamp: '2024-01-15 08:18:55', service: 'Facebook', eventType: 'Event Created', status: 'success' as const, message: 'New event created on page' },
-]
+// Empty logs - will be populated when activity log API is implemented
+const logs: Array<{
+  id: number
+  timestamp: string
+  service: string
+  eventType: string
+  status: 'success' | 'error' | 'warning'
+  message: string
+}> = []
 
 const LogsPage: React.FC = () => {
   const { t } = useTranslation()
@@ -317,56 +322,64 @@ const LogsPage: React.FC = () => {
       </FilterToolbar>
 
       <LogsTableSection>
-        <TableWrapper>
-          <LogsTable>
-            <TableHeader>
-              <tr>
-                <TableHeaderCell>{t('logs.timestamp')}</TableHeaderCell>
-                <TableHeaderCell>{t('logs.service')}</TableHeaderCell>
-                <TableHeaderCell>{t('logs.eventType')}</TableHeaderCell>
-                <TableHeaderCell>{t('logs.status')}</TableHeaderCell>
-                <TableHeaderCell>{t('logs.message')}</TableHeaderCell>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {mockLogs.map(log => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    <Timestamp>{log.timestamp}</Timestamp>
-                  </TableCell>
-                  <TableCell>
-                    <ServiceLabel>{log.service}</ServiceLabel>
-                  </TableCell>
-                  <TableCell>
-                    <EventType>{log.eventType}</EventType>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge $status={log.status}>
-                      {log.status}
-                    </StatusBadge>
-                  </TableCell>
-                  <TableCell>
-                    <Message title={log.message}>{log.message}</Message>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </LogsTable>
-        </TableWrapper>
+        {logs.length === 0 ? (
+          <EmptyState>
+            <EmptyIcon>📋</EmptyIcon>
+            <EmptyTitle>{t('logs.noLogs', 'No Activity Logs')}</EmptyTitle>
+            <EmptyDescription>
+              {t('logs.noLogsDescription', 'Activity logs will appear here when you start using Facebook and TikTok integrations.')}
+            </EmptyDescription>
+          </EmptyState>
+        ) : (
+          <TableWrapper>
+            <LogsTable>
+              <TableHeader>
+                <tr>
+                  <TableHeaderCell>{t('logs.timestamp')}</TableHeaderCell>
+                  <TableHeaderCell>{t('logs.service')}</TableHeaderCell>
+                  <TableHeaderCell>{t('logs.eventType')}</TableHeaderCell>
+                  <TableHeaderCell>{t('logs.status')}</TableHeaderCell>
+                  <TableHeaderCell>{t('logs.message')}</TableHeaderCell>
+                </tr>
+              </TableHeader>
+              <TableBody>
+                {logs.map(log => (
+                  <TableRow key={log.id}>
+                    <TableCell>
+                      <Timestamp>{log.timestamp}</Timestamp>
+                    </TableCell>
+                    <TableCell>
+                      <ServiceLabel>{log.service}</ServiceLabel>
+                    </TableCell>
+                    <TableCell>
+                      <EventType>{log.eventType}</EventType>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge $status={log.status}>
+                        {log.status}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      <Message title={log.message}>{log.message}</Message>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </LogsTable>
+          </TableWrapper>
+        )}
       </LogsTableSection>
 
-      <PaginationSection>
-        <PageInfo>{t('logs.showing', { start: 1, end: 25, total: 250 })}</PageInfo>
-        <PaginationButtons>
-          <PageButton disabled>{t('logs.previous')}</PageButton>
-          <PageButton $active>1</PageButton>
-          <PageButton>2</PageButton>
-          <PageButton>3</PageButton>
-          <PageButton>...</PageButton>
-          <PageButton>10</PageButton>
-          <PageButton>{t('logs.next')}</PageButton>
-        </PaginationButtons>
-      </PaginationSection>
+      {logs.length > 0 && (
+        <PaginationSection>
+          <PageInfo>{t('logs.showing', { start: 1, end: logs.length, total: logs.length })}</PageInfo>
+          <PaginationButtons>
+            <PageButton disabled>{t('logs.previous')}</PageButton>
+            <PageButton $active>1</PageButton>
+            <PageButton>{t('logs.next')}</PageButton>
+          </PaginationButtons>
+        </PaginationSection>
+      )}
     </Container>
   )
 }
