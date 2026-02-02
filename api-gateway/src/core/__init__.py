@@ -1,0 +1,1 @@
+# api-gateway/src/core/__init__.py

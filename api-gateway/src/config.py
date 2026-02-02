@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     OCR_API_KEY: str = Field(default="", description="OCR API authentication key")
     OCR_MOCK_MODE: bool = Field(default=True, description="Use mock OCR when API not configured")
 
+    # Service Authentication
+    MASTER_SECRET_KEY: str = Field(..., description="Master secret key for service JWT validation")
+
 
 # Global settings instance
 settings = Settings()

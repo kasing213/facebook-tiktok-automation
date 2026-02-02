@@ -8,12 +8,13 @@ trigger Telegram notifications and other internal operations.
 
 import base64
 import logging
-from typing import Optional
-from fastapi import APIRouter, HTTPException
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 
 from src.bot import create_bot
+from src.middleware.service_auth import require_service_jwt
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -53,13 +54,23 @@ class InvoicePDFRequest(BaseModel):
 
 
 @router.post("/telegram/send-invoice")
-async def send_invoice_notification(data: InvoiceNotificationRequest):
+async def send_invoice_notification(
+    data: InvoiceNotificationRequest,
+    context: Dict[str, Any] = Depends(require_service_jwt)
+):
     """
     Send invoice notification to a client's Telegram chat.
 
     Called by the main backend when an invoice is created for a
     customer with linked Telegram.
     """
+    # Log service access
+    logger.info(
+        f"Invoice notification request from service={context['service']} "
+        f"tenant_id={context['tenant_id']} user_id={context['user_id']} "
+        f"request_id={context['request_id']}"
+    )
+
     bot, _ = create_bot()
 
     if not bot:
@@ -130,12 +141,22 @@ async def send_invoice_notification(data: InvoiceNotificationRequest):
 
 
 @router.post("/telegram/notify-merchant")
-async def notify_merchant_payment(data: MerchantNotificationRequest):
+async def notify_merchant_payment(
+    data: MerchantNotificationRequest,
+    context: Dict[str, Any] = Depends(require_service_jwt)
+):
     """
     Notify merchant about a payment verification result.
 
     Called after OCR verification completes to inform the merchant.
     """
+    # Log service access
+    logger.info(
+        f"Merchant notification request from service={context['service']} "
+        f"tenant_id={context['tenant_id']} user_id={context['user_id']} "
+        f"request_id={context['request_id']}"
+    )
+
     bot, _ = create_bot()
 
     if not bot:
@@ -193,7 +214,10 @@ async def notify_merchant_payment(data: MerchantNotificationRequest):
 
 
 @router.post("/telegram/send-invoice-pdf")
-async def send_invoice_pdf(data: InvoicePDFRequest):
+async def send_invoice_pdf(
+    data: InvoicePDFRequest,
+    context: Dict[str, Any] = Depends(require_service_jwt)
+):
     """
     Send invoice PDF as document with verify button to Telegram chat.
 
@@ -283,7 +307,10 @@ class BroadcastResult(BaseModel):
 
 
 @router.post("/telegram/broadcast")
-async def broadcast_message(data: BroadcastRequest):
+async def broadcast_message(
+    data: BroadcastRequest,
+    context: Dict[str, Any] = Depends(require_service_jwt)
+):
     """
     Broadcast promotional content to multiple Telegram chats.
 

@@ -21,6 +21,7 @@ except ImportError:
     MOTOR_AVAILABLE = False
 
 from app.core.config import get_settings
+from app.core.external_jwt import create_external_service_token
 from app.core.models import (
     AdsAlertChat, AdsAlertPromotion, AdsAlertMedia, AdsAlertMediaFolder,
     AdsAlertBroadcastLog, PromotionStatus, BroadcastStatus, PromotionTargetType,
@@ -166,6 +167,28 @@ class BroadcastService:
         self.api_gateway_url = settings.API_GATEWAY_URL
         self.storage_service = storage_service
 
+    def _create_service_jwt_headers(self, current_user) -> dict:
+        """
+        Create headers with service JWT for API Gateway internal calls.
+
+        Args:
+            current_user: Current authenticated user
+
+        Returns:
+            Headers dict with Authorization Bearer token
+        """
+        service_token = create_external_service_token(
+            service_name="facebook-automation",
+            tenant_id=str(current_user.tenant_id),
+            user_id=str(current_user.id),
+            data={"role": current_user.role.value}
+        )
+
+        return {
+            "Authorization": f"Bearer {service_token}",
+            "Content-Type": "application/json"
+        }
+
     async def _prepare_media_data(
         self,
         media_urls: List[str],
@@ -216,6 +239,7 @@ class BroadcastService:
         content: str,
         media_type: str,
         media_urls: List[str],
+        current_user,
         tenant_id: UUID = None
     ) -> Tuple[bool, Optional[str]]:
         """
@@ -237,9 +261,13 @@ class BroadcastService:
         logger.debug(f"Sending promotion to chat {chat_id}: media_type={media_type}, external_urls={len(external_urls)}, media_data={len(media_data)}, content_len={len(content)}")
 
         try:
+            # Create service JWT headers for authentication
+            jwt_headers = self._create_service_jwt_headers(current_user)
+
             async with httpx.AsyncClient(timeout=60.0) as client:  # Increased timeout for base64 payloads
                 response = await client.post(
                     f"{self.api_gateway_url}/internal/telegram/broadcast",
+                    headers=jwt_headers,
                     json={
                         "chat_ids": [chat_id],
                         "content": content,
@@ -274,6 +302,7 @@ class BroadcastService:
         self,
         promotion: AdsAlertPromotion,
         chats: List[AdsAlertChat],
+        current_user,
         db: Session
     ) -> dict:
         """
@@ -320,6 +349,7 @@ class BroadcastService:
                 content=promotion.content or "",
                 media_type=promotion.media_type.value if promotion.media_type else "text",
                 media_urls=promotion.media_urls or [],
+                current_user=current_user,
                 tenant_id=promotion.tenant_id
             )
 
@@ -428,7 +458,8 @@ class AdsAlertService:
     async def send_promotion_now(
         self,
         promotion_id: UUID,
-        tenant_id: UUID
+        tenant_id: UUID,
+        current_user
     ) -> dict:
         """Send a promotion immediately to all target chats"""
         promotion = self.promotion_repo.get_by_id_and_tenant(promotion_id, tenant_id)
@@ -491,6 +522,7 @@ class AdsAlertService:
         results = await self.broadcast_service.broadcast_promotion(
             promotion=promotion,
             chats=chats,
+            current_user=current_user,
             db=self.db
         )
 
@@ -555,14 +587,24 @@ async def process_scheduled_promotions(db: Session) -> int:
     Returns:
         Number of promotions processed
     """
+    from app.repositories.user import UserRepository
+
     promotion_repo = AdsAlertPromotionRepository(db)
     due_promotions = promotion_repo.get_due_promotions()
 
     processed = 0
     for promotion in due_promotions:
         try:
+            # Get tenant owner as system user context for scheduled tasks
+            user_repo = UserRepository(db)
+            tenant_owner = user_repo.get_tenant_owner(promotion.tenant_id)
+
+            if not tenant_owner:
+                logger.error(f"No owner found for tenant {promotion.tenant_id}, skipping promotion {promotion.id}")
+                continue
+
             service = AdsAlertService(db)
-            await service.send_promotion_now(promotion.id, promotion.tenant_id)
+            await service.send_promotion_now(promotion.id, promotion.tenant_id, tenant_owner)
             processed += 1
             logger.info(f"Processed scheduled promotion: {promotion.id}")
         except Exception as e:

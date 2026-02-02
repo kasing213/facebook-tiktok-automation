@@ -10,7 +10,7 @@ All routes require JWT authentication. PDF/Export features can be
 tier-gated based on configuration.
 """
 
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, Response, Query, UploadFile, File, Form
 from pydantic import BaseModel
 import httpx
@@ -30,12 +30,37 @@ from app.core.usage_limits import (
 )
 from app.services import invoice_mock_service as mock_svc
 from app.services.ocr_service import get_ocr_service
+from app.services.external_invoice_client import external_invoice_client
+from app.core.external_jwt import create_invoice_api_headers, create_external_service_token
 from app.repositories.product import ProductRepository
 from app.repositories.stock_movement import StockMovementRepository
 from app.core.models import MovementType
 from uuid import UUID
 
 router = APIRouter(prefix="/api/integrations/invoice", tags=["invoice-integration"])
+
+
+def create_service_jwt_headers(current_user) -> Dict[str, str]:
+    """
+    Create headers with service JWT for API Gateway internal calls.
+
+    Args:
+        current_user: Current authenticated user
+
+    Returns:
+        Headers dict with Authorization Bearer token
+    """
+    service_token = create_external_service_token(
+        service_name="facebook-automation",
+        tenant_id=str(current_user.tenant_id),
+        user_id=str(current_user.id),
+        data={"role": current_user.role.value}
+    )
+
+    return {
+        "Authorization": f"Bearer {service_token}",
+        "Content-Type": "application/json"
+    }
 
 
 # Request/Response Models
@@ -115,12 +140,16 @@ def is_tier_enforced() -> bool:
     return get_settings().INVOICE_TIER_ENFORCEMENT
 
 
-async def get_invoice_client() -> httpx.AsyncClient:
+async def get_invoice_client(tenant_id: str, user_id: Optional[str] = None) -> httpx.AsyncClient:
     """
-    Create an authenticated httpx client for the Invoice API.
+    Create an authenticated httpx client for the Invoice API with JWT authentication.
+
+    Args:
+        tenant_id: Tenant ID for authentication
+        user_id: Optional user ID for authentication
 
     Returns:
-        Configured AsyncClient with API key header
+        Configured AsyncClient with JWT authentication headers
 
     Raises:
         HTTPException: If Invoice API is not configured
@@ -132,16 +161,17 @@ async def get_invoice_client() -> httpx.AsyncClient:
             detail="Invoice API not configured. Set INVOICE_API_URL environment variable."
         )
 
+    # Get JWT-based headers for authentication
+    headers = create_invoice_api_headers(tenant_id=tenant_id, user_id=user_id)
+
+    # Add legacy API key if still configured (for backward compatibility)
     api_key = settings.INVOICE_API_KEY.get_secret_value()
-    if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="Invoice API key not configured. Set INVOICE_API_KEY environment variable."
-        )
+    if api_key:
+        headers["X-API-KEY"] = api_key
 
     return httpx.AsyncClient(
         base_url=settings.INVOICE_API_URL,
-        headers={"X-API-KEY": api_key},
+        headers=headers,
         timeout=30.0
     )
 
@@ -167,7 +197,7 @@ async def proxy_request(
     Raises:
         HTTPException: On API errors
     """
-    async with await get_invoice_client() as client:
+    async with await get_invoice_client(str(current_user.tenant_id), str(current_user.id)) as client:
         try:
             response = await client.request(
                 method=method,
@@ -224,7 +254,7 @@ async def health_check():
 
     if configured:
         try:
-            async with await get_invoice_client() as client:
+            async with await get_invoice_client(str(current_user.tenant_id), str(current_user.id)) as client:
                 response = await client.get("/api/health")
                 result["api_status"] = "reachable" if response.status_code == 200 else "error"
         except Exception as e:
@@ -1058,6 +1088,7 @@ async def send_invoice_to_telegram(
     invoice: dict,
     customer: dict,
     tenant_id: str,
+    current_user,
     db: Session
 ) -> dict:
     """
@@ -1098,7 +1129,7 @@ async def send_invoice_to_telegram(
     if not pdf_bytes:
         # Fall back to text message if PDF generation fails
         logger.warning(f"PDF generation failed for invoice {invoice_id}, falling back to text message")
-        return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
+        return await _send_invoice_text_fallback(invoice, customer, api_gateway_url, current_user)
 
     # Format amount for display
     currency = invoice.get("currency", "KHR")
@@ -1113,9 +1144,13 @@ async def send_invoice_to_telegram(
 
     # Send PDF with verify button via api-gateway
     try:
+        # Create service JWT headers for authentication
+        jwt_headers = create_service_jwt_headers(current_user)
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 f"{api_gateway_url}/internal/telegram/send-invoice-pdf",
+                headers=jwt_headers,
                 json={
                     "chat_id": telegram_chat_id,
                     "invoice_id": str(invoice_id),
@@ -1131,16 +1166,17 @@ async def send_invoice_to_telegram(
             else:
                 # Fall back to text if PDF sending fails
                 logger.warning(f"PDF send to api-gateway failed with status {response.status_code}, falling back to text message")
-                return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
+                return await _send_invoice_text_fallback(invoice, customer, api_gateway_url, current_user)
     except Exception as e:
         logger.error(f"Error sending PDF to Telegram: {e}, falling back to text message")
-        return await _send_invoice_text_fallback(invoice, customer, api_gateway_url)
+        return await _send_invoice_text_fallback(invoice, customer, api_gateway_url, current_user)
 
 
 async def _send_invoice_text_fallback(
     invoice: dict,
     customer: dict,
-    api_gateway_url: str
+    api_gateway_url: str,
+    current_user
 ) -> dict:
     """Fallback to text message if PDF sending fails."""
     telegram_chat_id = customer.get("telegram_chat_id")
@@ -1153,9 +1189,13 @@ async def _send_invoice_text_fallback(
         amount_str = f"${amount:.2f}"
 
     try:
+        # Create service JWT headers for authentication
+        jwt_headers = create_service_jwt_headers(current_user)
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 f"{api_gateway_url}/internal/telegram/send-invoice",
+                headers=jwt_headers,
                 json={
                     "chat_id": telegram_chat_id,
                     "invoice_number": invoice.get("invoice_number", "N/A"),
@@ -1486,6 +1526,7 @@ async def create_invoice(
             invoice=invoice,
             customer=registered_customer,
             tenant_id=str(current_user.tenant_id),
+            current_user=current_user,
             db=db
         )
 
@@ -1569,7 +1610,7 @@ async def export_invoices(
     if end_date:
         params["end_date"] = end_date
 
-    async with await get_invoice_client() as client:
+    async with await get_invoice_client(str(current_user.tenant_id), str(current_user.id)) as client:
         try:
             response = await client.get("/api/invoices/export", params=params)
             response.raise_for_status()
@@ -2210,7 +2251,7 @@ async def download_invoice_pdf(
         )
 
     # Production mode - proxy to external API
-    async with await get_invoice_client() as client:
+    async with await get_invoice_client(str(current_user.tenant_id), str(current_user.id)) as client:
         try:
             response = await client.get(f"/api/invoices/{invoice_id}/pdf")
             response.raise_for_status()
@@ -2313,6 +2354,7 @@ async def send_invoice_to_customer(
             invoice=invoice_data,
             customer=customer_data,
             tenant_id=str(current_user.tenant_id),
+            current_user=current_user,
             db=db
         )
 
@@ -2583,3 +2625,72 @@ async def _deduct_inventory_stock(
         logger = logging.getLogger(__name__)
         logger.error(f"Error deducting inventory stock for invoice {invoice.get('id')}: {e}")
         db.rollback()
+
+
+@router.get("/auth/token")
+async def get_client_token(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get a JWT token for client-side invoice API authentication.
+
+    This token can be used by JavaScript clients to authenticate
+    with external invoice services directly.
+
+    Returns:
+        JWT token with tenant and user context
+    """
+    from app.core.external_jwt import create_general_invoice_client_token
+
+    token = create_general_invoice_client_token(str(current_user.tenant_id))
+
+    return {
+        "token": token,
+        "tenant_id": str(current_user.tenant_id),
+        "user_id": str(current_user.id),
+        "expires_in": 24 * 3600  # 24 hours
+    }
+
+
+@router.post("/auth/validate")
+async def validate_external_token(
+    token: str = Form(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Validate a JWT token from external services.
+
+    This endpoint can be used by external invoice services to validate
+    tokens sent from the Facebook automation platform.
+
+    Args:
+        token: JWT token to validate
+
+    Returns:
+        Token payload if valid, error if invalid
+    """
+    from app.core.external_jwt import validate_external_service_token
+
+    payload = validate_external_service_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token"
+        )
+
+    # Verify tenant matches current user
+    token_tenant_id = payload.get("tenant_id")
+    if token_tenant_id != str(current_user.tenant_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Token tenant mismatch"
+        )
+
+    return {
+        "valid": True,
+        "payload": payload,
+        "tenant_id": token_tenant_id,
+        "service": payload.get("service"),
+        "expires_at": payload.get("exp")
+    }

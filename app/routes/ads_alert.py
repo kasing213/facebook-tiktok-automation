@@ -453,7 +453,7 @@ async def send_promotion(
 
     service = AdsAlertService(db)
     try:
-        result = await service.send_promotion_now(promotion_id, current_user.tenant_id)
+        result = await service.send_promotion_now(promotion_id, current_user.tenant_id, current_user)
 
         # Increment broadcast counter after successful send
         increment_broadcast_counter(current_user.tenant_id, recipient_count, db)

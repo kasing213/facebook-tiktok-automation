@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     # Invoice API Integration
     INVOICE_API_URL: str = Field(default="", description="External Invoice API base URL")
     INVOICE_API_KEY: SecretStr = Field(default=SecretStr(""), description="Invoice API authentication key")
+    INVOICE_JWT_SECRET: SecretStr = Field(default=SecretStr(""), description="JWT secret for Invoice API authentication")
 
     # Stripe Integration
     STRIPE_SECRET_KEY: SecretStr = Field(default=SecretStr(""), description="Stripe secret key")
