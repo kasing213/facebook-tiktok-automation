@@ -30,6 +30,7 @@ from app.routes.ads_alert import router as ads_alert_router
 from app.routes.moderation import router as moderation_router
 from app.routes.usage import router as usage_router
 from app.routes.dashboard import router as dashboard_router
+from app.routes.mfa import router as mfa_router
 
 
 # Request/Response models
@@ -189,6 +190,7 @@ app.include_router(ads_alert_router)
 app.include_router(moderation_router)
 app.include_router(usage_router)
 app.include_router(dashboard_router)
+app.include_router(mfa_router)
 
 # Mount static files for policy pages
 app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")
