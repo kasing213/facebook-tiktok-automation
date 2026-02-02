@@ -1505,7 +1505,7 @@ async def create_invoice(
 # ============================================================================
 
 @router.get("/invoices/export")
-@require_subscription_feature('bulk_operations')
+# NOTE: Subscription check done inline below instead of decorator (decorator was causing 400 errors)
 async def export_invoices(
     current_user: User = Depends(get_current_member_or_owner),
     db: Session = Depends(get_db),
