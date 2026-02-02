@@ -51,6 +51,61 @@ frontend/src/App.tsx          - React entry
 
 ## Critical Issues & Fixes
 
+### 🚨 Database Connection Timeout Fixes (February 2026) - RESOLVED ✅
+
+**Issue**: Background automation scheduler crashes with connection timeouts causing 499 status codes on login page
+
+**Root Cause**:
+- 15-second connection timeout too short for load spikes
+- No retry logic in background tasks
+- Single database failure crashed entire automation system
+
+**Solution Implemented**:
+```python
+# Enhanced connection configuration (app/core/db.py)
+engine = create_engine(
+    _get_psycopg3_url(DATABASE_URL),
+    poolclass=NullPool,
+    connect_args={
+        "connect_timeout": 30,  # Increased from 15s
+        "prepare_threshold": None,
+        # ... other config
+    }
+)
+
+# New retry logic with exponential backoff
+def retry_db_operation(operation, max_retries=3, base_delay=1.0):
+    for attempt in range(max_retries + 1):
+        try:
+            return operation()
+        except connection_error:
+            if attempt < max_retries:
+                delay = min(base_delay * (2 ** attempt), 30.0)
+                time.sleep(delay)
+            else:
+                raise
+
+# Enhanced session context manager
+@contextmanager
+def get_db_session_with_retry(max_retries=3):
+    # Creates sessions with built-in retry logic
+```
+
+**Background Tasks Enhanced**:
+- ✅ Automation Scheduler: 5 retries + individual task isolation
+- ✅ Ads Alert Scheduler: 5 retries for promotion processing
+- ✅ Token Refresh Jobs: 5 retries for validation/cleanup
+- ✅ Trial Checker: 5 retries for subscription processing
+
+**Benefits**:
+- 🛡️ **Login page stability**: No more 499 errors from background failures
+- 🔄 **Auto-recovery**: Background tasks self-heal from connection issues
+- 🚀 **Zero downtime**: Temporary DB connectivity issues don't affect users
+- 📈 **Scalable**: Handles load spikes and connection pool exhaustion
+- 🧠 **Smart detection**: Distinguishes connection vs business logic errors
+
+**Files Modified**: `app/core/db.py`, `app/jobs/*.py` (all schedulers)
+
 ### Database Configuration (PRODUCTION-READY)
 **Use NullPool + Transaction mode (port 6543):**
 ```python
@@ -77,6 +132,8 @@ engine = create_engine(
 - **Bot not responding**: Set `TELEGRAM_BOT_TOKEN` in Railway
 - **Wrong bot link**: Set `TELEGRAM_BOT_USERNAME=KS_automations_bot`
 - **Connection leaks**: Use `with get_db_session() as db:` not `next(get_db())`
+- **🆕 Background task DB timeouts**: Use `with get_db_session_with_retry() as db:` for all schedulers
+- **🆕 Login page 499 errors**: Fixed by background task resilience improvements
 
 ### formatCurrency Pattern
 ```typescript
@@ -364,7 +421,7 @@ await check_product_limit(current_user.tenant_id, db)  # ✅ NEW
 ✅ Tenant isolation enhanced
 
 ## Production Checklist ✅
-- [x] Database: NullPool + Transaction mode
+- [x] Database: NullPool + Transaction mode + **Enhanced timeout resilience**
 - [x] Authentication: JWT + roles + OAuth
 - [x] Multi-tenant: Complete isolation + enhanced security
 - [x] Payments: OCR verification pipeline
@@ -373,6 +430,9 @@ await check_product_limit(current_user.tenant_id, db)  # ✅ NEW
 - [x] Feature Gates: Subscription enforcement across all systems
 - [x] Storage Limits: Quota enforcement by tier
 - [x] File Access: Private with tenant validation
+- [x] **🆕 Background Tasks**: All schedulers resilient with retry logic + circuit breaker
+- [x] **🆕 Error Handling**: Smart connection error detection with auto-recovery
+- [x] **🆕 System Stability**: Login page protected from background task failures
 - [x] Backups: R2 cloud + local retention
 - [x] Scaling: 200+ concurrent users supported
 

@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import List
 
 from sqlalchemy.orm import Session
-from app.core.db import get_db_session
+from app.core.db import get_db_session, get_db_session_with_retry
 from app.core.models import Automation, AutomationStatus
 from app.services.automation_service import AutomationService
 
@@ -40,23 +40,46 @@ class AutomationScheduler:
         self.is_running = True
         self.logger.info(f"🚀 Automation scheduler started (check interval: {self.check_interval}s)")
 
+        consecutive_failures = 0
+        max_consecutive_failures = 10
+
         while self.is_running:
             try:
                 await self.check_and_execute_automations()
+                consecutive_failures = 0  # Reset on success
 
                 # Wait for next check
                 await asyncio.sleep(self.check_interval)
 
             except Exception as e:
-                self.logger.error(f"Automation scheduler error: {e}", exc_info=True)
-                # Wait a bit before retrying on error
-                await asyncio.sleep(min(self.check_interval, 300))
+                consecutive_failures += 1
+                self.logger.error(
+                    f"Automation scheduler error (failure #{consecutive_failures}): {e}",
+                    exc_info=True
+                )
+
+                # Exponential backoff for repeated failures
+                if consecutive_failures >= max_consecutive_failures:
+                    self.logger.critical(
+                        f"Automation scheduler has failed {consecutive_failures} times consecutively. "
+                        "Entering extended backoff mode."
+                    )
+                    await asyncio.sleep(600)  # 10 minutes
+                    consecutive_failures = 0  # Reset after long wait
+                else:
+                    # Progressive backoff: base interval * 2^failures, capped at 10 minutes
+                    backoff_delay = min(self.check_interval * (2 ** min(consecutive_failures - 1, 5)), 600)
+                    self.logger.warning(f"Waiting {backoff_delay}s before retry (failure #{consecutive_failures})")
+                    await asyncio.sleep(backoff_delay)
 
     async def check_and_execute_automations(self):
         """Check for due automations and execute them"""
         try:
-            # Create a fresh session for this check to avoid prepared statement conflicts
-            with get_db_session() as db:
+            # Use retry logic for database connectivity issues
+            with get_db_session_with_retry(
+                max_retries=5,
+                operation_name="Automation scheduler - get due automations"
+            ) as db:
                 automation_service = AutomationService(db)
 
                 # Get all automations that are due to run
@@ -68,10 +91,20 @@ class AutomationScheduler:
 
             self.logger.info(f"Found {len(due_automations)} automation(s) due for execution")
 
-            # Execute each automation with a fresh session
+            # Execute each automation with a fresh session and retry logic
             for automation in due_automations:
-                with get_db_session() as exec_db:
-                    await self.execute_automation_safe(automation, exec_db)
+                try:
+                    with get_db_session_with_retry(
+                        max_retries=3,
+                        operation_name=f"Execute automation {automation.name}"
+                    ) as exec_db:
+                        await self.execute_automation_safe(automation, exec_db)
+                except Exception as automation_error:
+                    # Log individual automation failures but continue with others
+                    self.logger.error(
+                        f"Failed to execute automation {automation.name} (ID: {automation.id}): {automation_error}",
+                        exc_info=True
+                    )
 
         except Exception as e:
             self.logger.error(f"Error checking due automations: {e}", exc_info=True)

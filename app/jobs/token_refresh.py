@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import List
 
 from sqlalchemy.orm import Session
-from app.core.db import get_db_session
+from app.core.db import get_db_session, get_db_session_with_retry
 from app.core.models import AdToken, Platform
 from app.repositories import AdTokenRepository
 from app.services import AuthService
@@ -27,8 +27,11 @@ class TokenRefreshJob:
     async def run_token_validation(self):
         """Run token validation for all tokens nearing expiry"""
         try:
-            # Get database session
-            with get_db_session() as db:
+            # Get database session with retry logic
+            with get_db_session_with_retry(
+                max_retries=5,
+                operation_name="Token refresh - validation check"
+            ) as db:
                 # Initialize services
                 settings = get_settings()
                 encryptor = load_encryptor(settings.MASTER_SECRET_KEY.get_secret_value())
@@ -69,7 +72,10 @@ class TokenRefreshJob:
     async def run_daily_cleanup(self):
         """Run daily cleanup of invalid and expired tokens"""
         try:
-            with get_db_session() as db:
+            with get_db_session_with_retry(
+                max_retries=5,
+                operation_name="Token refresh - daily cleanup"
+            ) as db:
                 token_repo = AdTokenRepository(db)
 
                 # Mark tokens as invalid if they expired more than 7 days ago

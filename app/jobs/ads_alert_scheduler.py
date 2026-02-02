@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.core.db import get_db_session
+from app.core.db import get_db_session, get_db_session_with_retry
 from app.deps import get_logger
 from app.repositories.ads_alert import AdsAlertPromotionRepository, AdsAlertChatRepository
 from app.services.ads_alert_service import AdsAlertService
@@ -25,7 +25,10 @@ async def process_scheduled_promotions() -> dict:
     }
 
     try:
-        with get_db_session() as db:
+        with get_db_session_with_retry(
+            max_retries=5,
+            operation_name="Ads alert scheduler - get due promotions"
+        ) as db:
             promo_repo = AdsAlertPromotionRepository(db)
             chat_repo = AdsAlertChatRepository(db)
 

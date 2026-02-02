@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timezone
 
-from app.core.db import get_db_session
+from app.core.db import get_db_session, get_db_session_with_retry
 from app.deps import get_logger
 from app.core.models import Subscription, SubscriptionTier, SubscriptionStatus
 
@@ -22,7 +22,10 @@ async def process_expired_trials() -> dict:
     }
 
     try:
-        with get_db_session() as db:
+        with get_db_session_with_retry(
+            max_retries=5,
+            operation_name="Trial checker - process expired trials"
+        ) as db:
             now = datetime.now(timezone.utc)
 
             # Find all trial subscriptions that have expired

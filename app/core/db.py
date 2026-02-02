@@ -1,12 +1,18 @@
 # app/core/db.py
 import os
+import time
+import logging
 from contextlib import contextmanager
-from typing import Generator, Optional
+from typing import Generator, Optional, Callable, TypeVar, Any
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
+from sqlalchemy.exc import OperationalError, DisconnectionError
+import psycopg.errors
 from app.core.config import get_settings
 from app.core.models import Tenant
+
+T = TypeVar('T')
 
 _settings = get_settings()
 
@@ -56,7 +62,7 @@ engine = create_engine(
     isolation_level="AUTOCOMMIT",
 
     connect_args={
-        "connect_timeout": 15,
+        "connect_timeout": 30,  # Increased from 15 to handle load spikes
         "options": "-c timezone=utc -c default_transaction_isolation=read_committed",
         "application_name": f"fastapi_main_{os.getpid()}",
         "client_encoding": "utf8",
@@ -82,6 +88,138 @@ SessionLocal = sessionmaker(
 # NOTE: Event listeners removed for pgbouncer Transaction mode compatibility
 # Timezone is set via connect_args options: "-c timezone=utc"
 # Per-connection settings don't work reliably with pgbouncer (connections are pooled/shared)
+
+
+def is_connection_error(error: Exception) -> bool:
+    """Check if an exception represents a connection-related error"""
+    # SQLAlchemy connection errors
+    if isinstance(error, (OperationalError, DisconnectionError)):
+        return True
+
+    # psycopg connection errors
+    if isinstance(error, (psycopg.errors.ConnectionTimeout,
+                         psycopg.errors.AdminShutdown,
+                         psycopg.errors.CannotConnectNow,
+                         psycopg.errors.ConnectionException,
+                         psycopg.errors.ConnectionDoesNotExist)):
+        return True
+
+    # Check error message for common connection issues
+    error_msg = str(error).lower()
+    return any(keyword in error_msg for keyword in [
+        'connection timeout', 'connection failed', 'connection refused',
+        'connection closed', 'server closed', 'connection lost',
+        'timeout expired', 'connection reset', 'connection aborted'
+    ])
+
+
+def retry_db_operation(
+    operation: Callable[[], T],
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 30.0,
+    operation_name: str = "Database operation"
+) -> T:
+    """
+    Retry a database operation with exponential backoff.
+
+    Args:
+        operation: Function to retry
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay between retries (seconds)
+        max_delay: Maximum delay between retries (seconds)
+        operation_name: Name of the operation for logging
+
+    Returns:
+        Result of the operation
+
+    Raises:
+        Last exception if all retries fail
+    """
+    logger = logging.getLogger(__name__)
+
+    for attempt in range(max_retries + 1):
+        try:
+            result = operation()
+            if attempt > 0:
+                logger.info(f"✅ {operation_name} succeeded on attempt {attempt + 1}")
+            return result
+
+        except Exception as e:
+            is_last_attempt = attempt == max_retries
+            is_retryable = is_connection_error(e)
+
+            if is_last_attempt or not is_retryable:
+                if is_last_attempt:
+                    logger.error(f"❌ {operation_name} failed after {max_retries + 1} attempts: {e}")
+                else:
+                    logger.error(f"❌ {operation_name} failed with non-retryable error: {e}")
+                raise
+
+            # Calculate delay with exponential backoff and jitter
+            delay = min(base_delay * (2 ** attempt), max_delay)
+            jitter = delay * 0.1  # 10% jitter
+            actual_delay = delay + (time.time() % jitter)
+
+            logger.warning(
+                f"⚠️  {operation_name} failed on attempt {attempt + 1}: {e}. "
+                f"Retrying in {actual_delay:.1f}s..."
+            )
+            time.sleep(actual_delay)
+
+
+@contextmanager
+def get_db_session_with_retry(
+    max_retries: int = 3,
+    operation_name: str = "Database session"
+) -> Generator[Session, None, None]:
+    """
+    Context manager for database sessions with built-in retry logic.
+
+    This is the recommended way to handle database operations in background tasks
+    that might encounter connection issues.
+
+    Usage:
+        with get_db_session_with_retry(max_retries=5, operation_name="Automation check") as db:
+            # perform database operations
+    """
+    def create_session():
+        return SessionLocal()
+
+    # Use retry logic to establish the connection
+    db = retry_db_operation(
+        operation=create_session,
+        max_retries=max_retries,
+        operation_name=f"{operation_name} - session creation"
+    )
+
+    try:
+        yield db
+
+        # Commit with retry logic
+        def commit_operation():
+            db.commit()
+            return None
+
+        retry_db_operation(
+            operation=commit_operation,
+            max_retries=2,  # Fewer retries for commit
+            operation_name=f"{operation_name} - commit"
+        )
+
+    except Exception:
+        try:
+            db.rollback()
+        except Exception as rollback_error:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to rollback transaction: {rollback_error}")
+        raise
+    finally:
+        try:
+            db.close()
+        except Exception as close_error:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to close database session: {close_error}")
 
 def get_db() -> Generator[Session, None, None]:
     """
