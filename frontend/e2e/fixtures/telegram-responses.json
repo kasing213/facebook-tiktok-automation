@@ -1,0 +1,135 @@
+{
+  "telegram_api_mocks": {
+    "bot_info": {
+      "ok": true,
+      "result": {
+        "id": 123456789,
+        "is_bot": true,
+        "first_name": "KS Automations",
+        "username": "KS_automations_bot",
+        "can_join_groups": true,
+        "can_read_all_group_messages": false,
+        "supports_inline_queries": false
+      }
+    },
+    "send_message_success": {
+      "ok": true,
+      "result": {
+        "message_id": 789,
+        "from": {
+          "id": 123456789,
+          "is_bot": true,
+          "first_name": "KS Automations",
+          "username": "KS_automations_bot"
+        },
+        "chat": {
+          "id": 12345678,
+          "first_name": "Test",
+          "last_name": "User",
+          "username": "testuser",
+          "type": "private"
+        },
+        "date": 1706745600,
+        "text": "Invoice INV-001 has been sent successfully! 📄"
+      }
+    },
+    "send_document_success": {
+      "ok": true,
+      "result": {
+        "message_id": 790,
+        "from": {
+          "id": 123456789,
+          "is_bot": true,
+          "first_name": "KS Automations",
+          "username": "KS_automations_bot"
+        },
+        "chat": {
+          "id": 12345678,
+          "first_name": "Test",
+          "last_name": "User",
+          "username": "testuser",
+          "type": "private"
+        },
+        "date": 1706745660,
+        "document": {
+          "file_name": "INV-001.pdf",
+          "mime_type": "application/pdf",
+          "file_id": "BAADBAADqwADBREAAVuYRCLK_JOUAg",
+          "file_unique_id": "AgADqwADBREAAQ",
+          "file_size": 524288
+        },
+        "caption": "📄 Invoice INV-001\n\n💰 Amount: $2,499.99\n📅 Due: Feb 28, 2026\n\n👤 Customer: Tech Solutions Inc\n\n🔗 [Verify Payment](https://facebook-automation.vercel.app/verify/INV-001)"
+      }
+    },
+    "webhook_payment_verification": {
+      "update_id": 999,
+      "message": {
+        "message_id": 791,
+        "from": {
+          "id": 12345678,
+          "is_bot": false,
+          "first_name": "Test",
+          "last_name": "User",
+          "username": "testuser"
+        },
+        "chat": {
+          "id": 12345678,
+          "first_name": "Test",
+          "last_name": "User",
+          "username": "testuser",
+          "type": "private"
+        },
+        "date": 1706745720,
+        "photo": [
+          {
+            "file_id": "AgACAgIAAxkBAAICH2XcQ",
+            "file_unique_id": "AQADeQEAAh9l3A",
+            "width": 1280,
+            "height": 960,
+            "file_size": 102400
+          }
+        ],
+        "caption": "Payment for INV-001"
+      }
+    },
+    "error_responses": {
+      "invalid_bot_token": {
+        "ok": false,
+        "error_code": 401,
+        "description": "Unauthorized"
+      },
+      "chat_not_found": {
+        "ok": false,
+        "error_code": 400,
+        "description": "Bad Request: chat not found"
+      },
+      "message_too_long": {
+        "ok": false,
+        "error_code": 400,
+        "description": "Bad Request: message is too long"
+      }
+    }
+  },
+  "bot_commands": {
+    "/start": {
+      "command": "/start AUTH123456",
+      "expected_response": "✅ Account linked successfully!\n\nYou can now receive invoice notifications and verify payments.\n\nAvailable commands:\n/status - Check system status\n/invoice - Invoice operations\n/inventory - Check stock levels\n/help - Show all commands"
+    },
+    "/status": {
+      "command": "/status",
+      "expected_response": "🟢 System Status: Online\n\n📊 Your Stats:\n• Invoices: 4 total\n• Products: 10 total\n• Pending Payments: 2\n\n💼 Subscription: Free Tier\n📅 Last Updated: {{timestamp}}"
+    },
+    "/inventory": {
+      "command": "/inventory",
+      "expected_response": "📦 Inventory Status:\n\n📊 Total Products: 10\n⚠️ Low Stock Items: 2\n\n🔍 Low Stock Alert:\n• Low Stock Item 1 (2 left)\n• Low Stock Item 2 (1 left)\n\n💡 Use /lowstock for detailed view"
+    },
+    "/lowstock": {
+      "command": "/lowstock",
+      "expected_response": "⚠️ Low Stock Alert\n\n📦 Products below threshold:\n\n🔴 LOW-001: Low Stock Item 1\n   Stock: 2 / Threshold: 5\n   Price: $49.99\n\n🔴 LOW-002: Low Stock Item 2\n   Stock: 1 / Threshold: 3\n   Price: $29.99\n\n💡 Consider restocking these items!"
+    },
+    "/help": {
+      "command": "/help",
+      "expected_response": "🤖 KS Automations Bot Help\n\n📋 Available Commands:\n\n/start <code> - Link your account\n/status - System & account status\n/invoice - Invoice operations\n/inventory - Stock overview\n/lowstock - Low stock alerts\n/verify - Payment verification\n/help - Show this help\n\n💡 Need support? Contact: support@facebook-automation.com"
+    }
+  }
+}

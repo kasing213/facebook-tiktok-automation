@@ -1,0 +1,1032 @@
+{
+  "config": {
+    "configFile": "/mnt/d/Facebook-automation/frontend/playwright.config.ts",
+    "rootDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup",
+        "name": "setup",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.setup\\.ts/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "core-chromium",
+        "name": "core-chromium",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/tests\\/core\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "tenant-chromium",
+        "name": "tenant-chromium",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/tests\\/tenant\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "integration-chromium",
+        "name": "integration-chromium",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/tests\\/(?!core|tenant).*\\.spec\\.ts/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "performance-chromium",
+        "name": "performance-chromium",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/tests\\/performance\\.spec\\.ts/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "core-firefox",
+        "name": "core-firefox",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/tests\\/core\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "tenant-firefox",
+        "name": "tenant-firefox",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/tests\\/tenant\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/mnt/d/Facebook-automation/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "core-webkit",
+        "name": "core-webkit",
+        "testDir": "/mnt/d/Facebook-automation/frontend/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/tests\\/core\\/system-health\\.spec\\.ts/"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "auth.setup.ts",
+      "file": "auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup",
+              "projectName": "setup",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 1978,
+                  "error": {
+                    "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/login\", waiting until \"load\"\u001b[22m\n",
+                    "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/login\", waiting until \"load\"\u001b[22m\n\n    at operation (/mnt/d/Facebook-automation/frontend/e2e/tests/auth.setup.ts:19:16)\n    at withRateLimitRetry (/mnt/d/Facebook-automation/frontend/e2e/helpers/rate-limit.ts:86:28)\n    at /mnt/d/Facebook-automation/frontend/e2e/tests/auth.setup.ts:16:3",
+                    "location": {
+                      "file": "/mnt/d/Facebook-automation/frontend/e2e/tests/auth.setup.ts",
+                      "column": 16,
+                      "line": 19
+                    },
+                    "snippet": "  17 |     // Go to login page\n  18 |     console.log('[Auth] Navigating to login page');\n> 19 |     await page.goto('/login');\n     |                ^\n  20 |\n  21 |     // Check for any existing error messages and clear them\n  22 |     const errorElements = page.locator('[class*=\"error\"], [class*=\"alert\"]');"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/mnt/d/Facebook-automation/frontend/e2e/tests/auth.setup.ts",
+                        "column": 16,
+                        "line": 19
+                      },
+                      "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:5173/login\nCall log:\n\u001b[2m  - navigating to \"http://localhost:5173/login\", waiting until \"load\"\u001b[22m\n\n\n  17 |     // Go to login page\n  18 |     console.log('[Auth] Navigating to login page');\n> 19 |     await page.goto('/login');\n     |                ^\n  20 |\n  21 |     // Check for any existing error messages and clear them\n  22 |     const errorElements = page.locator('[class*=\"error\"], [class*=\"alert\"]');\n    at operation (/mnt/d/Facebook-automation/frontend/e2e/tests/auth.setup.ts:19:16)\n    at withRateLimitRetry (/mnt/d/Facebook-automation/frontend/e2e/helpers/rate-limit.ts:86:28)\n    at /mnt/d/Facebook-automation/frontend/e2e/tests/auth.setup.ts:16:3"
+                    }
+                  ],
+                  "stdout": [
+                    {
+                      "text": "[Auth] Starting authentication with rate limiting...\n"
+                    },
+                    {
+                      "text": "[Auth] Navigating to login page\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-02-02T03:12:26.271Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/mnt/d/Facebook-automation/frontend/test-results/auth.setup.ts-authenticate-setup/test-failed-1.png"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/mnt/d/Facebook-automation/frontend/e2e/tests/auth.setup.ts",
+                    "column": 16,
+                    "line": 19
+                  }
+                },
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 355,
+                  "error": {
+                    "message": "Error: browserContext.newPage: Executable doesn't exist at /home/kasing/.cache/ms-playwright/ffmpeg-1011/ffmpeg-linux\n╔═════════════════════════════════════════════════════════════════════════╗\n║ Looks like Playwright Test or Playwright was just installed or updated. ║\n║ Please run the following command to download new browsers:              ║\n║                                                                         ║\n║     npx playwright install                                              ║\n║                                                                         ║\n║ <3 Playwright Team                                                      ║\n╚═════════════════════════════════════════════════════════════════════════╝",
+                    "stack": "Error: browserContext.newPage: Executable doesn't exist at /home/kasing/.cache/ms-playwright/ffmpeg-1011/ffmpeg-linux\n╔═════════════════════════════════════════════════════════════════════════╗\n║ Looks like Playwright Test or Playwright was just installed or updated. ║\n║ Please run the following command to download new browsers:              ║\n║                                                                         ║\n║     npx playwright install                                              ║\n║                                                                         ║\n║ <3 Playwright Team                                                      ║\n╚═════════════════════════════════════════════════════════════════════════╝"
+                  },
+                  "errors": [
+                    {
+                      "message": "Error: browserContext.newPage: Executable doesn't exist at /home/kasing/.cache/ms-playwright/ffmpeg-1011/ffmpeg-linux\n╔═════════════════════════════════════════════════════════════════════════╗\n║ Looks like Playwright Test or Playwright was just installed or updated. ║\n║ Please run the following command to download new browsers:              ║\n║                                                                         ║\n║     npx playwright install                                              ║\n║                                                                         ║\n║ <3 Playwright Team                                                      ║\n╚═════════════════════════════════════════════════════════════════════════╝"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 1,
+                  "startTime": "2026-02-02T03:12:57.908Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/mnt/d/Facebook-automation/frontend/test-results/auth.setup.ts-authenticate-setup-retry1/trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "17e3fe6f4d9d8bd79c6b-60f085b113a677673906",
+          "file": "auth.setup.ts",
+          "line": 13,
+          "column": 6
+        }
+      ]
+    },
+    {
+      "title": "core/auth-core.spec.ts",
+      "file": "core/auth-core.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Core Authentication System",
+          "file": "core/auth-core.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [],
+          "suites": [
+            {
+              "title": "Authentication Infrastructure",
+              "file": "core/auth-core.spec.ts",
+              "line": 10,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should have working authentication endpoints",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-ad557aeb265ba7b15493",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 11,
+                  "column": 9
+                },
+                {
+                  "title": "should handle authentication errors gracefully",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-a959a2284971de892902",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 70,
+                  "column": 9
+                },
+                {
+                  "title": "should handle token storage correctly",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-de3811c13e4cb42d5e36",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 110,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Session Management",
+              "file": "core/auth-core.spec.ts",
+              "line": 158,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should handle session expiration",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-6fb9ab2c61932458ba45",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 159,
+                  "column": 9
+                },
+                {
+                  "title": "should handle refresh token flow",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-010bff473c07fd627090",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 185,
+                  "column": 9
+                },
+                {
+                  "title": "should handle logout correctly",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-8b383c41dc606965c3c9",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 226,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Registration System",
+              "file": "core/auth-core.spec.ts",
+              "line": 269,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should have working registration flow",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-2f81032a35d22b1a3791",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 270,
+                  "column": 9
+                },
+                {
+                  "title": "should validate registration input",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-3ad9d571cf052dabbd55",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 342,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Password Security",
+              "file": "core/auth-core.spec.ts",
+              "line": 380,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should handle password reset flow",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-fb22792ee49788f26485",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 381,
+                  "column": 9
+                },
+                {
+                  "title": "should enforce password requirements",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-1c10c73636e8c7008c18",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 429,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Multi-Factor Authentication (if implemented)",
+              "file": "core/auth-core.spec.ts",
+              "line": 451,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should handle MFA flow if available",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-b4d511a52c81a6a0e2b0",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 452,
+                  "column": 9
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Core User Context",
+          "file": "core/auth-core.spec.ts",
+          "line": 480,
+          "column": 6,
+          "specs": [],
+          "suites": [
+            {
+              "title": "User State Management",
+              "file": "core/auth-core.spec.ts",
+              "line": 481,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should maintain user context across page reloads",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-d82cf29e3912f9aaf7fe",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 482,
+                  "column": 9
+                },
+                {
+                  "title": "should handle concurrent session management",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-778b88aa2ab47257e154",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 522,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Role and Permission Foundation",
+              "file": "core/auth-core.spec.ts",
+              "line": 579,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should detect user role correctly",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-6b33e57631a5c889b020",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 580,
+                  "column": 9
+                },
+                {
+                  "title": "should handle permission-based UI rendering",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "192fbe4fed912c356ede-9443cd0852fa48e3c17b",
+                  "file": "core/auth-core.spec.ts",
+                  "line": 611,
+                  "column": 9
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "core/system-health.spec.ts",
+      "file": "core/system-health.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Core System Health",
+          "file": "core/system-health.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [],
+          "suites": [
+            {
+              "title": "Application Startup",
+              "file": "core/system-health.spec.ts",
+              "line": 10,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should load the application without errors",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-fd30a08b9e3e83d2ac02",
+                  "file": "core/system-health.spec.ts",
+                  "line": 11,
+                  "column": 9
+                },
+                {
+                  "title": "should have proper HTML structure",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-c3dbb98b29a9e135e144",
+                  "file": "core/system-health.spec.ts",
+                  "line": 40,
+                  "column": 9
+                },
+                {
+                  "title": "should load CSS and assets",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-c0addcf46966d1f53338",
+                  "file": "core/system-health.spec.ts",
+                  "line": 53,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "API Health Checks",
+              "file": "core/system-health.spec.ts",
+              "line": 75,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should handle API connectivity gracefully",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-fc4554dd1aa694271182",
+                  "file": "core/system-health.spec.ts",
+                  "line": 76,
+                  "column": 9
+                },
+                {
+                  "title": "should handle API timeouts gracefully",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-f9356d04b5d00201b829",
+                  "file": "core/system-health.spec.ts",
+                  "line": 124,
+                  "column": 9
+                },
+                {
+                  "title": "should handle network errors gracefully",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-264dd81b38030b982451",
+                  "file": "core/system-health.spec.ts",
+                  "line": 154,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Environment Configuration",
+              "file": "core/system-health.spec.ts",
+              "line": 172,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should have correct base URL configuration",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-ec327a1b83bf5f8fb323",
+                  "file": "core/system-health.spec.ts",
+                  "line": 173,
+                  "column": 9
+                },
+                {
+                  "title": "should load environment-specific configuration",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-e62cf9c203a656637897",
+                  "file": "core/system-health.spec.ts",
+                  "line": 183,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Cross-Browser Compatibility",
+              "file": "core/system-health.spec.ts",
+              "line": 203,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should work across different browsers",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-260ed31c36b37e330ac7",
+                  "file": "core/system-health.spec.ts",
+                  "line": 204,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Performance Baseline",
+              "file": "core/system-health.spec.ts",
+              "line": 232,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should load within acceptable time limits",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-0e782b9181aab578bd76",
+                  "file": "core/system-health.spec.ts",
+                  "line": 233,
+                  "column": 9
+                },
+                {
+                  "title": "should have reasonable bundle size",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-510c9c9c8eb04284956c",
+                  "file": "core/system-health.spec.ts",
+                  "line": 247,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Security Headers",
+              "file": "core/system-health.spec.ts",
+              "line": 275,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should have proper security headers in production",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-778dbb14e68d9feda3f2",
+                  "file": "core/system-health.spec.ts",
+                  "line": 276,
+                  "column": 9
+                }
+              ]
+            },
+            {
+              "title": "Accessibility Baseline",
+              "file": "core/system-health.spec.ts",
+              "line": 307,
+              "column": 8,
+              "specs": [
+                {
+                  "title": "should have basic accessibility structure",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-28070c81911ffaf47548",
+                  "file": "core/system-health.spec.ts",
+                  "line": 308,
+                  "column": 9
+                },
+                {
+                  "title": "should support keyboard navigation basics",
+                  "ok": true,
+                  "tags": [],
+                  "tests": [
+                    {
+                      "timeout": 60000,
+                      "annotations": [],
+                      "expectedStatus": "passed",
+                      "projectId": "core-chromium",
+                      "projectName": "core-chromium",
+                      "results": [],
+                      "status": "skipped"
+                    }
+                  ],
+                  "id": "9003e2982aee38f05053-06f8d181c050a74cde0b",
+                  "file": "core/system-health.spec.ts",
+                  "line": 325,
+                  "column": 9
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-02-02T03:11:57.576Z",
+    "duration": 61201.825,
+    "expected": 0,
+    "skipped": 29,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "products": [
+    {
+      "name": "iPhone 15 Pro",
+      "sku": "IPH-15-PRO-128",
+      "description": "Latest iPhone with Pro camera system",
+      "price": 1200.00,
+      "cost": 800.00,
+      "stock": 25,
+      "lowStockThreshold": 5,
+      "category": "Electronics",
+      "barcode": "123456789012",
+      "weight": 0.187,
+      "dimensions": "14.7 x 7.1 x 0.8 cm"
+    },
+    {
+      "name": "Samsung Galaxy S24",
+      "sku": "SAM-S24-256",
+      "description": "Samsung flagship smartphone",
+      "price": 999.99,
+      "cost": 650.00,
+      "stock": 15,
+      "lowStockThreshold": 3,
+      "category": "Electronics",
+      "barcode": "123456789013"
+    },
+    {
+      "name": "Wireless Earbuds Pro",
+      "sku": "WEB-PRO-001",
+      "description": "Premium wireless earbuds with ANC",
+      "price": 299.99,
+      "cost": 150.00,
+      "stock": 50,
+      "lowStockThreshold": 10,
+      "category": "Audio",
+      "barcode": "123456789014"
+    },
+    {
+      "name": "Laptop Stand Aluminum",
+      "sku": "LPS-ALU-001",
+      "description": "Ergonomic aluminum laptop stand",
+      "price": 89.99,
+      "cost": 35.00,
+      "stock": 100,
+      "lowStockThreshold": 20,
+      "category": "Accessories",
+      "barcode": "123456789015"
+    },
+    {
+      "name": "Bluetooth Speaker Portable",
+      "sku": "BTS-PRT-001",
+      "description": "Waterproof portable Bluetooth speaker",
+      "price": 79.99,
+      "cost": 40.00,
+      "stock": 75,
+      "lowStockThreshold": 15,
+      "category": "Audio",
+      "barcode": "123456789016"
+    },
+    {
+      "name": "USB-C Hub 7-in-1",
+      "sku": "USB-HUB-7IN1",
+      "description": "Multi-port USB-C hub with HDMI",
+      "price": 59.99,
+      "cost": 25.00,
+      "stock": 200,
+      "lowStockThreshold": 30,
+      "category": "Accessories",
+      "barcode": "123456789017"
+    },
+    {
+      "name": "Wireless Charging Pad",
+      "sku": "WCP-15W-001",
+      "description": "15W fast wireless charging pad",
+      "price": 39.99,
+      "cost": 18.00,
+      "stock": 150,
+      "lowStockThreshold": 25,
+      "category": "Accessories",
+      "barcode": "123456789018"
+    },
+    {
+      "name": "Gaming Mouse RGB",
+      "sku": "GM-RGB-001",
+      "description": "High precision gaming mouse with RGB",
+      "price": 69.99,
+      "cost": 30.00,
+      "stock": 80,
+      "lowStockThreshold": 15,
+      "category": "Gaming",
+      "barcode": "123456789019"
+    },
+    {
+      "name": "Mechanical Keyboard",
+      "sku": "MK-RGB-TKL",
+      "description": "Tenkeyless mechanical keyboard",
+      "price": 129.99,
+      "cost": 65.00,
+      "stock": 40,
+      "lowStockThreshold": 8,
+      "category": "Gaming",
+      "barcode": "123456789020"
+    },
+    {
+      "name": "4K Webcam",
+      "sku": "CAM-4K-001",
+      "description": "4K webcam with auto-focus",
+      "price": 199.99,
+      "cost": 100.00,
+      "stock": 30,
+      "lowStockThreshold": 5,
+      "category": "Electronics",
+      "barcode": "123456789021"
+    }
+  ],
+  "low_stock_products": [
+    {
+      "name": "Low Stock Item 1",
+      "sku": "LOW-001",
+      "description": "Product that should trigger low stock alert",
+      "price": 49.99,
+      "cost": 25.00,
+      "stock": 2,
+      "lowStockThreshold": 5,
+      "category": "Test",
+      "barcode": "999999999001"
+    },
+    {
+      "name": "Low Stock Item 2",
+      "sku": "LOW-002",
+      "description": "Another low stock product",
+      "price": 29.99,
+      "cost": 15.00,
+      "stock": 1,
+      "lowStockThreshold": 3,
+      "category": "Test",
+      "barcode": "999999999002"
+    }
+  ],
+  "bulk_products": [
+    {
+      "name": "Bulk Product {{index}}",
+      "sku": "BULK-{{index}}",
+      "description": "Generated product for load testing",
+      "price": 19.99,
+      "cost": 10.00,
+      "stock": 100,
+      "lowStockThreshold": 10,
+      "category": "Bulk",
+      "barcode": "888888888{{index}}"
+    }
+  ]
+}

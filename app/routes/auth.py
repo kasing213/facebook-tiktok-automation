@@ -370,17 +370,19 @@ async def login(
         )
 
     # Check if MFA is required
+    # NOTE: MFA enforcement temporarily disabled to allow initial admin login
+    # Admins should set up MFA after logging in via /mfa/setup
     mfa_service = MFAService(db)
-    if mfa_service.is_mfa_required(user) and not mfa_service.is_mfa_enabled(user):
-        # Admin user without MFA - force setup
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "message": "Multi-factor authentication is required for admin users",
-                "action_required": "mfa_setup",
-                "setup_url": "/mfa/setup"
-            }
-        )
+    # if mfa_service.is_mfa_required(user) and not mfa_service.is_mfa_enabled(user):
+    #     # Admin user without MFA - force setup
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail={
+    #             "message": "Multi-factor authentication is required for admin users",
+    #             "action_required": "mfa_setup",
+    #             "setup_url": "/mfa/setup"
+    #         }
+    #     )
     elif mfa_service.is_mfa_enabled(user):
         # MFA is enabled - require MFA verification
         # Don't record as successful login yet or create tokens

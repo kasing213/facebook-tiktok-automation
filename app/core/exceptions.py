@@ -556,3 +556,84 @@ class InvalidUUIDFormat(BaseControlError):
             error_code="INVALID_UUID_FORMAT",
             details={"field": field_name, "value": value}
         )
+
+
+# =============================================================================
+# Service Layer Errors
+# =============================================================================
+
+class ServiceError(BaseControlError):
+    """Base class for service layer errors"""
+    pass
+
+
+class ValidationError(ServiceError):
+    """Raised when input validation fails"""
+
+    def __init__(self, message: str, field: str = None):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message=message,
+            error_code="VALIDATION_ERROR",
+            details={"field": field} if field else {}
+        )
+
+
+class ServiceUnavailableError(ServiceError):
+    """Raised when a service is temporarily unavailable"""
+
+    def __init__(self, service_name: str, reason: str = None):
+        super().__init__(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            message=f"The {service_name} service is temporarily unavailable. Please try again later.",
+            error_code="SERVICE_UNAVAILABLE",
+            details={"service": service_name, "reason": reason}
+        )
+
+
+class ServiceConfigurationError(ServiceError):
+    """Raised when a service is misconfigured"""
+
+    def __init__(self, service_name: str, config_issue: str):
+        super().__init__(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"The {service_name} service is not properly configured. Please contact support.",
+            error_code="SERVICE_CONFIGURATION_ERROR",
+            details={"service": service_name, "issue": config_issue}
+        )
+
+
+class CircuitBreakerOpenError(ServiceError):
+    """Raised when a circuit breaker is open"""
+
+    def __init__(self, service_name: str, retry_after: int = 60):
+        super().__init__(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            message=f"The {service_name} service is temporarily experiencing issues. Please try again in {retry_after} seconds.",
+            error_code="CIRCUIT_BREAKER_OPEN",
+            details={"service": service_name, "retry_after": retry_after}
+        )
+
+
+class RateLimitError(ServiceError):
+    """Raised when service rate limit is exceeded"""
+
+    def __init__(self, service_name: str, limit: int, window: int):
+        super().__init__(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            message=f"Rate limit exceeded for {service_name}. Maximum {limit} requests per {window} seconds.",
+            error_code="SERVICE_RATE_LIMIT_EXCEEDED",
+            details={"service": service_name, "limit": limit, "window": window}
+        )
+
+
+class ExternalServiceError(ServiceError):
+    """Raised when external service call fails"""
+
+    def __init__(self, service_name: str, operation: str, status_code: int = None):
+        super().__init__(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            message=f"Failed to {operation} with {service_name}. The external service may be temporarily unavailable.",
+            error_code="EXTERNAL_SERVICE_ERROR",
+            details={"service": service_name, "operation": operation, "external_status": status_code}
+        )

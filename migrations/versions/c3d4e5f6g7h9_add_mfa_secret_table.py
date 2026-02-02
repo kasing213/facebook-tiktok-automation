@@ -12,8 +12,8 @@ from sqlalchemy.dialects import postgresql
 import datetime as dt
 
 # revision identifiers
-revision = 'add_mfa_secret_table'
-down_revision = 'add_ip_lockout_table'
+revision = 'c3d4e5f6g7h9'
+down_revision = 'b2c3d4e5f6g8'
 branch_labels = None
 depends_on = None
 

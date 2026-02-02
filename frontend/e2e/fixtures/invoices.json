@@ -1,0 +1,189 @@
+{
+  "invoices": [
+    {
+      "recipientName": "Tech Solutions Inc",
+      "recipientEmail": "billing@techsolutions.com",
+      "amount": 2499.99,
+      "currency": "USD",
+      "dueDate": "2026-02-28",
+      "notes": "Hardware procurement for Q1",
+      "status": "pending",
+      "lineItems": [
+        {
+          "productSku": "IPH-15-PRO-128",
+          "name": "iPhone 15 Pro",
+          "quantity": 2,
+          "unitPrice": 1200.00,
+          "total": 2400.00
+        },
+        {
+          "productSku": "WEB-PRO-001",
+          "name": "Wireless Earbuds Pro",
+          "quantity": 1,
+          "unitPrice": 299.99,
+          "total": 299.99
+        }
+      ],
+      "paymentTerms": "Net 30",
+      "expectedAccount": "ABA Bank - 001234567",
+      "bank": "ABA Bank"
+    },
+    {
+      "recipientName": "Creative Studio Ltd",
+      "recipientEmail": "accounts@creativestudio.com",
+      "amount": 599.98,
+      "currency": "USD",
+      "dueDate": "2026-02-15",
+      "notes": "Audio equipment for studio",
+      "status": "pending",
+      "lineItems": [
+        {
+          "productSku": "BTS-PRT-001",
+          "name": "Bluetooth Speaker Portable",
+          "quantity": 2,
+          "unitPrice": 79.99,
+          "total": 159.98
+        },
+        {
+          "productSku": "MK-RGB-TKL",
+          "name": "Mechanical Keyboard",
+          "quantity": 2,
+          "unitPrice": 129.99,
+          "total": 259.98
+        },
+        {
+          "productSku": "CAM-4K-001",
+          "name": "4K Webcam",
+          "quantity": 1,
+          "unitPrice": 199.99,
+          "total": 199.99
+        }
+      ],
+      "paymentTerms": "Net 15",
+      "expectedAccount": "ACLEDA Bank - 002345678",
+      "bank": "ACLEDA Bank"
+    },
+    {
+      "recipientName": "Golden Dragon Restaurant",
+      "recipientEmail": "finance@goldendragon.com",
+      "amount": 389.94,
+      "currency": "USD",
+      "dueDate": "2026-02-10",
+      "notes": "POS system accessories",
+      "status": "paid",
+      "paidAt": "2026-01-25T10:30:00Z",
+      "lineItems": [
+        {
+          "productSku": "USB-HUB-7IN1",
+          "name": "USB-C Hub 7-in-1",
+          "quantity": 3,
+          "unitPrice": 59.99,
+          "total": 179.97
+        },
+        {
+          "productSku": "WCP-15W-001",
+          "name": "Wireless Charging Pad",
+          "quantity": 2,
+          "unitPrice": 39.99,
+          "total": 79.98
+        },
+        {
+          "productSku": "LPS-ALU-001",
+          "name": "Laptop Stand Aluminum",
+          "quantity": 1,
+          "unitPrice": 89.99,
+          "total": 89.99
+        }
+      ],
+      "paymentTerms": "Net 30",
+      "expectedAccount": "Canadia Bank - 003456789",
+      "bank": "Canadia Bank"
+    },
+    {
+      "recipientName": "StartupXYZ",
+      "recipientEmail": "billing@startupxyz.com",
+      "amount": 1599.95,
+      "currency": "USD",
+      "dueDate": "2026-03-01",
+      "notes": "Office setup equipment",
+      "status": "draft",
+      "lineItems": [
+        {
+          "productSku": "SAM-S24-256",
+          "name": "Samsung Galaxy S24",
+          "quantity": 1,
+          "unitPrice": 999.99,
+          "total": 999.99
+        },
+        {
+          "productSku": "GM-RGB-001",
+          "name": "Gaming Mouse RGB",
+          "quantity": 3,
+          "unitPrice": 69.99,
+          "total": 209.97
+        },
+        {
+          "productSku": "WEB-PRO-001",
+          "name": "Wireless Earbuds Pro",
+          "quantity": 1,
+          "unitPrice": 299.99,
+          "total": 299.99
+        },
+        {
+          "productSku": "LPS-ALU-001",
+          "name": "Laptop Stand Aluminum",
+          "quantity": 1,
+          "unitPrice": 89.99,
+          "total": 89.99
+        }
+      ],
+      "paymentTerms": "Net 30",
+      "expectedAccount": "ABA Bank - 004567890",
+      "bank": "ABA Bank"
+    }
+  ],
+  "payment_verification_scenarios": [
+    {
+      "invoice_id": "INV-001",
+      "payment_amount": 2499.99,
+      "currency": "USD",
+      "bank": "ABA Bank",
+      "recipient_account": "001234567",
+      "screenshot_filename": "payment_success_aba.png",
+      "expected_ocr_confidence": 85,
+      "should_auto_approve": true
+    },
+    {
+      "invoice_id": "INV-002",
+      "payment_amount": 599.98,
+      "currency": "USD",
+      "bank": "ACLEDA Bank",
+      "recipient_account": "002345678",
+      "screenshot_filename": "payment_success_acleda.png",
+      "expected_ocr_confidence": 90,
+      "should_auto_approve": true
+    },
+    {
+      "invoice_id": "INV-003",
+      "payment_amount": 250.00,
+      "currency": "USD",
+      "bank": "ABA Bank",
+      "recipient_account": "001234567",
+      "screenshot_filename": "payment_partial.png",
+      "expected_ocr_confidence": 75,
+      "should_auto_approve": false,
+      "reason": "Partial payment - amount mismatch"
+    },
+    {
+      "invoice_id": "INV-004",
+      "payment_amount": 1599.95,
+      "currency": "USD",
+      "bank": "Wrong Bank",
+      "recipient_account": "999999999",
+      "screenshot_filename": "payment_wrong_bank.png",
+      "expected_ocr_confidence": 60,
+      "should_auto_approve": false,
+      "reason": "Wrong bank account"
+    }
+  ]
+}

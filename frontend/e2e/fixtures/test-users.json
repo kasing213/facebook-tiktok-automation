@@ -1,0 +1,94 @@
+{
+  "users": {
+    "free_tier": {
+      "email": "sarah.shop@test.com",
+      "password": "TestPass123!",
+      "firstName": "Sarah",
+      "lastName": "Kim",
+      "businessName": "Sarah's Corner Shop",
+      "subscription": "free",
+      "expectedLimits": {
+        "invoices": 20,
+        "products": 50,
+        "customers": 25,
+        "storage": "100MB"
+      }
+    },
+    "invoice_plus": {
+      "email": "tech.wholesale@test.com",
+      "password": "TestPass123!",
+      "firstName": "David",
+      "lastName": "Chen",
+      "businessName": "Tech Wholesale Ltd",
+      "subscription": "invoice_plus",
+      "expectedLimits": {
+        "invoices": 200,
+        "products": 500,
+        "customers": 250,
+        "storage": "1GB"
+      }
+    },
+    "marketing_plus": {
+      "email": "creative.agency@test.com",
+      "password": "TestPass123!",
+      "firstName": "Maria",
+      "lastName": "Rodriguez",
+      "businessName": "Creative Marketing Agency",
+      "subscription": "marketing_plus",
+      "expectedLimits": {
+        "invoices": 20,
+        "products": 50,
+        "customers": 25,
+        "promotions": 10,
+        "recipients": 500,
+        "storage": "512MB"
+      }
+    },
+    "pro_tier": {
+      "email": "restaurant.chain@test.com",
+      "password": "TestPass123!",
+      "firstName": "John",
+      "lastName": "Ly",
+      "businessName": "Golden Dragon Restaurants",
+      "subscription": "pro",
+      "expectedLimits": {
+        "invoices": "unlimited",
+        "products": 500,
+        "customers": 1000,
+        "promotions": 20,
+        "recipients": 1000,
+        "storage": "2GB"
+      }
+    },
+    "trial_user": {
+      "email": "trial.user@test.com",
+      "password": "TestPass123!",
+      "firstName": "Lisa",
+      "lastName": "Wong",
+      "businessName": "New Business",
+      "subscription": "pro_trial",
+      "trialEndsAt": "2026-03-01T00:00:00Z"
+    }
+  },
+  "telegram_linked_users": [
+    {
+      "email": "sarah.shop@test.com",
+      "telegramId": "12345678",
+      "telegramUsername": "sarah_shop"
+    },
+    {
+      "email": "restaurant.chain@test.com",
+      "telegramId": "87654321",
+      "telegramUsername": "john_restaurant"
+    }
+  ],
+  "admin_users": [
+    {
+      "email": "admin@facebook-automation.com",
+      "password": "AdminPass123!",
+      "firstName": "Admin",
+      "lastName": "User",
+      "role": "admin"
+    }
+  ]
+}
