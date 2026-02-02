@@ -383,7 +383,7 @@ async def login(
     #             "setup_url": "/mfa/setup"
     #         }
     #     )
-    elif mfa_service.is_mfa_enabled(user):
+    if mfa_service.is_mfa_enabled(user):
         # MFA is enabled - require MFA verification
         # Don't record as successful login yet or create tokens
         login_service.record_login_attempt(
