@@ -2,9 +2,11 @@
 from .tenant_service import TenantService
 from .auth_service import AuthService
 from .automation_service import AutomationService
+from .mfa_service import MFAService
 
 __all__ = [
     "TenantService",
     "AuthService",
-    "AutomationService"
+    "AutomationService",
+    "MFAService"
 ]

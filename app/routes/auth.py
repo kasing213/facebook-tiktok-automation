@@ -27,6 +27,11 @@ from app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     REFRESH_TOKEN_EXPIRE_DAYS,
 )
+from app.core.password_validation import (
+    validate_password_strength,
+    get_password_requirements_text,
+    PasswordValidationError as PWDValidationError
+)
 from app.core.cookies import (
     set_refresh_token_cookie,
     clear_refresh_token_cookie,
@@ -38,6 +43,7 @@ from app.core.authorization import get_current_owner
 from app.services.email_service import EmailService, send_verification_email
 from app.services.email_verification_service import EmailVerificationService
 from app.services.login_attempt_service import LoginAttemptService
+from app.services.mfa_service import MFAService
 from app.core.models import LoginAttemptResult
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -68,7 +74,7 @@ class UserRegister(BaseModel):
     tenant_id: UUID
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=12, description="Password must meet security requirements")
 
 
 class UserLogin(BaseModel):
@@ -78,11 +84,24 @@ class UserLogin(BaseModel):
     tenant_id: Optional[UUID] = None
 
 
+class MFALoginRequest(BaseModel):
+    """MFA login request for second step"""
+    username: str
+    mfa_code: str = Field(..., min_length=6, max_length=8, description="6-digit TOTP code or 8-character backup code")
+
+
 class Token(BaseModel):
     """JWT token response"""
     access_token: str
     token_type: str = "bearer"
     expires_in: int = ACCESS_TOKEN_EXPIRE_MINUTES * 60  # seconds
+
+
+class MFARequiredResponse(BaseModel):
+    """Response when MFA is required"""
+    mfa_required: bool = True
+    username: str
+    message: str
 
 
 class UserResponse(BaseModel):
@@ -102,7 +121,7 @@ class UserResponse(BaseModel):
 class PasswordChange(BaseModel):
     """Password change request"""
     current_password: str
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=12, description="Password must meet security requirements")
 
 
 # Note: get_current_user is imported from app.core.dependencies
@@ -147,6 +166,19 @@ async def register_user(
             detail="Email already registered for this organization"
         )
 
+    # Validate password strength
+    password_validation = validate_password_strength(user_data.password)
+    if not password_validation.is_valid:
+        error_messages = [error.message for error in password_validation.errors]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Password does not meet security requirements",
+                "errors": error_messages,
+                "requirements": get_password_requirements_text()
+            }
+        )
+
     # Hash password
     password_hash = hash_password(user_data.password)
 
@@ -184,6 +216,7 @@ async def login(
 
     Security Features:
     - Account lockout after 5 failed attempts (30 minutes)
+    - IP lockout after 10 failed attempts (1 hour)
     - Exponential backoff for repeat offenders
     - Login attempt logging for security monitoring
 
@@ -207,6 +240,35 @@ async def login(
     ip_address = get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")[:255]
     email_attempted = form_data.username.lower()  # Normalize for consistency
+
+    # Check if IP is currently locked
+    if login_service.is_ip_locked(ip_address):
+        ip_lockout_info = login_service.get_ip_lockout_info(ip_address)
+
+        # Record the failed attempt (IP locked)
+        login_service.record_login_attempt(
+            email=email_attempted,
+            ip_address=ip_address,
+            result=LoginAttemptResult.failure,
+            user_agent=user_agent,
+            failure_reason="ip_locked"
+        )
+
+        if ip_lockout_info:
+            time_remaining = ip_lockout_info.unlock_at - dt.datetime.now(dt.timezone.utc)
+            minutes_remaining = int(time_remaining.total_seconds() / 60)
+
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=f"IP address is temporarily locked due to too many failed login attempts. Try again in {minutes_remaining} minutes.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail="IP address is temporarily locked due to too many failed login attempts.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
 
     # Check if account is currently locked
     if login_service.is_account_locked(email_attempted):
@@ -260,6 +322,9 @@ async def login(
         # Check if this should trigger account lockout
         was_locked, lockout_info = login_service.check_and_apply_lockout(email_attempted, ip_address)
 
+        # Check if this should trigger IP lockout (independent of account lockout)
+        was_ip_locked, ip_lockout_info = login_service.check_and_apply_ip_lockout(ip_address)
+
         if was_locked:
             # Account was just locked
             time_remaining = lockout_info.unlock_at - dt.datetime.now(dt.timezone.utc)
@@ -268,6 +333,16 @@ async def login(
             raise HTTPException(
                 status_code=status.HTTP_423_LOCKED,
                 detail=f"Too many failed attempts. Account locked for {minutes_remaining} minutes.",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        elif was_ip_locked:
+            # IP was just locked
+            time_remaining = ip_lockout_info.unlock_at - dt.datetime.now(dt.timezone.utc)
+            minutes_remaining = int(time_remaining.total_seconds() / 60)
+
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=f"Too many failed attempts from this IP. IP locked for {minutes_remaining} minutes.",
                 headers={"WWW-Authenticate": "Bearer"}
             )
         else:
@@ -294,9 +369,153 @@ async def login(
             detail="User account is inactive"
         )
 
-    # Successful login - record the success
+    # Check if MFA is required
+    mfa_service = MFAService(db)
+    if mfa_service.is_mfa_required(user) and not mfa_service.is_mfa_enabled(user):
+        # Admin user without MFA - force setup
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "Multi-factor authentication is required for admin users",
+                "action_required": "mfa_setup",
+                "setup_url": "/mfa/setup"
+            }
+        )
+    elif mfa_service.is_mfa_enabled(user):
+        # MFA is enabled - require MFA verification
+        # Don't record as successful login yet or create tokens
+        login_service.record_login_attempt(
+            email=email_attempted,
+            ip_address=ip_address,
+            result=LoginAttemptResult.success,  # Credentials were valid
+            user_agent=user_agent,
+            failure_reason="mfa_required"  # But MFA still required
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_202_ACCEPTED,
+            detail={
+                "mfa_required": True,
+                "username": user.username,
+                "message": "Please provide your 6-digit MFA code or 8-character backup code"
+            }
+        )
+
+    # Successful login without MFA required - record the success
     login_service.record_login_attempt(
         email=email_attempted,
+        ip_address=ip_address,
+        result=LoginAttemptResult.success,
+        user_agent=user_agent
+    )
+
+    # Update last login timestamp
+    user_repo.update_last_login(user.id)
+
+    # Create access token with JTI for blacklist support
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token, jti, token_exp = create_access_token_with_jti(
+        data={"sub": str(user.id), "tenant_id": str(user.tenant_id)},
+        expires_delta=access_token_expires
+    )
+
+    # Create refresh token
+    raw_refresh_token, refresh_token_hash = create_refresh_token()
+    family_id = uuid4()  # New token family for this login session
+    refresh_expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+    # Store refresh token in database
+    refresh_repo = RefreshTokenRepository(db)
+    refresh_repo.create_token(
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        token_hash=refresh_token_hash,
+        family_id=family_id,
+        expires_at=refresh_expires_at,
+        device_info=user_agent,
+        ip_address=ip_address,
+    )
+
+    db.commit()
+
+    # Set refresh token as httpOnly cookie
+    set_refresh_token_cookie(response, raw_refresh_token)
+
+    return Token(access_token=access_token)
+
+
+@router.post("/login-mfa", response_model=Token)
+async def login_with_mfa(
+    request: Request,
+    response: Response,
+    mfa_data: MFALoginRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Complete login with MFA verification.
+
+    This endpoint is called after the initial login when MFA is required.
+
+    Args:
+        request: FastAPI request object
+        response: FastAPI response object
+        mfa_data: MFA verification data
+        db: Database session
+
+    Returns:
+        JWT access token (refresh token set as httpOnly cookie)
+
+    Raises:
+        HTTPException: If MFA verification fails
+    """
+    # Initialize services
+    user_repo = UserRepository(db)
+    login_service = LoginAttemptService(db)
+    mfa_service = MFAService(db)
+
+    # Get client information
+    ip_address = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")[:255]
+
+    # Find user by username
+    user = user_repo.get_by_username_global(mfa_data.username)
+    if not user or not user.is_active:
+        # Record failed attempt
+        login_service.record_login_attempt(
+            email=mfa_data.username.lower(),
+            ip_address=ip_address,
+            result=LoginAttemptResult.failure,
+            user_agent=user_agent,
+            failure_reason="user_not_found_mfa"
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid MFA verification",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    # Verify MFA code
+    is_valid = mfa_service.verify_totp_code(user, mfa_data.mfa_code)
+    if not is_valid:
+        # Record failed MFA attempt
+        login_service.record_login_attempt(
+            email=user.email or user.username,
+            ip_address=ip_address,
+            result=LoginAttemptResult.failure,
+            user_agent=user_agent,
+            failure_reason="invalid_mfa_code"
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid MFA code",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    # Successful MFA verification
+    login_service.record_login_attempt(
+        email=user.email or user.username,
         ip_address=ip_address,
         result=LoginAttemptResult.success,
         user_agent=user_agent
@@ -381,6 +600,19 @@ async def change_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
+        )
+
+    # Validate new password strength
+    password_validation = validate_password_strength(password_data.new_password)
+    if not password_validation.is_valid:
+        error_messages = [error.message for error in password_validation.errors]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "New password does not meet security requirements",
+                "errors": error_messages,
+                "requirements": get_password_requirements_text()
+            }
         )
 
     # Hash new password
@@ -622,6 +854,27 @@ async def get_active_sessions(
     }
 
 
+@router.get("/password-requirements")
+async def get_password_requirements():
+    """
+    Get password requirements for frontend validation.
+
+    Returns:
+        Password requirements information
+    """
+    return {
+        "requirements": get_password_requirements_text(),
+        "rules": {
+            "min_length": 12,
+            "require_uppercase": True,
+            "require_lowercase": True,
+            "require_numbers": True,
+            "require_special_chars": True,
+            "special_chars": "!@#$%^&*(),.?\":{}|<>"
+        }
+    }
+
+
 # Email Verification Models
 class VerifyEmailRequest(BaseModel):
     """Email verification request"""
@@ -773,7 +1026,7 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     """Reset password request - sets new password with token"""
     token: str
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=12, description="Password must meet security requirements")
 
 
 # Password Reset Endpoints
@@ -903,6 +1156,19 @@ async def reset_password(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User account not found or inactive"
+        )
+
+    # Validate new password strength
+    password_validation = validate_password_strength(request.new_password)
+    if not password_validation.is_valid:
+        error_messages = [error.message for error in password_validation.errors]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "New password does not meet security requirements",
+                "errors": error_messages,
+                "requirements": get_password_requirements_text()
+            }
         )
 
     # Mark token as used
