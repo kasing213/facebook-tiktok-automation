@@ -8,6 +8,7 @@ from .telegram import TelegramRepository
 from .auth_token import RefreshTokenRepository, TokenBlacklistRepository
 from .email_verification import EmailVerificationRepository
 from .password_reset import PasswordResetRepository
+from .ip_lockout import IPLockoutRepository
 
 __all__ = [
     "TenantRepository",
@@ -21,4 +22,5 @@ __all__ = [
     "TokenBlacklistRepository",
     "EmailVerificationRepository",
     "PasswordResetRepository",
+    "IPLockoutRepository",
 ]

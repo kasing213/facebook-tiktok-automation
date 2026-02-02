@@ -13,7 +13,8 @@ import datetime as dt
 from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.core.models import LoginAttempt, AccountLockout, LoginAttemptResult
+from app.core.models import LoginAttempt, AccountLockout, IPLockout, LoginAttemptResult
+from app.repositories.ip_lockout import IPLockoutRepository
 
 
 class LoginAttemptService:
@@ -28,6 +29,7 @@ class LoginAttemptService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.ip_lockout_repo = IPLockoutRepository(db)
 
     def record_login_attempt(
         self,
@@ -221,7 +223,88 @@ class LoginAttemptService:
             LoginAttempt.attempted_at >= window_start
         ).count()
 
-    def cleanup_old_records(self, days_to_keep: int = 30) -> Tuple[int, int]:
+    def is_ip_locked(self, ip_address: str) -> bool:
+        """
+        Check if an IP address is currently locked.
+
+        Args:
+            ip_address: IP address to check
+
+        Returns:
+            bool: True if IP is locked, False otherwise
+        """
+        return self.ip_lockout_repo.is_ip_locked(ip_address)
+
+    def get_ip_lockout_info(self, ip_address: str) -> Optional[IPLockout]:
+        """
+        Get current lockout information for an IP address.
+
+        Args:
+            ip_address: IP address to check
+
+        Returns:
+            IPLockout: Active lockout record or None
+        """
+        return self.ip_lockout_repo.get_active_lockout(ip_address)
+
+    def check_and_apply_ip_lockout(self, ip_address: str) -> Tuple[bool, Optional[IPLockout]]:
+        """
+        Check if IP should be locked after failed login attempts.
+        If so, create the lockout record.
+
+        Args:
+            ip_address: IP address that had failed attempts
+
+        Returns:
+            Tuple[bool, Optional[IPLockout]]: (was_locked, lockout_record)
+        """
+        now = dt.datetime.now(dt.timezone.utc)
+        window_start = now - dt.timedelta(minutes=self.ATTEMPT_WINDOW_MINUTES)
+
+        # Count recent failed attempts from this IP
+        failed_attempts = self.db.query(LoginAttempt).filter(
+            LoginAttempt.ip_address == ip_address,
+            LoginAttempt.result == LoginAttemptResult.failure,
+            LoginAttempt.attempted_at >= window_start
+        ).count()
+
+        # Check if we should lock the IP
+        if failed_attempts >= self.IP_LOCKOUT_ATTEMPTS:
+            # Check if IP is already locked
+            if not self.is_ip_locked(ip_address):
+                # Calculate unlock time
+                unlock_duration = dt.timedelta(hours=self.IP_LOCKOUT_DURATION_HOURS)
+                unlock_at = now + unlock_duration
+
+                lockout = self.ip_lockout_repo.create_lockout(
+                    ip_address=ip_address,
+                    failed_attempts_count=failed_attempts,
+                    unlock_at=unlock_at,
+                    lockout_reason=f"too_many_failures_from_ip ({failed_attempts} attempts in {self.ATTEMPT_WINDOW_MINUTES} minutes)"
+                )
+
+                self.db.commit()
+                return True, lockout
+
+        return False, None
+
+    def unlock_ip(self, ip_address: str, unlocked_by: str) -> bool:
+        """
+        Manually unlock an IP address (admin action).
+
+        Args:
+            ip_address: IP address to unlock
+            unlocked_by: Admin username/email who performed the unlock
+
+        Returns:
+            bool: True if IP was unlocked, False if no active lockout found
+        """
+        was_unlocked = self.ip_lockout_repo.unlock_ip(ip_address, unlocked_by)
+        if was_unlocked:
+            self.db.commit()
+        return was_unlocked
+
+    def cleanup_old_records(self, days_to_keep: int = 30) -> Tuple[int, int, int]:
         """
         Clean up old login attempts and lockout records.
 
@@ -229,7 +312,7 @@ class LoginAttemptService:
             days_to_keep: Number of days to keep records
 
         Returns:
-            Tuple[int, int]: (attempts_deleted, lockouts_deleted)
+            Tuple[int, int, int]: (attempts_deleted, account_lockouts_deleted, ip_lockouts_deleted)
         """
         cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days_to_keep)
 
@@ -237,9 +320,11 @@ class LoginAttemptService:
             LoginAttempt.attempted_at < cutoff
         ).delete()
 
-        lockouts_deleted = self.db.query(AccountLockout).filter(
+        account_lockouts_deleted = self.db.query(AccountLockout).filter(
             AccountLockout.locked_at < cutoff
         ).delete()
 
+        ip_lockouts_deleted = self.ip_lockout_repo.cleanup_expired_lockouts(days_to_keep)
+
         self.db.commit()
-        return attempts_deleted, lockouts_deleted
+        return attempts_deleted, account_lockouts_deleted, ip_lockouts_deleted

@@ -547,6 +547,46 @@ class AccountLockout(Base):
     )
 
 
+class IPLockout(Base):
+    """Track IP address lockouts due to repeated failed login attempts"""
+    __tablename__ = "ip_lockout"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ip_address = Column(String(45), nullable=False)  # IPv4/IPv6 support
+    lockout_reason = Column(String(255), nullable=False)  # "too_many_failures_from_ip"
+    failed_attempts_count = Column(Integer, nullable=False, default=0)
+    locked_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    unlock_at = Column(DateTime(timezone=True), nullable=False)  # When IP will auto-unlock
+    unlocked_at = Column(DateTime(timezone=True), nullable=True)  # Manual unlock timestamp
+    unlocked_by = Column(String(255), nullable=True)  # Admin who unlocked (if manual)
+
+    __table_args__ = (
+        Index("idx_ip_lockout_ip", "ip_address"),
+        Index("idx_ip_lockout_unlock_at", "unlock_at"),
+        Index("idx_ip_lockout_active", "ip_address", "unlocked_at"),  # For checking active lockouts
+    )
+
+
+class MFASecret(Base):
+    """Store TOTP secrets for users with MFA enabled"""
+    __tablename__ = "mfa_secret"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id", ondelete="CASCADE"), nullable=False, unique=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenant.id", ondelete="CASCADE"), nullable=False)
+    secret = Column(String(32), nullable=False)  # Base32 encoded TOTP secret
+    backup_codes = Column(JSON, nullable=True)  # Array of one-time backup codes
+    is_verified = Column(Boolean, default=False, nullable=False)  # True after first successful verification
+    created_at = Column(DateTime(timezone=True), default=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    backup_codes_used = Column(Integer, default=0, nullable=False)
+
+    __table_args__ = (
+        Index("idx_mfa_secret_user", "user_id"),
+        Index("idx_mfa_secret_tenant", "tenant_id"),
+    )
+
+
 class Subscription(Base):
     """User subscription for tiered features (Invoice Pro, etc.)"""
     __tablename__ = "subscription"
