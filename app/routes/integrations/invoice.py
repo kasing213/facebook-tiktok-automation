@@ -1957,6 +1957,7 @@ async def upload_invoice_screenshot(
     # Send to OCR service
     ocr_result = await ocr_service.verify_screenshot(
         image_data=image_data,
+        current_user=current_user,
         filename=image.filename or "screenshot.jpg",
         invoice_id=invoice_id,
         expected_payment=expected_payment,
@@ -2058,6 +2059,7 @@ async def verify_standalone_screenshot(
     # Send to OCR service
     ocr_result = await ocr_service.verify_screenshot(
         image_data=image_data,
+        current_user=current_user,
         filename=image.filename or "screenshot.jpg",
         invoice_id=invoice_id,
         expected_payment=expected_payment

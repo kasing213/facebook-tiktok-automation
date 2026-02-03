@@ -1,10 +1,11 @@
 # api-gateway/src/api/ocr.py
 """OCR Verification API routes."""
 
-from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from typing import Optional, Dict, Any
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 
 from src.services.ocr_service import ocr_service
+from src.middleware.service_auth import require_service_jwt
 
 router = APIRouter()
 
@@ -21,13 +22,14 @@ async def status():
     return await ocr_service.get_status()
 
 
-@router.post("/verify")
+@router.post("/verify", dependencies=[Depends(require_service_jwt)])
 async def verify_screenshot(
     image: UploadFile = File(..., description="Payment screenshot image"),
     invoice_id: Optional[str] = Form(None, description="Invoice ID to lookup expected payment"),
     customer_id: Optional[str] = Form(None, description="Customer reference ID"),
     expected_amount: Optional[float] = Form(None, description="Expected payment amount"),
     expected_currency: Optional[str] = Form(None, description="Expected currency code"),
+    service_context: Dict[str, Any] = Depends(require_service_jwt),
 ):
     """
     Verify a payment screenshot using OCR.
@@ -67,8 +69,8 @@ async def verify_screenshot(
     return result
 
 
-@router.get("/verify/{record_id}")
-async def get_verification(record_id: str):
+@router.get("/verify/{record_id}", dependencies=[Depends(require_service_jwt)])
+async def get_verification(record_id: str, service_context: Dict[str, Any] = Depends(require_service_jwt)):
     """
     Get verification result by record ID.
 

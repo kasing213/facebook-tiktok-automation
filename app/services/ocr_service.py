@@ -13,36 +13,46 @@ logger = logging.getLogger(__name__)
 
 
 class OCRService:
-    """Service for interacting with external OCR verification API."""
+    """Service for interacting with OCR verification via API Gateway."""
 
     def __init__(self):
         settings = get_settings()
-        self.base_url = settings.OCR_API_URL.rstrip("/") if settings.OCR_API_URL else ""
-        self.api_key = settings.OCR_API_KEY.get_secret_value() if settings.OCR_API_KEY else ""
+        self.api_gateway_url = settings.API_GATEWAY_URL
         self.timeout = 60.0  # OCR can take time
 
-    def _get_headers(self) -> Dict[str, str]:
-        """Get headers for OCR API requests."""
-        return {"X-API-Key": self.api_key}
+    def _get_headers(self, current_user) -> Dict[str, str]:
+        """Get headers with service JWT for API Gateway requests."""
+        from app.core.external_jwt import create_external_service_token
+
+        # Create service JWT token
+        service_token = create_external_service_token(
+            tenant_id=str(current_user.tenant_id),
+            user_id=str(current_user.id),
+            role=current_user.role
+        )
+
+        return {
+            "Authorization": f"Bearer {service_token}",
+            "Content-Type": "application/json"
+        }
 
     def is_configured(self) -> bool:
         """Check if OCR service is configured."""
-        return bool(self.base_url and self.api_key)
+        return bool(self.api_gateway_url)
 
     async def health_check(self) -> Dict[str, Any]:
         """Check OCR service health."""
         if not self.is_configured():
             return {
                 "status": "not_configured",
-                "message": "OCR_API_URL or OCR_API_KEY not set"
+                "message": "API_GATEWAY_URL not set"
             }
 
         try:
+            # Note: Health check endpoints typically don't require JWT authentication
+            # so we'll call the public health endpoint directly
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/health",
-                    headers=self._get_headers()
-                )
+                response = await client.get(f"{self.api_gateway_url}/api/v1/ocr/health")
                 response.raise_for_status()
                 return {
                     "status": "healthy",
@@ -58,16 +68,18 @@ class OCRService:
     async def verify_screenshot(
         self,
         image_data: bytes,
+        current_user,
         filename: str = "screenshot.jpg",
         invoice_id: Optional[str] = None,
         expected_payment: Optional[Dict[str, Any]] = None,
         customer_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Verify a payment screenshot using OCR service.
+        Verify a payment screenshot using OCR service via API Gateway.
 
         Args:
             image_data: Raw image bytes
+            current_user: Current authenticated user for JWT token generation
             filename: Original filename
             invoice_id: Optional invoice ID to lookup expected payment
             expected_payment: Optional expected payment details
@@ -80,7 +92,7 @@ class OCRService:
             return {
                 "success": False,
                 "error": "not_configured",
-                "message": "OCR service not configured"
+                "message": "API Gateway not configured"
             }
 
         try:
@@ -98,8 +110,8 @@ class OCRService:
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
-                    f"{self.base_url}/api/v1/verify",
-                    headers=self._get_headers(),
+                    f"{self.api_gateway_url}/api/v1/ocr/verify",
+                    headers=self._get_headers(current_user),
                     files=files,
                     data=data if data else None
                 )
@@ -133,12 +145,13 @@ class OCRService:
                 "message": str(e)
             }
 
-    async def get_verification(self, record_id: str) -> Dict[str, Any]:
+    async def get_verification(self, record_id: str, current_user) -> Dict[str, Any]:
         """
-        Get verification result by record ID.
+        Get verification result by record ID via API Gateway.
 
         Args:
             record_id: The verification record ID
+            current_user: Current authenticated user for JWT token generation
 
         Returns:
             Verification result
@@ -147,14 +160,14 @@ class OCRService:
             return {
                 "success": False,
                 "error": "not_configured",
-                "message": "OCR service not configured"
+                "message": "API Gateway not configured"
             }
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/verify/{record_id}",
-                    headers=self._get_headers()
+                    f"{self.api_gateway_url}/api/v1/ocr/verify/{record_id}",
+                    headers=self._get_headers(current_user)
                 )
                 response.raise_for_status()
                 return response.json()

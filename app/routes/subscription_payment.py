@@ -278,6 +278,7 @@ async def verify_subscription_payment(
         # Call OCR service (Mode A: no invoice_id to avoid MongoDB lookup)
         ocr_result = await ocr_service.verify_screenshot(
             image_data=image_data,
+            current_user=owner,
             filename=f"subscription_{subscription_invoice_id}_{screenshot.filename}",
             # No invoice_id parameter - forces Mode A (from CLAUDE.md fix)
             expected_payment=expected_payment,
