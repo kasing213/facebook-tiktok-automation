@@ -26,9 +26,10 @@ class OCRService:
 
         # Create service JWT token
         service_token = create_external_service_token(
+            service_name="facebook-automation",
             tenant_id=str(current_user.tenant_id),
             user_id=str(current_user.id),
-            role=current_user.role
+            data={"role": current_user.role}
         )
 
         return {
