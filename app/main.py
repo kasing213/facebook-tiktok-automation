@@ -63,6 +63,7 @@ async def lifespan(app: FastAPI):
     from app.jobs.automation_scheduler import run_automation_scheduler
     from app.jobs.ads_alert_scheduler import run_ads_alert_scheduler
     from app.jobs.subscription_trial_checker import run_trial_checker_scheduler
+    from app.jobs.backup_scheduler import run_backup_scheduler
 
     log = get_logger()
     s = get_settings()
@@ -85,6 +86,7 @@ async def lifespan(app: FastAPI):
     automation_task = None
     ads_alert_task = None
     trial_checker_task = None
+    backup_task = None
 
     try:
         # Start token refresh and cleanup tasks
@@ -106,6 +108,11 @@ async def lifespan(app: FastAPI):
         trial_checker_task = asyncio.create_task(run_trial_checker_scheduler(check_interval=3600))
         log.info("✅ Trial checker scheduler started (check interval: 3600s)")
 
+        # Start backup scheduler (daily backups to R2)
+        if s.BACKUP_ENABLED:
+            backup_task = asyncio.create_task(run_backup_scheduler(backup_hour_utc=s.BACKUP_HOUR_UTC))
+            log.info(f"✅ Backup scheduler started (daily at {s.BACKUP_HOUR_UTC:02d}:00 UTC)")
+
         yield
     finally:
         # Cancel background tasks gracefully
@@ -114,7 +121,8 @@ async def lifespan(app: FastAPI):
             ("Cleanup", cleanup_task),
             ("Automation Scheduler", automation_task),
             ("Ads Alert Scheduler", ads_alert_task),
-            ("Trial Checker", trial_checker_task)
+            ("Trial Checker", trial_checker_task),
+            ("Backup Scheduler", backup_task),
         ]
 
         for task_name, task in tasks_to_cancel:

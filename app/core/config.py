@@ -124,6 +124,10 @@ class Settings(BaseSettings):
     AUTOMATION_CHECK_INTERVAL: int = Field(default=60, description="Automation scheduler check interval in seconds (default: 1 minute)", ge=10)
     CLEANUP_INTERVAL: int = Field(default=86400, description="Cleanup job interval in seconds (default: 24 hours)", ge=3600)
 
+    # Backup Configuration
+    BACKUP_ENABLED: bool = Field(default=True, description="Enable automated daily backups to R2")
+    BACKUP_HOUR_UTC: int = Field(default=2, description="Hour of day to run backup (0-23 UTC)", ge=0, le=23)
+
     # Rate Limiting Configuration
     RATE_LIMIT_PER_MINUTE: int = Field(default=60, description="Maximum requests per minute per IP", ge=1)
     RATE_LIMIT_VIOLATION_THRESHOLD: int = Field(default=5, description="Violations before auto-ban", ge=1)

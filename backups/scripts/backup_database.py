@@ -173,6 +173,7 @@ def run_backup(
 def verify_backup(backup_path: Path) -> bool:
     """
     Verify backup file integrity using pg_restore --list.
+    Falls back to basic file validation if pg_restore is not available.
 
     Args:
         backup_path: Path to backup file
@@ -184,6 +185,13 @@ def verify_backup(backup_path: Path) -> bool:
         logger.error(f"Backup file not found: {backup_path}")
         return False
 
+    # Check file size (should be > 0)
+    file_size = backup_path.stat().st_size
+    if file_size == 0:
+        logger.error("Backup file is empty")
+        return False
+
+    # Try pg_restore verification if available
     try:
         result = subprocess.run(
             ["pg_restore", "--list", str(backup_path)],
@@ -199,6 +207,23 @@ def verify_backup(backup_path: Path) -> bool:
             return True
         else:
             logger.error(f"Backup verification failed: {result.stderr}")
+            return False
+
+    except FileNotFoundError:
+        # pg_restore not installed - fall back to basic validation
+        logger.warning("pg_restore not found - using basic file validation")
+        # Check if file has valid PostgreSQL custom format header (PGDMP)
+        try:
+            with open(backup_path, 'rb') as f:
+                header = f.read(5)
+                if header == b'PGDMP':
+                    logger.info(f"Backup verified (basic): valid PostgreSQL dump header, size: {file_size / (1024*1024):.2f} MB")
+                    return True
+                else:
+                    logger.error("Invalid backup file: missing PostgreSQL dump header")
+                    return False
+        except Exception as e:
+            logger.error(f"Failed to read backup file: {e}")
             return False
 
     except Exception as e:
