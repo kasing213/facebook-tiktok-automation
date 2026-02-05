@@ -179,6 +179,7 @@ async def get_invoice_client(tenant_id: str, user_id: Optional[str] = None) -> h
 async def proxy_request(
     method: str,
     path: str,
+    current_user: User,
     json_data: Optional[dict] = None,
     params: Optional[dict] = None
 ) -> Any:
@@ -188,6 +189,7 @@ async def proxy_request(
     Args:
         method: HTTP method (GET, POST, PUT, DELETE)
         path: API path (e.g., "/api/customers")
+        current_user: User context for tenant/auth
         json_data: Request body for POST/PUT
         params: Query parameters
 
@@ -281,7 +283,7 @@ async def list_customers(
     params = {"limit": limit, "skip": skip}
     if search:
         params["search"] = search
-    return await proxy_request("GET", "/api/customers", params=params)
+    return await proxy_request("GET", "/api/customers", current_user, params=params)
 
 
 @router.post("/customers")
@@ -297,7 +299,7 @@ async def create_customer(
     if is_mock_mode():
         return mock_svc.create_customer(str(current_user.tenant_id), data.model_dump(exclude_none=True))
 
-    return await proxy_request("POST", "/api/customers", json_data=data.model_dump(exclude_none=True))
+    return await proxy_request("POST", "/api/customers", current_user, json_data=data.model_dump(exclude_none=True))
 
 
 @router.get("/customers/{customer_id}")
@@ -312,7 +314,7 @@ async def get_customer(
             raise HTTPException(status_code=404, detail="Customer not found")
         return customer
 
-    return await proxy_request("GET", f"/api/customers/{customer_id}")
+    return await proxy_request("GET", f"/api/customers/{customer_id}", current_user)
 
 
 @router.put("/customers/{customer_id}")
@@ -328,7 +330,7 @@ async def update_customer(
             raise HTTPException(status_code=404, detail="Customer not found")
         return customer
 
-    return await proxy_request("PUT", f"/api/customers/{customer_id}", json_data=data.model_dump(exclude_none=True))
+    return await proxy_request("PUT", f"/api/customers/{customer_id}", current_user, json_data=data.model_dump(exclude_none=True))
 
 
 @router.delete("/customers/{customer_id}")
@@ -342,7 +344,7 @@ async def delete_customer(
             raise HTTPException(status_code=404, detail="Customer not found")
         return {"status": "deleted", "id": customer_id}
 
-    return await proxy_request("DELETE", f"/api/customers/{customer_id}")
+    return await proxy_request("DELETE", f"/api/customers/{customer_id}", current_user)
 
 
 # ============================================================================
@@ -1518,7 +1520,7 @@ async def create_invoice(
                 ]
             invoice = mock_svc.create_invoice(str(current_user.tenant_id), invoice_data)
         else:
-            invoice = await proxy_request("POST", "/api/invoices", json_data=data.model_dump(exclude_none=True))
+            invoice = await proxy_request("POST", "/api/invoices", current_user, json_data=data.model_dump(exclude_none=True))
 
     # Send to Telegram if customer has it linked
     if send_telegram and registered_customer and registered_customer.get("telegram_chat_id"):
@@ -1702,7 +1704,7 @@ async def get_invoice(
             raise HTTPException(status_code=404, detail="Invoice not found")
         return invoice
 
-    return await proxy_request("GET", f"/api/invoices/{invoice_id}")
+    return await proxy_request("GET", f"/api/invoices/{invoice_id}", current_user)
 
 
 @router.put("/invoices/{invoice_id}")
@@ -1808,7 +1810,7 @@ async def update_invoice(
             raise HTTPException(status_code=404, detail="Invoice not found")
         return invoice
 
-    return await proxy_request("PUT", f"/api/invoices/{invoice_id}", json_data=data.model_dump(exclude_none=True))
+    return await proxy_request("PUT", f"/api/invoices/{invoice_id}", current_user, json_data=data.model_dump(exclude_none=True))
 
 
 @router.delete("/invoices/{invoice_id}")
@@ -1843,7 +1845,7 @@ async def delete_invoice(
             raise HTTPException(status_code=404, detail="Invoice not found")
         return {"status": "deleted", "id": invoice_id}
 
-    return await proxy_request("DELETE", f"/api/invoices/{invoice_id}")
+    return await proxy_request("DELETE", f"/api/invoices/{invoice_id}", current_user)
 
 
 # ============================================================================
@@ -1890,6 +1892,7 @@ async def verify_invoice(
     result = await proxy_request(
         "PATCH",
         f"/api/invoices/{invoice_id}/verify",
+        current_user,
         json_data=data.model_dump(exclude_none=True)
     )
 
@@ -1936,7 +1939,7 @@ async def upload_invoice_screenshot(
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found")
     else:
-        invoice = await proxy_request("GET", f"/api/invoices/{invoice_id}")
+        invoice = await proxy_request("GET", f"/api/invoices/{invoice_id}", current_user)
 
     # Build expected payment from invoice
     expected_payment = {
@@ -1998,6 +2001,7 @@ async def upload_invoice_screenshot(
         updated_invoice = await proxy_request(
             "PATCH",
             f"/api/invoices/{invoice_id}/verify",
+            current_user,
             json_data=verify_data
         )
 
