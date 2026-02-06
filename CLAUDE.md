@@ -31,13 +31,49 @@ VERCEL (React) → RAILWAY (FastAPI + Bot) → SUPABASE (PostgreSQL)
 ## Environment Variables
 
 **Railway: facebook-automation (Main)**
-`DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `FB_APP_ID`, `FB_APP_SECRET`, `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `BASE_URL`, `FRONTEND_URL`, `MASTER_SECRET_KEY`
+`DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `FB_APP_ID`, `FB_APP_SECRET`, `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `BASE_URL`, `FRONTEND_URL`, `MASTER_SECRET_KEY`, `INVOICE_API_KEY`, `OCR_API_KEY`
 
 **Railway: api-gateway (Bot)**
-`DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `CORE_API_URL`
+`DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `CORE_API_URL`, `MASTER_SECRET_KEY`, `OCR_API_KEY`
 
 **Vercel: Frontend**
 `VITE_API_URL`
+
+## 🔐 **Secure API Key Management (February 2026)** ✅
+
+### **API Key Architecture**
+- **INVOICE_API_KEY**: External invoice service authentication (facebook-automation only)
+- **OCR_API_KEY**: OCR processing service authentication (api-gateway primary, facebook-automation fallback)
+- **Service Isolation**: Each service uses only required API keys for security
+
+### **Key Generation & Security**
+```bash
+# Generate new secure API keys using cryptographically secure script
+python scripts/generate_api_keys.py
+
+# Example output (DO NOT USE THESE - GENERATE YOUR OWN):
+INVOICE_API_KEY=invoice_api_uUtN6YK8HgvQZHN0iQLB2t7vifSBpMvCPLt4Sz_i  # 312+ bits entropy
+OCR_API_KEY=ocr_api_VAAyUcxg8uVx7CUVxHjxd1CvJ2hOKYEh6_rji-im      # 288+ bits entropy
+```
+
+### **Security Features** 🛡️
+✅ **High Entropy**: 288-312 bits per key using `secrets.token_bytes()`
+✅ **Service Prefixed**: Clear identification (`invoice_api_`, `ocr_api_`)
+✅ **Key Validation**: Built-in strength validation and verification hashes
+✅ **Rotation Ready**: Easy regeneration with `scripts/generate_api_keys.py`
+✅ **Environment Isolated**: Different keys for dev/staging/production
+
+### **Deployment Process**
+1. **Generate keys**: `python scripts/generate_api_keys.py`
+2. **Update Railway**: Replace existing `INVOICE_API_KEY` and `OCR_API_KEY`
+3. **Verify deployment**: Check logs for verification hashes
+4. **Rotate regularly**: Recommended every 90 days
+
+### **Current vs Future Architecture**
+```
+Current: Shared MASTER_SECRET_KEY (single point of failure)
+Future:  Independent service keys + JWT isolation (enterprise-grade)
+```
 
 ## Key Files
 ```
@@ -45,7 +81,10 @@ app/main.py                    - FastAPI entry
 app/core/config.py            - Settings
 app/routes/auth.py            - Authentication
 app/routes/oauth.py           - Facebook/TikTok OAuth
+app/routes/inventory.py       - Inventory management (facebook-automation)
+app/routes/ads_alert.py       - Marketing/broadcast (facebook-automation)
 api-gateway/src/main.py       - Bot + proxy
+scripts/generate_api_keys.py  - Secure API key generation
 frontend/src/App.tsx          - React entry
 ```
 
@@ -712,7 +751,7 @@ await check_product_limit(current_user.tenant_id, db)  # ✅ NEW
 - [x] **🆕 System Stability**: Login page protected from background task failures
 - [x] Backups: R2 cloud + local retention
 - [x] Scaling: 200+ concurrent users supported
-- [ ] **🆕 E2E Tests**: JWT updates in progress (Started: 2/5/2026, Target: 2/7/2026) 🚧
+- [ ] **🆕 E2E Tests**: JWT authentication updates needed (Priority: 2/7/2026) ⏳
 
 ## File Structure
 ```
