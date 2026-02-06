@@ -508,9 +508,9 @@ def get_stats(tenant_id: str) -> Dict:
 
 def generate_pdf(invoice_id: str, tenant_id: str) -> Optional[bytes]:
     """
-    Generate a professional invoice PDF matching the frontend design.
+    Generate a professional invoice PDF with elegant design.
 
-    Uses fpdf2 library for real PDF generation with proper styling.
+    Uses fpdf2 library for real PDF generation with styling inspired by premium templates.
 
     Args:
         invoice_id: The invoice ID to generate PDF for
@@ -544,168 +544,218 @@ def generate_pdf(invoice_id: str, tenant_id: str) -> Optional[bytes]:
             logger.error(f"Invoice {invoice_id} has invalid amount: {amount}")
             return None
 
-        # Colors (matching frontend design)
-        BLUE = (74, 144, 226)
-        DARK = (31, 41, 55)
-        GRAY = (107, 114, 128)
-        LIGHT_BG = (249, 250, 251)
+        # Premium color scheme (elegant beige/cream with dark accents)
+        CREAM = (245, 237, 230)  # Soft cream background
+        DARK = (51, 51, 51)       # Rich dark text
+        ACCENT = (139, 115, 85)   # Warm brown accent
+        GRAY = (120, 120, 120)    # Subtle gray
+        TABLE_HEADER = (230, 220, 210)  # Light table header
 
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_auto_page_break(auto=True, margin=20)
 
-        # Header section with blue background
-        pdf.set_fill_color(*BLUE)
-        pdf.rect(0, 0, 210, 45, 'F')
+        # Elegant cream background
+        pdf.set_fill_color(*CREAM)
+        pdf.rect(0, 0, 210, 297, 'F')
 
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font("Helvetica", "B", 24)
-        pdf.set_y(12)
-        pdf.cell(0, 10, "INVOICE", ln=True, align="C")
+        # Company name/branding section (top center with elegant spacing)
+        pdf.set_y(15)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_text_color(*ACCENT)
+        pdf.cell(0, 10, "YOUR COMPANY", ln=True, align="C")
 
-        pdf.set_font("Helvetica", "", 14)
-        pdf.cell(0, 8, invoice["invoice_number"], ln=True, align="C")
+        # Thin decorative line under company name
+        pdf.set_draw_color(*ACCENT)
+        pdf.set_line_width(0.5)
+        pdf.line(85, 27, 125, 27)
 
-        # Status badge
-        status = invoice.get("status", "pending").upper()
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.cell(0, 8, status, ln=True, align="C")
+        pdf.ln(8)
 
-        # Reset colors
-        pdf.set_text_color(*DARK)
-        pdf.set_y(55)
-
-        # Customer + Due Date row
+        # Invoice header section (two columns)
         pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(*GRAY)
-        pdf.cell(95, 6, "BILL TO", ln=False)
-        pdf.cell(95, 6, "DUE DATE", ln=True)
 
-        pdf.set_text_color(*DARK)
+        # Left column: Invoice details
+        pdf.set_xy(15, 38)
+        pdf.cell(90, 6, "INVOICE NO.", ln=False)
+
+        # Right column: Billed to
+        pdf.set_xy(110, 38)
+        pdf.cell(85, 6, "BILLED TO", ln=True)
+
+        # Invoice number and date
         pdf.set_font("Helvetica", "", 11)
+        pdf.set_text_color(*DARK)
+        pdf.set_xy(15, 45)
+        pdf.cell(90, 6, invoice["invoice_number"], ln=False)
+
+        # Customer info
         customer = invoice.get("customer", {}) or {}
         customer_name = customer.get("name", "N/A") or "N/A"
-        pdf.cell(95, 6, customer_name, ln=False)
-        pdf.cell(95, 6, str(invoice.get("due_date", "N/A") or "N/A"), ln=True)
+        pdf.set_xy(110, 45)
+        pdf.cell(85, 6, customer_name, ln=True)
 
-        if customer.get("email"):
-            pdf.set_text_color(*GRAY)
-            pdf.cell(95, 5, customer["email"], ln=True)
-        if customer.get("phone"):
-            pdf.cell(95, 5, customer["phone"], ln=True)
-
-        pdf.ln(10)
-
-        # Line items table
-        pdf.set_fill_color(*LIGHT_BG)
+        # Invoice date
+        pdf.set_xy(15, 51)
+        pdf.set_font("Helvetica", "", 9)
         pdf.set_text_color(*GRAY)
-        pdf.set_font("Helvetica", "B", 9)
+        from datetime import datetime
+        invoice_date = invoice.get("invoice_date") or invoice.get("created_at") or datetime.now().isoformat()
+        try:
+            date_obj = datetime.fromisoformat(invoice_date.replace('Z', '+00:00'))
+            formatted_date = date_obj.strftime("%m/%d/%Y")
+        except:
+            formatted_date = invoice_date[:10]
+        pdf.cell(90, 5, formatted_date, ln=False)
 
-        # Table header
-        pdf.cell(80, 8, "DESCRIPTION", border="B", fill=True)
-        pdf.cell(20, 8, "QTY", border="B", align="C", fill=True)
-        pdf.cell(35, 8, "UNIT PRICE", border="B", align="R", fill=True)
-        pdf.cell(40, 8, "TOTAL", border="B", align="R", fill=True, ln=True)
+        # Customer additional info
+        pdf.set_xy(110, 51)
+        if customer.get("email"):
+            pdf.cell(85, 5, customer["email"], ln=True)
+            pdf.set_xy(110, 56)
+        if customer.get("phone"):
+            pdf.cell(85, 5, customer["phone"], ln=True)
+            pdf.set_xy(110, 61)
+        if customer.get("address"):
+            address = customer["address"][:40]  # Truncate if too long
+            pdf.set_font("Helvetica", "", 8)
+            pdf.multi_cell(85, 4, address)
 
-        # Table rows
+        pdf.ln(12)
+
+        # "INVOICE" title (centered, elegant)
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.set_text_color(*ACCENT)
+        pdf.cell(0, 10, "INVOICE", ln=True, align="C")
+        pdf.ln(5)
+
+        # Line items table with premium styling
+        pdf.set_fill_color(*TABLE_HEADER)
         pdf.set_text_color(*DARK)
+        pdf.set_font("Helvetica", "B", 10)
+
+        # Table header with better proportions
+        pdf.cell(75, 9, "DESCRIPTION", border=1, fill=True, align="L")
+        pdf.cell(30, 9, "PRICE", border=1, align="C", fill=True)
+        pdf.cell(20, 9, "QTY", border=1, align="C", fill=True)
+        pdf.cell(40, 9, "AMOUNT", border=1, align="R", fill=True, ln=True)
+
+        # Table rows with alternating background
         pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(*DARK)
         currency = invoice.get("currency", "KHR")
 
         items = invoice.get("items", [])
-        for item in items:
+        for idx, item in enumerate(items):
+            # Alternating row colors for better readability
+            if idx % 2 == 0:
+                pdf.set_fill_color(255, 255, 255)
+            else:
+                pdf.set_fill_color(250, 248, 245)
+
             description = str(item.get("description", ""))[:35]
             quantity = item.get("quantity", 1)
             price = float(item.get("unit_price", 0))
             item_total = float(item.get("total", price * quantity))
 
-            pdf.cell(80, 7, description)
-            pdf.cell(20, 7, str(int(quantity)), align="C")
+            pdf.cell(75, 8, description, border=1, fill=True)
             if currency == "KHR":
-                pdf.cell(35, 7, f"{price:,.0f}", align="R")
-                pdf.cell(40, 7, f"{item_total:,.0f}", align="R", ln=True)
+                pdf.cell(30, 8, f"{price:,.0f}", border=1, align="C", fill=True)
             else:
-                pdf.cell(35, 7, f"${price:.2f}", align="R")
-                pdf.cell(40, 7, f"${item_total:.2f}", align="R", ln=True)
+                pdf.cell(30, 8, f"${price:.2f}", border=1, align="C", fill=True)
+            pdf.cell(20, 8, str(int(quantity)), border=1, align="C", fill=True)
+            if currency == "KHR":
+                pdf.cell(40, 8, f"{item_total:,.0f}", border=1, align="R", fill=True, ln=True)
+            else:
+                pdf.cell(40, 8, f"${item_total:.2f}", border=1, align="R", fill=True, ln=True)
 
-        pdf.ln(5)
+        pdf.ln(3)
 
-        # Totals section (right-aligned)
-        pdf.set_x(110)
-        pdf.set_fill_color(*LIGHT_BG)
+        # Totals section (elegant, right-aligned box)
+        total_box_x = 125
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(*DARK)
 
         # Subtotal
         subtotal = float(invoice.get("subtotal", invoice.get("total", 0)))
-        pdf.set_font("Helvetica", "", 10)
-        pdf.cell(45, 7, "Subtotal:", align="R")
+        pdf.set_xy(total_box_x, pdf.get_y())
+        pdf.cell(30, 7, "SUBTOTAL", align="L")
         if currency == "KHR":
-            pdf.cell(40, 7, f"{subtotal:,.0f} KHR", align="R", ln=True)
+            pdf.cell(30, 7, f"{subtotal:,.0f} KHR", align="R", ln=True)
         else:
-            pdf.cell(40, 7, f"${subtotal:.2f}", align="R", ln=True)
+            pdf.cell(30, 7, f"${subtotal:.2f}", align="R", ln=True)
 
         # Tax
         tax = float(invoice.get("tax_amount", 0))
-        if tax:
-            pdf.set_x(110)
-            pdf.cell(45, 7, "Tax:", align="R")
+        if tax > 0:
+            pdf.set_x(total_box_x)
+            pdf.cell(30, 7, "TAX (10%)", align="L")
             if currency == "KHR":
-                pdf.cell(40, 7, f"{tax:,.0f} KHR", align="R", ln=True)
+                pdf.cell(30, 7, f"{tax:,.0f} KHR", align="R", ln=True)
             else:
-                pdf.cell(40, 7, f"${tax:.2f}", align="R", ln=True)
+                pdf.cell(30, 7, f"${tax:.2f}", align="R", ln=True)
 
         # Discount
         discount = float(invoice.get("discount_amount", 0))
-        if discount:
-            pdf.set_x(110)
-            pdf.cell(45, 7, "Discount:", align="R")
+        if discount > 0:
+            pdf.set_x(total_box_x)
+            pdf.cell(30, 7, "DISCOUNT", align="L")
             if currency == "KHR":
-                pdf.cell(40, 7, f"-{discount:,.0f} KHR", align="R", ln=True)
+                pdf.cell(30, 7, f"-{discount:,.0f} KHR", align="R", ln=True)
             else:
-                pdf.cell(40, 7, f"-${discount:.2f}", align="R", ln=True)
+                pdf.cell(30, 7, f"-${discount:.2f}", align="R", ln=True)
 
-        # Grand Total
-        pdf.set_x(110)
+        # Grand Total with accent background
+        pdf.set_fill_color(*ACCENT)
+        pdf.set_text_color(255, 255, 255)
         pdf.set_font("Helvetica", "B", 12)
         total = float(invoice.get("total", 0))
-        pdf.cell(45, 10, "TOTAL:", border="T", align="R")
+        pdf.set_x(total_box_x)
+        pdf.cell(30, 10, "TOTAL", fill=True, align="L")
         if currency == "KHR":
-            pdf.cell(40, 10, f"{total:,.0f} KHR", border="T", align="R", ln=True)
+            pdf.cell(30, 10, f"{total:,.0f} KHR", fill=True, align="R", ln=True)
         else:
-            pdf.cell(40, 10, f"${total:.2f}", border="T", align="R", ln=True)
+            pdf.cell(30, 10, f"${total:.2f}", fill=True, align="R", ln=True)
 
-        pdf.ln(10)
+        pdf.ln(12)
 
-        # Payment Information section
+        # Payment Information section (if available)
         bank = invoice.get("bank")
         expected_account = invoice.get("expected_account")
         recipient_name = invoice.get("recipient_name")
 
         if bank or expected_account or recipient_name:
-            pdf.set_fill_color(*LIGHT_BG)
-            pdf.set_font("Helvetica", "B", 11)
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.set_text_color(*ACCENT)
+            pdf.cell(0, 6, "Payment Information", ln=True)
+            pdf.set_draw_color(*ACCENT)
+            pdf.line(15, pdf.get_y(), 60, pdf.get_y())
+            pdf.ln(3)
+
+            pdf.set_font("Helvetica", "", 9)
             pdf.set_text_color(*DARK)
-            pdf.cell(0, 8, "Payment Information", fill=True, ln=True)
-
-            pdf.set_font("Helvetica", "", 10)
             if bank:
-                pdf.cell(30, 6, "Bank:")
-                pdf.cell(0, 6, str(bank), ln=True)
+                pdf.cell(0, 5, f"Bank: {bank}", ln=True)
             if expected_account:
-                pdf.cell(30, 6, "Account:")
-                pdf.cell(0, 6, str(expected_account), ln=True)
+                pdf.cell(0, 5, f"Account: {expected_account}", ln=True)
             if recipient_name:
-                pdf.cell(30, 6, "Recipient:")
-                pdf.cell(0, 6, str(recipient_name), ln=True)
+                pdf.cell(0, 5, f"Recipient: {recipient_name}", ln=True)
+            pdf.ln(5)
 
-        # Notes section
-        notes = invoice.get("notes")
-        if notes:
-            pdf.ln(10)
-            pdf.set_font("Helvetica", "B", 11)
-            pdf.cell(0, 8, "Notes", ln=True)
-            pdf.set_font("Helvetica", "", 10)
-            pdf.set_text_color(*GRAY)
-            pdf.multi_cell(0, 5, str(notes))
+        # Thank you message (elegant, centered)
+        pdf.set_y(-60)
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(*ACCENT)
+        pdf.cell(0, 10, "Thank you", ln=True, align="C")
+        pdf.set_font("Helvetica", "", 11)
+        pdf.cell(0, 6, "for your purchase!", ln=True, align="C")
+
+        # Footer with company info
+        pdf.set_y(-30)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(*GRAY)
+        pdf.cell(0, 4, "Generated by Invoice System", ln=True, align="C")
 
         return bytes(pdf.output())
 
