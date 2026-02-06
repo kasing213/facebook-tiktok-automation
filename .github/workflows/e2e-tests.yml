@@ -173,8 +173,19 @@ jobs:
       - name: Start frontend server
         working-directory: frontend
         run: |
-          npm run preview &
-          npx wait-on http://localhost:5173 --timeout 30000
+          # Start preview server in background
+          nohup npm run preview > preview.log 2>&1 &
+          SERVER_PID=$!
+          echo "Preview server started with PID: $SERVER_PID"
+
+          # Wait for server with increased timeout and verbose logging
+          npx wait-on http://localhost:5173 --timeout 60000 --interval 1000 --verbose || {
+            echo "❌ Server failed to start. Preview log:"
+            cat preview.log
+            exit 1
+          }
+
+          echo "✅ Frontend server is ready at http://localhost:5173"
 
       - name: Run E2E tests
         working-directory: frontend
