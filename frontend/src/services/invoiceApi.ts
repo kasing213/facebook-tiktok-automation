@@ -85,6 +85,7 @@ export const invoiceService = {
 
   async createCustomer(data: CustomerCreate): Promise<Customer> {
     try {
+      // PHASE 2 COMPLETE: Using /customers endpoint with direct PostgreSQL repository
       const response = await api.post(`${BASE_PATH}/customers`, data)
       return response.data
     } catch (error) {

@@ -272,18 +272,27 @@ async def health_check():
 @router.get("/customers")
 async def list_customers(
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
     limit: int = Query(default=50, ge=1, le=100),
     skip: int = Query(default=0, ge=0),
     search: Optional[str] = None
 ):
     """List all customers with optional search and pagination."""
+    from app.repositories.customer import CustomerRepository
+
     if is_mock_mode():
         return mock_svc.list_customers(str(current_user.tenant_id), limit=limit, skip=skip, search=search)
 
-    params = {"limit": limit, "skip": skip}
-    if search:
-        params["search"] = search
-    return await proxy_request("GET", "/api/customers", current_user, params=params)
+    # PHASE 2: Use repository for direct database access
+    customers = CustomerRepository.list_by_tenant(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        limit=limit,
+        skip=skip,
+        search=search
+    )
+
+    return customers
 
 
 @router.post("/customers")
@@ -292,59 +301,115 @@ async def create_customer(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new customer."""
+    """Create a new customer in invoice.customer table."""
+    from app.repositories.customer import CustomerRepository
+
     # Check customer limit before creating
     await check_customer_limit(current_user.tenant_id, db)
 
     if is_mock_mode():
         return mock_svc.create_customer(str(current_user.tenant_id), data.model_dump(exclude_none=True))
 
-    return await proxy_request("POST", "/api/customers", current_user, json_data=data.model_dump(exclude_none=True))
+    # PHASE 2: Use repository for direct database access
+    customer = CustomerRepository.create(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        merchant_id=current_user.id,
+        name=data.name,
+        email=data.email,
+        phone=data.phone,
+        address=data.address
+    )
+
+    return customer
 
 
 @router.get("/customers/{customer_id}")
 async def get_customer(
     customer_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Get a specific customer by ID."""
+    from app.repositories.customer import CustomerRepository
+
     if is_mock_mode():
         customer = mock_svc.get_customer(str(current_user.tenant_id), customer_id)
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
         return customer
 
-    return await proxy_request("GET", f"/api/customers/{customer_id}", current_user)
+    # PHASE 2: Use repository for direct database access
+    customer = CustomerRepository.get_by_id(
+        db=db,
+        customer_id=UUID(customer_id),
+        tenant_id=current_user.tenant_id
+    )
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    return customer
 
 
 @router.put("/customers/{customer_id}")
 async def update_customer(
     customer_id: str,
     data: CustomerUpdate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Update an existing customer."""
+    from app.repositories.customer import CustomerRepository
+
     if is_mock_mode():
         customer = mock_svc.update_customer(str(current_user.tenant_id), customer_id, data.model_dump(exclude_none=True))
         if not customer:
             raise HTTPException(status_code=404, detail="Customer not found")
         return customer
 
-    return await proxy_request("PUT", f"/api/customers/{customer_id}", current_user, json_data=data.model_dump(exclude_none=True))
+    # PHASE 2: Use repository for direct database access
+    customer = CustomerRepository.update(
+        db=db,
+        customer_id=UUID(customer_id),
+        tenant_id=current_user.tenant_id,
+        name=data.name,
+        email=data.email,
+        phone=data.phone,
+        address=data.address
+    )
+
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    return customer
 
 
 @router.delete("/customers/{customer_id}")
 async def delete_customer(
     customer_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Delete a customer."""
+    from app.repositories.customer import CustomerRepository
+
     if is_mock_mode():
         if not mock_svc.delete_customer(str(current_user.tenant_id), customer_id):
             raise HTTPException(status_code=404, detail="Customer not found")
         return {"status": "deleted", "id": customer_id}
 
-    return await proxy_request("DELETE", f"/api/customers/{customer_id}", current_user)
+    # PHASE 2: Use repository for direct database access
+    success = CustomerRepository.delete(
+        db=db,
+        customer_id=UUID(customer_id),
+        tenant_id=current_user.tenant_id
+    )
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    return {"status": "deleted", "id": customer_id}
 
 
 # ============================================================================
