@@ -36,6 +36,7 @@ from app.core.external_jwt import create_invoice_api_headers, create_external_se
 from app.repositories.product import ProductRepository
 from app.repositories.stock_movement import StockMovementRepository
 from app.core.models import MovementType
+from app.services.ocr_audit_service import OCRAuditService
 from uuid import UUID
 
 router = APIRouter(prefix="/api/integrations/invoice", tags=["invoice-integration"])
@@ -1960,7 +1961,8 @@ async def verify_invoice(
 async def upload_invoice_screenshot(
     invoice_id: str,
     image: UploadFile = File(..., description="Payment screenshot image"),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Upload a payment screenshot for OCR verification.
@@ -2054,6 +2056,24 @@ async def upload_invoice_screenshot(
             json_data=verify_data
         )
 
+    # Log OCR verification to audit trail
+    try:
+        confidence_score = verification.get("confidence", 0) * 100 if verification.get("confidence") else None
+        is_auto_approved = verification_status == "verified"
+
+        OCRAuditService.log_auto_verification(
+            db=db,
+            tenant_id=current_user.tenant_id,
+            invoice_id=UUID(invoice_id),
+            confidence_score=confidence_score,
+            ocr_response=ocr_result,
+            approved=is_auto_approved,
+            previous_status="pending"
+        )
+    except Exception as audit_error:
+        logger.warning(f"Failed to log OCR audit trail: {audit_error}")
+        # Don't fail the main verification if audit logging fails
+
     return {
         "success": True,
         "invoice_id": invoice_id,
@@ -2070,7 +2090,8 @@ async def verify_standalone_screenshot(
     expected_amount: Optional[float] = Form(None, description="Expected payment amount"),
     expected_currency: Optional[str] = Form(None, description="Expected currency (KHR/USD)"),
     expected_account: Optional[str] = Form(None, description="Expected recipient account"),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Verify a payment screenshot without requiring an invoice.
@@ -2118,6 +2139,27 @@ async def verify_standalone_screenshot(
         expected_payment=expected_payment
     )
 
+    # Log standalone OCR verification to audit trail
+    try:
+        if invoice_id:  # Only log if linked to an invoice
+            verification = ocr_result.get("verification", {})
+            verification_status = verification.get("status", "pending")
+            confidence_score = verification.get("confidence", 0) * 100 if verification.get("confidence") else None
+            is_auto_approved = verification_status == "verified"
+
+            OCRAuditService.log_auto_verification(
+                db=db,
+                tenant_id=current_user.tenant_id,
+                invoice_id=UUID(invoice_id),
+                confidence_score=confidence_score,
+                ocr_response=ocr_result,
+                approved=is_auto_approved,
+                previous_status="pending"
+            )
+    except Exception as audit_error:
+        logger.warning(f"Failed to log standalone OCR audit trail: {audit_error}")
+        # Don't fail the main verification if audit logging fails
+
     return {
         "success": ocr_result.get("success", True) if "error" not in ocr_result else False,
         "invoice_id": invoice_id,
@@ -2143,7 +2185,7 @@ def generate_pdf_from_invoice(invoice: dict) -> bytes:
         customer_address = invoice.get("customer", {}).get("address") if isinstance(invoice.get("customer"), dict) else None
 
         total = float(invoice.get("total") or invoice.get("amount") or 0)
-        currency = invoice.get("currency", "KHR")
+        currency = invoice.get("currency", "USD")
         bank = invoice.get("bank")
         expected_account = invoice.get("expected_account")
         recipient_name = invoice.get("recipient_name")
@@ -2307,7 +2349,7 @@ def generate_pdf_from_invoice(invoice: dict) -> bytes:
         invoice_num = invoice.get("invoice_number", "N/A")
         customer_name = invoice.get("customer", {}).get("name") if isinstance(invoice.get("customer"), dict) else invoice.get("customer_name", "Unknown")
         total = invoice.get("total") or invoice.get("amount") or 0
-        currency = invoice.get("currency", "KHR")
+        currency = invoice.get("currency", "USD")
 
         if currency == "KHR":
             amount_str = f"{float(total):,.0f} KHR"
@@ -2368,9 +2410,10 @@ async def download_invoice_pdf(
     try:
         result = db.execute(
             text("""
-                SELECT i.id, i.invoice_number, i.amount, i.status, i.currency,
+                SELECT i.id, i.invoice_number, i.amount, i.status, i.currency, i.items,
                        i.bank, i.expected_account, i.recipient_name, i.due_date,
-                       i.verification_status, c.name as customer_name
+                       i.verification_status, c.name as customer_name, c.email as customer_email,
+                       c.phone as customer_phone, c.address as customer_address
                 FROM invoice.invoice i
                 LEFT JOIN invoice.customer c ON i.customer_id = c.id
                 WHERE i.id = :invoice_id
@@ -2385,18 +2428,34 @@ async def download_invoice_pdf(
         )
         row = result.fetchone()
         if row:
+            # Parse items from JSONB
+            import json
+            items = []
+            if row.items:
+                if isinstance(row.items, str):
+                    items = json.loads(row.items)
+                elif isinstance(row.items, list):
+                    items = row.items
+
             invoice = {
                 "invoice_number": row.invoice_number,
                 "amount": float(row.amount) if row.amount else 0,
                 "total": float(row.amount) if row.amount else 0,
                 "status": row.status,
-                "currency": row.currency or "KHR",
+                "currency": row.currency or "USD",
+                "items": items,
                 "bank": row.bank,
                 "expected_account": row.expected_account,
                 "recipient_name": row.recipient_name,
                 "due_date": row.due_date.isoformat() if row.due_date else None,
                 "verification_status": row.verification_status,
-                "customer_name": row.customer_name or "Unknown"
+                "customer_name": row.customer_name or "Unknown",
+                "customer": {
+                    "name": row.customer_name or "Unknown",
+                    "email": row.customer_email,
+                    "phone": row.customer_phone,
+                    "address": row.customer_address
+                }
             }
             pdf_content = generate_pdf_from_invoice(invoice)
             return Response(
