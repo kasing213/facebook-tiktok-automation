@@ -26,10 +26,10 @@ on:
         options:
           - all
           - auth
-          - subscription
-          - payment-ocr
-          - telegram
-          - security
+          - tenant/subscription
+          - tenant/payment-ocr
+          - tenant/telegram-bot
+          - tenant/security
           - performance
 
 env:
@@ -136,16 +136,16 @@ jobs:
         browser: [chromium, firefox, webkit]
         test-suite:
           - auth
-          - subscription
-          - payment-ocr
-          - telegram
-          - security
+          - tenant/subscription
+          - tenant/payment-ocr
+          - tenant/telegram-bot
+          - tenant/security
         exclude:
           # Skip webkit for complex tests to save resources
           - browser: webkit
-            test-suite: payment-ocr
+            test-suite: tenant/payment-ocr
           - browser: webkit
-            test-suite: telegram
+            test-suite: tenant/telegram-bot
 
     steps:
       - name: Checkout code
