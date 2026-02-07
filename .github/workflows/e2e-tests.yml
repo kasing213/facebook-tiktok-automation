@@ -173,6 +173,8 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          VITE_API_URL: https://facebook-automation-production.up.railway.app
         run: npm run build
 
       - name: Stagger test execution to avoid rate limits
