@@ -47,13 +47,8 @@ jobs:
       - name: Set environment variables
         id: set-env
         run: |
-          if [ "${{ github.event.inputs.environment }}" = "production" ]; then
-            echo "environment=production" >> $GITHUB_OUTPUT
-            echo "base_url=https://facebooktiktokautomation.vercel.app" >> $GITHUB_OUTPUT
-          else
-            echo "environment=staging" >> $GITHUB_OUTPUT
-            echo "base_url=http://localhost:5173" >> $GITHUB_OUTPUT
-          fi
+          echo "environment=production" >> $GITHUB_OUTPUT
+          echo "base_url=https://facebooktiktokautomation.vercel.app" >> $GITHUB_OUTPUT
 
   backend-health:
     name: Backend Health Check
@@ -171,35 +166,18 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps ${{ matrix.browser }}
 
-      - name: Build frontend
-        working-directory: frontend
-        env:
-          VITE_API_URL: https://facebook-automation-production.up.railway.app
-        run: npm run build
-
-      - name: Stagger test execution to avoid rate limits
+      - name: Wait for Vercel deployment
         run: |
-          # Add random delay between 0-30 seconds to stagger parallel jobs
-          DELAY=$((RANDOM % 30))
-          echo "Waiting ${DELAY} seconds to stagger execution..."
-          sleep ${DELAY}
-
-      - name: Start frontend server
-        working-directory: frontend
-        run: |
-          # Start preview server in background
-          nohup npm run preview > preview.log 2>&1 &
-          SERVER_PID=$!
-          echo "Preview server started with PID: $SERVER_PID"
-
-          # Wait for server using IPv4 address to avoid IPv6 connection issues
-          npx wait-on tcp:127.0.0.1:5173 --timeout 60000 --interval 1000 --verbose || {
-            echo "❌ Server failed to start. Preview log:"
-            cat preview.log
-            exit 1
-          }
-
-          echo "✅ Frontend server is ready at http://localhost:5173"
+          echo "Checking frontend is reachable at ${{ needs.setup.outputs.base-url }}..."
+          for i in $(seq 1 10); do
+            if curl -sf "${{ needs.setup.outputs.base-url }}" > /dev/null 2>&1; then
+              echo "Frontend is live"
+              exit 0
+            fi
+            echo "Attempt $i/10 - waiting 10s..."
+            sleep 10
+          done
+          echo "Warning: Frontend may not be ready, proceeding anyway"
 
       - name: Run E2E tests
         working-directory: frontend
@@ -330,6 +308,8 @@ jobs:
 
       - name: Run accessibility tests
         working-directory: frontend
+        env:
+          BASE_URL: ${{ needs.setup.outputs.base-url }}
         run: |
           npx playwright test --config=playwright-accessibility.config.ts
         continue-on-error: true

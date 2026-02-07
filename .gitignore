@@ -1,7 +1,7 @@
 # Environment variables (contains secrets!)
 .env
+.env.local
 .env.*.local
-# .env.local (allowed for local test configuration)
 
 # Python
 __pycache__/

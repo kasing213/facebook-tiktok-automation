@@ -37,6 +37,7 @@
     "test:core": "playwright test --project=core-chromium",
     "test:tenant": "playwright test --project=tenant-chromium",
     "test:core-first": "npm run test:core && npm run test:tenant",
+    "test:e2e": "npm run test:core-first",
     "test:all-browsers": "playwright test --project=core-chromium --project=tenant-chromium --project=core-firefox --project=tenant-firefox",
     "test:performance": "playwright test --project=performance-chromium",
     "test:accessibility": "playwright test --config=playwright-accessibility.config.ts"
