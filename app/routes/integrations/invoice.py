@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, Query, UploadFi
 from pydantic import BaseModel
 import httpx
 import json
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -38,6 +39,7 @@ from app.core.models import MovementType
 from uuid import UUID
 
 router = APIRouter(prefix="/api/integrations/invoice", tags=["invoice-integration"])
+logger = logging.getLogger(__name__)
 
 
 def create_service_jwt_headers(current_user) -> Dict[str, str]:
@@ -454,8 +456,6 @@ async def list_registered_clients(
         telegram_linked: Optional filter - True for linked clients only, False for unlinked
         include_pending_invoices: Include pending invoices list for each client (default True)
     """
-    import logging
-    logger = logging.getLogger(__name__)
     logger.info(f"Fetching registered clients for user {current_user.id}, tenant {current_user.tenant_id}")
     try:
         # Build query with tenant + merchant scoping
@@ -607,8 +607,6 @@ async def create_registered_client(
     Args:
         data: Client details (name required, others optional)
     """
-    import logging
-    logger = logging.getLogger(__name__)
     logger.info(f"Creating registered client '{data.name}' for user {current_user.id}, tenant {current_user.tenant_id}")
 
     try:
@@ -668,8 +666,6 @@ async def check_registered_clients_schema(
 
     This endpoint verifies that required migrations have been applied.
     """
-    import logging
-    logger = logging.getLogger(__name__)
 
     issues = []
 
@@ -977,8 +973,6 @@ async def generate_batch_code(
         expires_days: Days until expiration (None = never expires)
     """
     import secrets
-    import logging
-    logger = logging.getLogger(__name__)
 
     try:
         # Generate cryptographically secure token
@@ -1047,7 +1041,6 @@ async def list_batch_codes(
     - Whether it's active (not expired)
     - Whether it's maxed out (reached max_uses)
     """
-    import logging
     from datetime import datetime, timezone
     logger = logging.getLogger(__name__)
 
@@ -1112,8 +1105,6 @@ async def delete_batch_code(
     This only deletes the code - clients already registered via this code
     remain in the system.
     """
-    import logging
-    logger = logging.getLogger(__name__)
 
     try:
         result = db.execute(
@@ -1173,8 +1164,6 @@ async def send_invoice_to_telegram(
     settings = get_settings()
 
     # Check if api-gateway URL is configured
-    import logging
-    logger = logging.getLogger(__name__)
 
     api_gateway_url = getattr(settings, 'API_GATEWAY_URL', None)
     if not api_gateway_url:
@@ -1353,8 +1342,6 @@ async def list_invoices(
     1. PostgreSQL (for registered clients created via Telegram bot)
     2. Mock service or external API (for other customers)
     """
-    import logging
-    logger = logging.getLogger(__name__)
 
     all_invoices = []
 
@@ -1454,7 +1441,6 @@ async def create_invoice(
         data: Invoice creation data
         send_telegram: Whether to auto-send to Telegram (default True)
     """
-    import logging
     import uuid
     from datetime import datetime
     logger = logging.getLogger(__name__)
@@ -1759,8 +1745,7 @@ async def get_invoice(
             }
     except Exception as e:
         # Log but don't fail - fall through to mock/external
-        import logging
-        logging.getLogger(__name__).debug(f"PostgreSQL invoice lookup failed: {e}")
+            logging.getLogger(__name__).debug(f"PostgreSQL invoice lookup failed: {e}")
 
     # Fall back to mock/external
     if is_mock_mode():
@@ -1901,8 +1886,7 @@ async def delete_invoice(
             return {"status": "deleted", "id": invoice_id}
     except Exception as e:
         db.rollback()
-        import logging
-        logging.getLogger(__name__).debug(f"PostgreSQL invoice delete failed: {e}")
+        logger.debug(f"PostgreSQL invoice delete failed: {e}")
 
     # Fall back to mock/external
     if is_mock_mode():
@@ -2146,93 +2130,202 @@ async def verify_standalone_screenshot(
 # ============================================================================
 
 def generate_pdf_from_invoice(invoice: dict) -> bytes:
-    """Generate a PDF from invoice data."""
-    invoice_num = invoice.get("invoice_number", "N/A")
-    customer_name = invoice.get("customer", {}).get("name") if isinstance(invoice.get("customer"), dict) else invoice.get("customer_name", "Unknown")
-    total = invoice.get("total") or invoice.get("amount") or 0
-    currency = invoice.get("currency", "KHR")
-    bank = invoice.get("bank") or "N/A"
-    expected_account = invoice.get("expected_account") or "N/A"
-    recipient_name = invoice.get("recipient_name") or "N/A"
-    verification_status = (invoice.get("verification_status") or "pending").upper()
-    status = invoice.get("status", "draft")
-    due_date = invoice.get("due_date") or "N/A"
+    """Generate a professional invoice PDF with elegant design using fpdf2."""
+    try:
+        from fpdf import FPDF
+        from datetime import datetime
 
-    # Format amount with currency
-    if currency == "KHR":
-        amount_str = f"{float(total):,.0f} KHR"
-    else:
-        amount_str = f"${float(total):.2f} {currency}"
+        # Extract invoice data
+        invoice_num = invoice.get("invoice_number", "N/A")
+        customer_name = invoice.get("customer", {}).get("name") if isinstance(invoice.get("customer"), dict) else invoice.get("customer_name", "Unknown")
+        customer_email = invoice.get("customer", {}).get("email") if isinstance(invoice.get("customer"), dict) else None
+        customer_phone = invoice.get("customer", {}).get("phone") if isinstance(invoice.get("customer"), dict) else None
+        customer_address = invoice.get("customer", {}).get("address") if isinstance(invoice.get("customer"), dict) else None
 
-    # Verification badge
-    if verification_status == "VERIFIED":
-        badge = "[VERIFIED]"
-    elif verification_status == "REJECTED":
-        badge = "[REJECTED]"
-    else:
-        badge = "[PENDING]"
+        total = float(invoice.get("total") or invoice.get("amount") or 0)
+        currency = invoice.get("currency", "KHR")
+        bank = invoice.get("bank")
+        expected_account = invoice.get("expected_account")
+        recipient_name = invoice.get("recipient_name")
+        due_date = invoice.get("due_date") or "N/A"
+        items = invoice.get("items", [])
 
-    # Build PDF content
-    content = f"""Invoice: {invoice_num}
-Customer: {customer_name}
-Total: {amount_str}
-Status: {status}
-Due Date: {due_date}
-Verification: {badge}
+        # Premium color scheme
+        CREAM = (245, 237, 230)
+        DARK = (51, 51, 51)
+        ACCENT = (139, 115, 85)
+        GRAY = (120, 120, 120)
+        TABLE_HEADER = (230, 220, 210)
 
-Payment Information:
-Bank: {bank}
-Account: {expected_account}
-Recipient: {recipient_name}
-Amount: {amount_str}
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=20)
 
-Generated by Invoice System"""
+        # Elegant cream background
+        pdf.set_fill_color(*CREAM)
+        pdf.rect(0, 0, 210, 297, 'F')
 
-    # Minimal valid PDF structure
-    pdf_content = f"""%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length {len(content) + 100} >>
-stream
-BT
-/F1 12 Tf
-50 742 Td
-"""
-    # Add each line of content
-    y_pos = 742
-    for line in content.split('\n'):
-        safe_line = line.replace('(', '\\(').replace(')', '\\)')
-        pdf_content += f"({safe_line}) Tj\n0 -16 Td\n"
-        y_pos -= 16
+        # Company branding
+        pdf.set_y(15)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.set_text_color(*ACCENT)
+        pdf.cell(0, 10, "YOUR COMPANY", ln=True, align="C")
 
-    pdf_content += """ET
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
+        pdf.set_draw_color(*ACCENT)
+        pdf.set_line_width(0.5)
+        pdf.line(85, 27, 125, 27)
+        pdf.ln(8)
+
+        # Invoice header
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*GRAY)
+        pdf.set_xy(15, 38)
+        pdf.cell(90, 6, "INVOICE NO.", ln=False)
+        pdf.set_xy(110, 38)
+        pdf.cell(85, 6, "BILLED TO", ln=True)
+
+        pdf.set_font("Helvetica", "", 11)
+        pdf.set_text_color(*DARK)
+        pdf.set_xy(15, 45)
+        pdf.cell(90, 6, str(invoice_num), ln=False)
+        pdf.set_xy(110, 45)
+        pdf.cell(85, 6, str(customer_name), ln=True)
+
+        pdf.set_xy(15, 51)
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(*GRAY)
+        formatted_date = datetime.now().strftime("%m/%d/%Y")
+        pdf.cell(90, 5, formatted_date, ln=False)
+
+        pdf.set_xy(110, 51)
+        if customer_email:
+            pdf.cell(85, 5, str(customer_email), ln=True)
+            pdf.set_xy(110, 56)
+        if customer_phone:
+            pdf.cell(85, 5, str(customer_phone), ln=True)
+            pdf.set_xy(110, 61)
+        if customer_address:
+            pdf.set_font("Helvetica", "", 8)
+            pdf.multi_cell(85, 4, str(customer_address)[:40])
+
+        pdf.ln(12)
+
+        # Title
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.set_text_color(*ACCENT)
+        pdf.cell(0, 10, "INVOICE", ln=True, align="C")
+        pdf.ln(5)
+
+        # Items table
+        if items:
+            pdf.set_fill_color(*TABLE_HEADER)
+            pdf.set_text_color(*DARK)
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.cell(75, 9, "DESCRIPTION", border=1, fill=True, align="L")
+            pdf.cell(30, 9, "PRICE", border=1, align="C", fill=True)
+            pdf.cell(20, 9, "QTY", border=1, align="C", fill=True)
+            pdf.cell(40, 9, "AMOUNT", border=1, align="R", fill=True, ln=True)
+
+            pdf.set_font("Helvetica", "", 10)
+            for idx, item in enumerate(items):
+                pdf.set_fill_color(255, 255, 255) if idx % 2 == 0 else pdf.set_fill_color(250, 248, 245)
+                description = str(item.get("description", ""))[:35]
+                quantity = item.get("quantity", 1)
+                price = float(item.get("unit_price", 0))
+                item_total = float(item.get("total", price * quantity))
+
+                pdf.cell(75, 8, description, border=1, fill=True)
+                if currency == "KHR":
+                    pdf.cell(30, 8, f"{price:,.0f}", border=1, align="C", fill=True)
+                    pdf.cell(20, 8, str(int(quantity)), border=1, align="C", fill=True)
+                    pdf.cell(40, 8, f"{item_total:,.0f}", border=1, align="R", fill=True, ln=True)
+                else:
+                    pdf.cell(30, 8, f"${price:.2f}", border=1, align="C", fill=True)
+                    pdf.cell(20, 8, str(int(quantity)), border=1, align="C", fill=True)
+                    pdf.cell(40, 8, f"${item_total:.2f}", border=1, align="R", fill=True, ln=True)
+            pdf.ln(3)
+
+        # Total
+        pdf.set_x(125)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_fill_color(*ACCENT)
+        pdf.cell(30, 10, "TOTAL", fill=True, align="L")
+        if currency == "KHR":
+            pdf.cell(30, 10, f"{total:,.0f} KHR", fill=True, align="R", ln=True)
+        else:
+            pdf.cell(30, 10, f"${total:.2f}", fill=True, align="R", ln=True)
+
+        pdf.ln(12)
+
+        # Payment info
+        if bank or expected_account or recipient_name:
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.set_text_color(*ACCENT)
+            pdf.cell(0, 6, "Payment Information", ln=True)
+            pdf.set_draw_color(*ACCENT)
+            pdf.line(15, pdf.get_y(), 60, pdf.get_y())
+            pdf.ln(3)
+
+            pdf.set_font("Helvetica", "", 9)
+            pdf.set_text_color(*DARK)
+            if bank:
+                pdf.cell(0, 5, f"Bank: {bank}", ln=True)
+            if expected_account:
+                pdf.cell(0, 5, f"Account: {expected_account}", ln=True)
+            if recipient_name:
+                pdf.cell(0, 5, f"Recipient: {recipient_name}", ln=True)
+            pdf.ln(5)
+
+        # Thank you
+        pdf.set_y(-60)
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(*ACCENT)
+        pdf.cell(0, 10, "Thank you", ln=True, align="C")
+        pdf.set_font("Helvetica", "", 11)
+        pdf.cell(0, 6, "for your purchase!", ln=True, align="C")
+
+        # Footer
+        pdf.set_y(-30)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.set_text_color(*GRAY)
+        pdf.cell(0, 4, "Generated by Invoice System", ln=True, align="C")
+
+        return bytes(pdf.output())
+
+    except Exception as e:
+        logger.warning(f"fpdf2 failed: {e}, using fallback")
+        invoice_num = invoice.get("invoice_number", "N/A")
+        customer_name = invoice.get("customer", {}).get("name") if isinstance(invoice.get("customer"), dict) else invoice.get("customer_name", "Unknown")
+        total = invoice.get("total") or invoice.get("amount") or 0
+        currency = invoice.get("currency", "KHR")
+
+        if currency == "KHR":
+            amount_str = f"{float(total):,.0f} KHR"
+        else:
+            amount_str = f"${float(total):.2f}"
+
+        content = f"Invoice: {invoice_num} | Customer: {customer_name} | Total: {amount_str}"
+        pdf_fallback = f"""%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 100 >> stream
+BT /F1 12 Tf 50 700 Td ({content}) Tj ET
+endstream endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref 0 6
 0000000000 65535 f
 0000000009 00000 n
 0000000058 00000 n
 0000000115 00000 n
-0000000266 00000 n
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-0
+0000000230 00000 n
+0000000380 00000 n
+trailer << /Size 6 /Root 1 0 R >>
+startxref 450
 %%EOF"""
+        return pdf_fallback.encode('latin-1')
 
-    return pdf_content.encode('latin-1')
 
 
 @router.get("/invoices/{invoice_id}/pdf")
@@ -2368,8 +2461,6 @@ async def send_invoice_to_customer(
     Returns:
         Success status and telegram notification result
     """
-    import logging
-    logger = logging.getLogger(__name__)
 
     # Get the invoice from PostgreSQL
     try:
@@ -2467,8 +2558,6 @@ async def get_stats(
 ):
     """Get invoice statistics and dashboard data from PostgreSQL."""
     from datetime import datetime, timedelta
-    import logging
-    logger = logging.getLogger(__name__)
 
     try:
         tenant_id = str(current_user.tenant_id)
@@ -2679,21 +2768,16 @@ async def _deduct_inventory_stock(
 
             except (ValueError, TypeError) as e:
                 # Log but don't fail entire verification for bad product data
-                import logging
-                logger = logging.getLogger(__name__)
+                            logger = logging.getLogger(__name__)
                 logger.warning(f"Error deducting stock for item {item}: {e}")
                 continue
 
         if movements_created:
             db.commit()
-            import logging
-            logger = logging.getLogger(__name__)
             logger.info(f"Deducted stock for invoice {invoice_number}: {len(movements_created)} movements created")
 
     except Exception as e:
         # Log error but don't fail payment verification
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Error deducting inventory stock for invoice {invoice.get('id')}: {e}")
         db.rollback()
 
