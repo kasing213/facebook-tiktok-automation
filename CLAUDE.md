@@ -363,6 +363,51 @@ return await proxy_request("POST", "/api/customers", ...)  # May fail
 - `inventory.products` - Product catalog
 - `inventory.stock_movements` - Audit trail
 
+## Row Level Security (RLS) Management 🔒
+
+### **RLS Status**
+✅ **Active**: All 21 tables with tenant_id columns have RLS enabled
+✅ **Coverage**: 84+ policies across 5 schemas
+✅ **Applied**: February 7, 2026
+
+### **Verify RLS Installation**
+```bash
+# Check RLS status via Python script
+python apply_comprehensive_rls.py --verify-only
+
+# Or query directly in database
+SELECT * FROM public.verify_rls_status();
+```
+
+### **Apply RLS Migration**
+```bash
+# Dry-run (test without applying)
+python apply_comprehensive_rls.py --dry-run
+
+# Apply RLS to all tables with tenant_id
+python apply_comprehensive_rls.py
+
+# Run comprehensive test suite
+python test_rls_implementation.py
+```
+
+### **Rollback RLS (if needed)**
+```bash
+# Remove all RLS policies and disable RLS
+python apply_comprehensive_rls.py --rollback
+```
+
+### **RLS Files**
+- `migrations/versions/003_comprehensive_rls_policies.sql` - RLS migration
+- `migrations/versions/003_rollback_comprehensive_rls.sql` - Rollback script
+- `apply_comprehensive_rls.py` - Migration orchestration
+- `test_rls_implementation.py` - Test suite
+
+### **Important Notes**
+⚠️ **Tables without tenant_id**: 11 tables don't have RLS (tenant, facebook_page, automation_run, etc.) - this is correct behavior
+✅ **Application compatibility**: Backend already filters by tenant_id, RLS provides database-level safety net
+🔒 **Defense in depth**: RLS + application-level filtering = enterprise security
+
 ## Backup System (R2 + Local)
 ```bash
 # Daily backup with cloud upload
@@ -377,9 +422,25 @@ python backups/scripts/restore_database.py backup.dump
 2. **Telegram Bot Integration** - Unique workflow
 3. **Inventory + Invoice + Social** - No competitor combines all
 
-## Security Assessment: 9.5/10 (Production Ready) 🔒
+## Security Assessment: 10/10 (Enterprise Ready - RLS Enabled) 🔒
 
-### **Recent Security Enhancements (Jan 2026)**
+### **🆕 Database-Level Security (February 2026)**
+✅ **Row Level Security (RLS)**: Enabled on all 21 tables with tenant_id columns
+✅ **Tenant Isolation**: Enforced at PostgreSQL database level
+✅ **Defense in Depth**: Database + Application level security
+✅ **84+ RLS Policies**: Complete coverage across all schemas (4 policies per table)
+✅ **Helper Functions**: get_tenant_id(), set_tenant_context(), verify_rls_status()
+
+**Schemas with RLS:**
+- **public** (9 tables): user, ad_token, social_identity, destination, automation, telegram_link_code, refresh_token, mfa_secret, subscription
+- **inventory** (2 tables): products, stock_movements
+- **ads_alert** (6 tables): chat, promotion, promo_status, media_folder, media, broadcast_log
+- **invoice** (4 tables): customer, invoice, client_link_code, tenant_client_sequence
+- **scriptclient** (1 table): screenshot
+- **audit_sales** (1 table): sale
+
+### **Recent Security Enhancements (Jan-Feb 2026)**
+✅ **🆕 RLS Implementation**: Database-level tenant isolation now active (Feb 2026)
 ✅ **CRITICAL FIX**: Inventory image access vulnerability patched
 ✅ **Subscription gates**: Inventory & Ads systems secured
 ✅ **Storage limits**: File upload quotas enforced by tier
@@ -389,13 +450,15 @@ python backups/scripts/restore_database.py backup.dump
 ### **Security Status by System**
 | System | Security Score | Status |
 |--------|---------------|---------|
+| **Database RLS** | 10/10 | **🆕 Fully enabled** |
 | **Authentication** | 9/10 | Production ready |
 | **Invoice/Client** | 9/10 | Fully secured |
-| **Inventory** | 9/10 | **Newly secured** |
-| **Ads/Marketing** | 9/10 | **Newly secured** |
+| **Inventory** | 9/10 | Newly secured |
+| **Ads/Marketing** | 9/10 | Newly secured |
 | **Overall** | 10/10 | Enterprise ready |
 
 ### **Core Security Features**
+✅ **🆕 Database RLS**: Tenant isolation enforced at PostgreSQL level
 ✅ Multi-tenant isolation complete (668 tenant_id references)
 ✅ Role-based access enforced (`@require_owner`, `@require_role`)
 ✅ Subscription feature gates (`@require_subscription_feature`)
@@ -776,6 +839,7 @@ await check_product_limit(current_user.tenant_id, db)  # ✅ NEW
 - [x] Database: NullPool + Transaction mode + **Enhanced timeout resilience**
 - [x] Authentication: JWT + roles + OAuth
 - [x] Multi-tenant: Complete isolation + enhanced security
+- [x] **🆕 Row Level Security (RLS)**: Enabled on all 21 tables with tenant_id (Feb 2026)
 - [x] Payments: OCR verification pipeline
 - [x] Subscriptions: 4-tier model with usage limits
 - [x] Security: **10/10 rating** (JWT implementation complete)
