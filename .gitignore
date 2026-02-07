@@ -1,7 +1,7 @@
 # Environment variables (contains secrets!)
 .env
-.env.local
 .env.*.local
+# .env.local (allowed for local test configuration)
 
 # Python
 __pycache__/
@@ -70,3 +70,8 @@ credentials.json
 gmail_token.txt
 token.json
 client_secret*.json
+
+# Local test runtime files (NOT for production!)
+local-*.log
+local-*.pid
+local-test.db

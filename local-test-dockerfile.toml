@@ -1,0 +1,66 @@
+# LOCAL TEST CONFIGURATION - NOT FOR PRODUCTION DEPLOYMENT
+# This TOML file configures local testing environment to avoid production conflicts
+
+[local-test-config]
+name = "facebook-automation-local-tests"
+description = "Local E2E test configuration - isolates test runs from production"
+
+[backend]
+# Mock backend server configuration
+port = 8080
+host = "localhost"
+mock_mode = true
+health_endpoint = "/health"
+
+[frontend]
+port = 5173
+host = "localhost"
+base_url = "http://localhost:5173"
+api_url = "http://localhost:8080"
+
+[test-database]
+# Local test database (SQLite for simplicity)
+type = "sqlite"
+path = "./local-test.db"
+reset_on_start = true
+
+[test-users]
+# Predefined test users for E2E scenarios
+[[test-users.users]]
+email = "test@example.com"
+password = "TestPassword123!"
+role = "user"
+tenant_name = "Test Tenant"
+
+[[test-users.users]]
+email = "admin@example.com"
+password = "AdminPassword123!"
+role = "admin"
+tenant_name = "Admin Tenant"
+
+[mock-api-responses]
+# Common API responses for testing
+auth_success = true
+dashboard_data = "mock"
+invoice_data = "sample"
+
+[test-scripts]
+# Local test execution scripts
+setup = "npm run local-test:setup"
+teardown = "npm run local-test:cleanup"
+run_tests = "npm run local-test:e2e"
+
+[safety]
+# Safety measures to prevent production conflicts
+require_local_flag = true
+disable_in_ci = true
+block_production_urls = [
+  "https://facebook-automation-production.up.railway.app",
+  "https://web-production-3ed15.up.railway.app"
+]
+
+# This configuration ensures:
+# 1. No production backend dependency
+# 2. No accidental production data corruption
+# 3. Isolated test environment
+# 4. Easy cleanup after testing
