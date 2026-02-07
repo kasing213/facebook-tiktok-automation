@@ -43,8 +43,7 @@ COPY --chown=appuser:appuser scripts/ ./scripts/
 # Set environment variables
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
-    PATH=/home/appuser/.local/bin:$PATH \
-    PORT=8000
+    PATH=/home/appuser/.local/bin:$PATH
 
 # Switch to non-root user
 USER appuser
