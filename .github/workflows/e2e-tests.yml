@@ -193,10 +193,26 @@ jobs:
           BASE_URL: ${{ needs.setup.outputs.base-url }}
           CI: true
         run: |
+          # Determine the correct Playwright project name based on test path and browser
+          TEST_PATH="${{ matrix.test-suite }}"
+          BROWSER="${{ matrix.browser }}"
+
+          # Map test suite to project category
+          if [[ "$TEST_PATH" == tenant/* ]]; then
+            PROJECT_NAME="tenant-${BROWSER}"
+          elif [[ "$TEST_PATH" == core/* ]]; then
+            PROJECT_NAME="core-${BROWSER}"
+          else
+            PROJECT_NAME="integration-${BROWSER}"
+          fi
+
+          echo "Running test: e2e/tests/${TEST_PATH}.spec.ts with project: ${PROJECT_NAME}"
+
+          # Run the test with the correct project name
           if [ "${{ github.event.inputs.test_suite }}" = "all" ] || [ "${{ github.event.inputs.test_suite }}" = "" ]; then
-            npx playwright test --project=${{ matrix.browser }} e2e/tests/${{ matrix.test-suite }}.spec.ts
+            npx playwright test --project="${PROJECT_NAME}" "e2e/tests/${TEST_PATH}.spec.ts"
           elif [ "${{ github.event.inputs.test_suite }}" = "${{ matrix.test-suite }}" ]; then
-            npx playwright test --project=${{ matrix.browser }} e2e/tests/${{ matrix.test-suite }}.spec.ts
+            npx playwright test --project="${PROJECT_NAME}" "e2e/tests/${TEST_PATH}.spec.ts"
           else
             echo "Skipping test suite ${{ matrix.test-suite }}"
             exit 0
