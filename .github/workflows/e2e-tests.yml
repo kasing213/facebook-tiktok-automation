@@ -33,7 +33,7 @@ on:
           - performance
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   PYTHON_VERSION: '3.12'
 
 jobs:
@@ -178,8 +178,8 @@ jobs:
           SERVER_PID=$!
           echo "Preview server started with PID: $SERVER_PID"
 
-          # Wait for server with increased timeout and verbose logging
-          npx wait-on http://localhost:5173 --timeout 60000 --interval 1000 --verbose || {
+          # Wait for server using IPv4 address to avoid IPv6 connection issues
+          npx wait-on tcp:127.0.0.1:5173 --timeout 60000 --interval 1000 --verbose || {
             echo "❌ Server failed to start. Preview log:"
             cat preview.log
             exit 1
