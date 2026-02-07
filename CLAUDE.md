@@ -186,6 +186,57 @@ const formatCurrency = (amount: number | null | undefined): string => {
 }
 ```
 
+## Package Management & Compatibility (February 2026)
+
+### Version Pinning Strategy
+
+**Both services (facebook-automation + api-gateway) use PINNED versions:**
+```
+✅ Pinned: package==1.2.3 (production)
+❌ Avoid: package>=1.2.0 (causes drift)
+```
+
+### Recent Compatibility Updates
+
+**February 7, 2026:**
+- **SQLAlchemy:** 2.0.30 → 2.0.36 (Python 3.13 compatibility)
+- **psycopg[binary]:** 3.1.18 → 3.2.13 (PyPI availability)
+- **Impact:** Zero code changes required (backward compatible)
+- **Services:** Both main backend and api-gateway aligned
+
+### Update Process
+
+1. **Test in main backend first**
+   ```bash
+   pip install package==new_version
+   python -m pytest
+   ```
+
+2. **Verify imports and compatibility**
+   ```bash
+   python -c "from app.main import app; print('OK')"
+   ```
+
+3. **Update api-gateway to match**
+   ```bash
+   cd api-gateway
+   # Edit requirements.txt to match main backend
+   pip install -r requirements.txt
+   ```
+
+4. **Document in `docs/PACKAGE_COMPATIBILITY.md`**
+
+### Critical Dependencies
+
+| Package | Version | Why Pinned |
+|---------|---------|------------|
+| SQLAlchemy | 2.0.36 | Database ORM - stability critical |
+| psycopg[binary] | 3.2.13 | PostgreSQL driver - connection handling |
+| pydantic | 2.8.2 | Data validation - schema stability |
+| fastapi | 0.111.0 | Web framework - API contract stability |
+
+See `docs/PACKAGE_COMPATIBILITY.md` for full compatibility matrix and update history.
+
 ## Features Status ✅
 
 ### Invoice System (LIVE)
