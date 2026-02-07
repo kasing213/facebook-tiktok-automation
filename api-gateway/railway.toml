@@ -5,21 +5,7 @@ watchPatterns = ["**"]
 
 [deploy]
 # startCommand removed - using Dockerfile CMD instead (python src/run.py)
-healthcheckPath = "/health"  # Railway uses this for uptime monitoring
+healthcheckPath = "/health"
 healthcheckTimeout = 30
-# Note: /health/detailed available for manual debugging (includes DB schema checks)
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-
-# Railway Configuration for API Gateway (Telegram Bot)
-#
-# Railway will automatically inject the PORT environment variable
-# src/run.py reads PORT from environment: port = int(os.environ.get("PORT", 8001))
-#
-# Health Checks:
-#   - /health - Simple uptime check (used by Railway)
-#   - /health/detailed - Comprehensive check with DB validation (for manual debugging)
-#
-# Restart Policy:
-#   - Type: ON_FAILURE (auto-restart on crashes, not manual stops)
-#   - Max Retries: 3 (prevents infinite restart loops)
