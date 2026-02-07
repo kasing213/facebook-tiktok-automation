@@ -39,6 +39,7 @@ COPY --chown=appuser:appuser app/ ./app/
 COPY --chown=appuser:appuser migrations/ ./migrations/
 COPY --chown=appuser:appuser backups/ ./backups/
 COPY --chown=appuser:appuser scripts/ ./scripts/
+COPY --chown=appuser:appuser public/ ./public/
 
 # Set environment variables
 ENV PYTHONPATH=/app \

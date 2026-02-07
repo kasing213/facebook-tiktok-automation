@@ -201,7 +201,9 @@ app.include_router(dashboard_router)
 app.include_router(mfa_router)
 
 # Mount static files for policy pages
-app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")
+import os
+if os.path.isdir("public/policies"):
+    app.mount("/policies", StaticFiles(directory="public/policies", html=True), name="policies")
 
 # TikTok verification file endpoint
 @app.get("/tiktokfIJT8p1JssnSfzGv35JP2RYDl3O7u5q0.txt", tags=["system"])
