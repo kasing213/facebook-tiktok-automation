@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Main FastAPI backend (facebook-automation)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - MASTER_SECRET_KEY=${MASTER_SECRET_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME}
+      - FB_APP_ID=${FB_APP_ID}
+      - FB_APP_SECRET=${FB_APP_SECRET}
+      - TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY}
+      - TIKTOK_CLIENT_SECRET=${TIKTOK_CLIENT_SECRET}
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - INVOICE_API_KEY=${INVOICE_API_KEY}
+      - OCR_API_KEY=${OCR_API_KEY}
+      - PORT=8000
+    volumes:
+      - ./app:/app/app
+      - ./migrations:/app/migrations
+      - ./backups:/app/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # API Gateway / Telegram Bot service
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - CORE_API_URL=${CORE_API_URL:-http://backend:8000}
+      - MASTER_SECRET_KEY=${MASTER_SECRET_KEY}
+      - OCR_API_KEY=${OCR_API_KEY}
+      - PORT=8001
+    volumes:
+      - ./api-gateway/src:/app/src
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+# Note: This docker-compose.yml is for local development/testing only.
+# Production deployments use Railway with separate services.
+#
+# To run:
+# 1. Copy .env.example to .env and fill in values
+# 2. docker-compose up --build
+# 3. Access backend at http://localhost:8000
+# 4. Access api-gateway at http://localhost:8001
