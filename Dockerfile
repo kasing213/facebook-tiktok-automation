@@ -48,13 +48,12 @@ ENV PYTHONPATH=/app \
 # Switch to non-root user
 USER appuser
 
-# Expose port (Railway will use PORT env var)
-EXPOSE 8000
+# Expose port
+EXPOSE 8080
 
 # Health check (exec form for proper signal handling)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD ["curl", "-f", "http://localhost:8000/health"]
+    CMD ["curl", "-f", "http://localhost:8080/health"]
 
 # Run application with optimized uvicorn settings
-# Using exec form with fixed port 8000 (Railway exposes via public URL)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--timeout-keep-alive", "65"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "2", "--timeout-keep-alive", "65"]
