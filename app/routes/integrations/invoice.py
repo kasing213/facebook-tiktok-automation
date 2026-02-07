@@ -1217,7 +1217,7 @@ async def send_invoice_to_telegram(
                 }
             )
             if response.status_code == 200:
-                logger.info(f"✅ PDF invoice {invoice.get('invoice_number')} sent successfully to Telegram chat {telegram_chat_id}")
+                logger.info(f"PDF invoice {invoice.get('invoice_number')} sent successfully to Telegram chat {telegram_chat_id}")
                 return {"sent": True, "type": "pdf", "telegram_chat_id": telegram_chat_id}
             else:
                 # Fall back to text if PDF sending fails

@@ -762,7 +762,7 @@ def generate_pdf(invoice_id: str, tenant_id: str) -> Optional[bytes]:
     except Exception as e:
         # Log actual error with full traceback for debugging
         logger.error(
-            f"❌ PDF generation failed for invoice {invoice_id}: {type(e).__name__}: {str(e)}",
+            f"PDF generation failed for invoice {invoice_id}: {type(e).__name__}: {str(e)}",
             exc_info=True  # Include full stack trace
         )
         return None
