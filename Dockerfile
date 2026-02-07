@@ -51,10 +51,10 @@ USER appuser
 # Expose port (Railway will use PORT env var)
 EXPOSE 8000
 
-# Health check
+# Health check (exec form for proper signal handling)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+    CMD ["sh", "-c", "curl -f http://localhost:${PORT}/health || exit 1"]
 
 # Run application with optimized uvicorn settings
-# Use shell form to expand PORT environment variable (Railway requirement)
-CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --timeout-keep-alive 65"
+# Exec form (JSON array) for proper signal handling, sh -c expands PORT variable
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --timeout-keep-alive 65"]
