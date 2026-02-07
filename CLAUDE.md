@@ -366,9 +366,9 @@ return await proxy_request("POST", "/api/customers", ...)  # May fail
 ## Row Level Security (RLS) Management 🔒
 
 ### **RLS Status**
-✅ **Active**: All 21 tables with tenant_id columns have RLS enabled
-✅ **Coverage**: 84+ policies across 5 schemas
-✅ **Applied**: February 7, 2026
+✅ **Active**: All 24 tables with tenant_id columns have RLS enabled
+✅ **Coverage**: 96 policies across 5 schemas (4 policies per table)
+✅ **Applied**: February 7, 2026 (updated with security tables)
 
 ### **Verify RLS Installation**
 ```bash
@@ -398,15 +398,19 @@ python apply_comprehensive_rls.py --rollback
 ```
 
 ### **RLS Files**
-- `migrations/versions/003_comprehensive_rls_policies.sql` - RLS migration
+- `migrations/versions/003_comprehensive_rls_policies.sql` - RLS migration (21 tables)
 - `migrations/versions/003_rollback_comprehensive_rls.sql` - Rollback script
+- `migrations/versions/004_add_tenant_to_security_tables.sql` - Security tables tenant migration (3 tables)
+- `migrations/versions/004_rollback_tenant_security_tables.sql` - Security tables rollback
 - `apply_comprehensive_rls.py` - Migration orchestration
+- `apply_security_tenant_migration.py` - Security tenant migration script
 - `test_rls_implementation.py` - Test suite
 
 ### **Important Notes**
-⚠️ **Tables without tenant_id**: 11 tables don't have RLS (tenant, facebook_page, automation_run, etc.) - this is correct behavior
+⚠️ **Tables without tenant_id**: 8 tables don't have RLS (tenant, facebook_page, automation_run, rate_limit_violation, token_blacklist, email_verification_token, password_reset_token, login_attempt) - this is correct behavior for global/system tables
 ✅ **Application compatibility**: Backend already filters by tenant_id, RLS provides database-level safety net
 🔒 **Defense in depth**: RLS + application-level filtering = enterprise security
+✅ **Security tables protected**: account_lockout, ip_access_rule, ip_lockout now have tenant isolation (Feb 7, 2026)
 
 ## Backup System (R2 + Local)
 ```bash
@@ -425,14 +429,15 @@ python backups/scripts/restore_database.py backup.dump
 ## Security Assessment: 10/10 (Enterprise Ready - RLS Enabled) 🔒
 
 ### **🆕 Database-Level Security (February 2026)**
-✅ **Row Level Security (RLS)**: Enabled on all 21 tables with tenant_id columns
+✅ **Row Level Security (RLS)**: Enabled on all 24 tables with tenant_id columns
 ✅ **Tenant Isolation**: Enforced at PostgreSQL database level
 ✅ **Defense in Depth**: Database + Application level security
-✅ **84+ RLS Policies**: Complete coverage across all schemas (4 policies per table)
+✅ **96 RLS Policies**: Complete coverage across all schemas (4 policies per table)
 ✅ **Helper Functions**: get_tenant_id(), set_tenant_context(), verify_rls_status()
+✅ **🆕 Security Tables**: account_lockout, ip_access_rule, ip_lockout now tenant-isolated (Feb 7)
 
 **Schemas with RLS:**
-- **public** (9 tables): user, ad_token, social_identity, destination, automation, telegram_link_code, refresh_token, mfa_secret, subscription
+- **public** (12 tables): user, ad_token, social_identity, destination, automation, telegram_link_code, refresh_token, mfa_secret, subscription, account_lockout, ip_access_rule, ip_lockout
 - **inventory** (2 tables): products, stock_movements
 - **ads_alert** (6 tables): chat, promotion, promo_status, media_folder, media, broadcast_log
 - **invoice** (4 tables): customer, invoice, client_link_code, tenant_client_sequence
@@ -440,6 +445,7 @@ python backups/scripts/restore_database.py backup.dump
 - **audit_sales** (1 table): sale
 
 ### **Recent Security Enhancements (Jan-Feb 2026)**
+✅ **🆕 Security Tables Isolated**: account_lockout, ip_access_rule, ip_lockout now tenant-isolated (Feb 7, 2026)
 ✅ **🆕 RLS Implementation**: Database-level tenant isolation now active (Feb 2026)
 ✅ **CRITICAL FIX**: Inventory image access vulnerability patched
 ✅ **Subscription gates**: Inventory & Ads systems secured
@@ -839,7 +845,7 @@ await check_product_limit(current_user.tenant_id, db)  # ✅ NEW
 - [x] Database: NullPool + Transaction mode + **Enhanced timeout resilience**
 - [x] Authentication: JWT + roles + OAuth
 - [x] Multi-tenant: Complete isolation + enhanced security
-- [x] **🆕 Row Level Security (RLS)**: Enabled on all 21 tables with tenant_id (Feb 2026)
+- [x] **🆕 Row Level Security (RLS)**: Enabled on all 24 tables with tenant_id (Feb 2026)
 - [x] Payments: OCR verification pipeline
 - [x] Subscriptions: 4-tier model with usage limits
 - [x] Security: **10/10 rating** (JWT implementation complete)

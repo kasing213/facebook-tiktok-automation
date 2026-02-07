@@ -2768,7 +2768,6 @@ async def _deduct_inventory_stock(
 
             except (ValueError, TypeError) as e:
                 # Log but don't fail entire verification for bad product data
-                            logger = logging.getLogger(__name__)
                 logger.warning(f"Error deducting stock for item {item}: {e}")
                 continue
 

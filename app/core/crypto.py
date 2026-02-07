@@ -1,6 +1,8 @@
 # app/core/crypto.py
 import logging
 from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 import os
 
@@ -99,15 +101,34 @@ def load_encryptor(master_key: str | None = None) -> TokenEncryptor:
         logger.error("MASTER_SECRET_KEY not found in environment or parameters")
         raise KeyConfigurationError("MASTER_SECRET_KEY missing. Please set this environment variable.")
 
-    # accept both raw key and base64-encoded
+    # Check if key is already a valid Fernet key (32 bytes base64-encoded = 44 chars with padding)
     try:
-        base64.urlsafe_b64decode(key.encode())
+        decoded = base64.urlsafe_b64decode(key.encode())
+        if len(decoded) == 32:
+            # Valid Fernet key, use as-is
+            logger.info("Using provided Fernet key")
+            return TokenEncryptor(key)
     except Exception:
-        # If decoding fails, it's likely a raw key - encode it
-        key = base64.urlsafe_b64encode(key.encode()).decode()
+        pass
+
+    # Key is not a valid Fernet key - derive one using PBKDF2
+    # This ensures any input string produces a valid 32-byte key
+    logger.info("Deriving Fernet key from MASTER_SECRET_KEY using PBKDF2")
+
+    # Use fixed salt for deterministic key derivation (same input = same key)
+    # This is acceptable because MASTER_SECRET_KEY should be high-entropy
+    salt = b"facebook-automation-salt-v1"
+
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+    )
+    derived_key = base64.urlsafe_b64encode(kdf.derive(key.encode()))
 
     try:
-        return TokenEncryptor(key)
+        return TokenEncryptor(derived_key.decode())
     except KeyConfigurationError:
         raise
     except Exception as e:
