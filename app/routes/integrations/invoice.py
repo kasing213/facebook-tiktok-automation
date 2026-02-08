@@ -16,6 +16,7 @@ from pydantic import BaseModel
 import httpx
 import json
 import logging
+from io import BytesIO
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -29,7 +30,6 @@ from app.core.usage_limits import (
     check_invoice_limit, increment_invoice_counter,
     check_customer_limit, check_export_limit, increment_export_counter
 )
-from app.services import invoice_mock_service as mock_svc
 from app.services.ocr_service import get_ocr_service
 from app.services.external_invoice_client import external_invoice_client
 from app.core.external_jwt import create_invoice_api_headers, create_external_service_token
@@ -107,7 +107,7 @@ class InvoiceCreate(BaseModel):
     # Payment verification fields
     bank: Optional[str] = None
     expected_account: Optional[str] = None
-    currency: Optional[str] = "KHR"
+    currency: Optional[str] = "USD"
     recipient_name: Optional[str] = None  # Account holder name on receiving account
 
 
@@ -133,11 +133,6 @@ class InvoiceVerify(BaseModel):
 
 
 # Helper functions
-def is_mock_mode() -> bool:
-    """Check if mock mode is enabled."""
-    return get_settings().INVOICE_MOCK_MODE
-
-
 def is_tier_enforced() -> bool:
     """Check if tier enforcement is enabled."""
     return get_settings().INVOICE_TIER_ENFORCEMENT
@@ -238,17 +233,6 @@ async def health_check():
     Returns configuration status and mode (mock/production).
     """
     settings = get_settings()
-
-    if is_mock_mode():
-        counts = mock_svc.get_data_counts()
-        return {
-            "configured": True,
-            "mode": "mock",
-            "url": "mock://in-memory",
-            "api_status": "mock_active",
-            "mock_data": counts
-        }
-
     configured = bool(settings.INVOICE_API_URL and settings.INVOICE_API_KEY.get_secret_value())
 
     result = {
@@ -283,10 +267,6 @@ async def list_customers(
     """List all customers with optional search and pagination."""
     from app.repositories.customer import CustomerRepository
 
-    if is_mock_mode():
-        return mock_svc.list_customers(str(current_user.tenant_id), limit=limit, skip=skip, search=search)
-
-    # PHASE 2: Use repository for direct database access
     customers = CustomerRepository.list_by_tenant(
         db=db,
         tenant_id=current_user.tenant_id,
@@ -310,10 +290,6 @@ async def create_customer(
     # Check customer limit before creating
     await check_customer_limit(current_user.tenant_id, db)
 
-    if is_mock_mode():
-        return mock_svc.create_customer(str(current_user.tenant_id), data.model_dump(exclude_none=True))
-
-    # PHASE 2: Use repository for direct database access
     customer = CustomerRepository.create(
         db=db,
         tenant_id=current_user.tenant_id,
@@ -336,13 +312,6 @@ async def get_customer(
     """Get a specific customer by ID."""
     from app.repositories.customer import CustomerRepository
 
-    if is_mock_mode():
-        customer = mock_svc.get_customer(str(current_user.tenant_id), customer_id)
-        if not customer:
-            raise HTTPException(status_code=404, detail="Customer not found")
-        return customer
-
-    # PHASE 2: Use repository for direct database access
     customer = CustomerRepository.get_by_id(
         db=db,
         customer_id=UUID(customer_id),
@@ -365,13 +334,6 @@ async def update_customer(
     """Update an existing customer."""
     from app.repositories.customer import CustomerRepository
 
-    if is_mock_mode():
-        customer = mock_svc.update_customer(str(current_user.tenant_id), customer_id, data.model_dump(exclude_none=True))
-        if not customer:
-            raise HTTPException(status_code=404, detail="Customer not found")
-        return customer
-
-    # PHASE 2: Use repository for direct database access
     customer = CustomerRepository.update(
         db=db,
         customer_id=UUID(customer_id),
@@ -397,12 +359,6 @@ async def delete_customer(
     """Delete a customer."""
     from app.repositories.customer import CustomerRepository
 
-    if is_mock_mode():
-        if not mock_svc.delete_customer(str(current_user.tenant_id), customer_id):
-            raise HTTPException(status_code=404, detail="Customer not found")
-        return {"status": "deleted", "id": customer_id}
-
-    # PHASE 2: Use repository for direct database access
     success = CustomerRepository.delete(
         db=db,
         customer_id=UUID(customer_id),
@@ -821,7 +777,7 @@ async def get_registered_client(
                     "id": str(inv.id),
                     "invoice_number": inv.invoice_number,
                     "amount": float(inv.amount) if inv.amount else 0,
-                    "currency": inv.currency or "KHR",
+                    "currency": inv.currency or "USD",
                     "bank": inv.bank,
                     "expected_account": inv.expected_account,
                     "status": inv.status,
@@ -1177,11 +1133,9 @@ async def send_invoice_to_telegram(
     if not telegram_chat_id:
         return {"sent": False, "reason": "Customer has no Telegram linked"}
 
-    # Generate PDF with tenant isolation
-    from app.services import invoice_mock_service
-
+    # Generate PDF using the same elegant design as the download endpoint
     invoice_id = invoice.get("id")
-    pdf_bytes = invoice_mock_service.generate_pdf(str(invoice_id), tenant_id)
+    pdf_bytes = generate_pdf_from_invoice(invoice)
 
     if not pdf_bytes:
         # Fall back to text message if PDF generation fails
@@ -1189,7 +1143,7 @@ async def send_invoice_to_telegram(
         return await _send_invoice_text_fallback(invoice, customer, api_gateway_url, current_user)
 
     # Format amount for display
-    currency = invoice.get("currency", "KHR")
+    currency = invoice.get("currency", "USD")
     total = invoice.get("total") or invoice.get("amount") or 0
     if currency == "KHR":
         amount_str = f"{total:,.0f} KHR"
@@ -1238,7 +1192,7 @@ async def _send_invoice_text_fallback(
     """Fallback to text message if PDF sending fails."""
     telegram_chat_id = customer.get("telegram_chat_id")
 
-    currency = invoice.get("currency", "KHR")
+    currency = invoice.get("currency", "USD")
     amount = invoice.get("total") or invoice.get("amount") or 0
     if currency == "KHR":
         amount_str = f"{amount:,.0f} KHR"
@@ -1390,7 +1344,7 @@ async def list_invoices(
                 "total": float(row.amount) if row.amount else 0,
                 "status": row.status,
                 "items": row.items if row.items else [],
-                "currency": row.currency or "KHR",
+                "currency": row.currency or "USD",
                 "bank": row.bank,
                 "expected_account": row.expected_account,
                 "recipient_name": row.recipient_name,
@@ -1518,7 +1472,7 @@ async def create_invoice(
                     "invoice_number": invoice_number,
                     "amount": total,
                     "items": json.dumps(items_json),
-                    "currency": data.currency or "KHR",
+                    "currency": data.currency or "USD",
                     "bank": data.bank,
                     "expected_account": data.expected_account,
                     "recipient_name": data.recipient_name,
@@ -1541,14 +1495,20 @@ async def create_invoice(
                 "discount": data.discount or 0,
                 "status": row.status,
                 "items": items_json,
-                "currency": row.currency or "KHR",
+                "currency": row.currency or "USD",
                 "bank": row.bank,
                 "expected_account": row.expected_account,
                 "recipient_name": row.recipient_name,
                 "due_date": row.due_date.isoformat() if row.due_date else None,
                 "verification_status": row.verification_status,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "updated_at": row.updated_at.isoformat() if row.updated_at else None
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                "customer": {
+                    "name": registered_customer["name"],
+                    "email": registered_customer.get("email"),
+                    "phone": registered_customer.get("phone"),
+                    "address": registered_customer.get("address")
+                }
             }
             logger.info(f"Invoice created: {invoice_number}")
 
@@ -1558,21 +1518,8 @@ async def create_invoice(
             raise HTTPException(status_code=500, detail=f"Failed to create invoice: {str(e)}")
 
     else:
-        # Not a registered client - use mock or external API
-        if is_mock_mode():
-            # Validate customer exists in mock
-            if not mock_svc.get_customer(str(current_user.tenant_id), data.customer_id):
-                raise HTTPException(status_code=400, detail="Customer not found")
-
-            invoice_data = data.model_dump(exclude_none=True)
-            if "items" in invoice_data:
-                invoice_data["items"] = [
-                    item.model_dump() if hasattr(item, 'model_dump') else item
-                    for item in invoice_data["items"]
-                ]
-            invoice = mock_svc.create_invoice(str(current_user.tenant_id), invoice_data)
-        else:
-            invoice = await proxy_request("POST", "/api/invoices", current_user, json_data=data.model_dump(exclude_none=True))
+        # Not a registered client - use external API
+        invoice = await proxy_request("POST", "/api/invoices", current_user, json_data=data.model_dump(exclude_none=True))
 
     # Send to Telegram if customer has it linked
     if send_telegram and registered_customer and registered_customer.get("telegram_chat_id"):
@@ -1624,10 +1571,10 @@ async def export_invoices(
     # Check tier enforcement
     if is_tier_enforced():
         from app.routes.subscriptions import has_pro_access, get_or_create_subscription
-        from app.core.db import get_db
-        db = next(get_db())
+        from app.core.db import get_db as _get_db
+        sub_db = next(_get_db())
         try:
-            subscription = get_or_create_subscription(db, current_user)
+            subscription = get_or_create_subscription(sub_db, current_user)
             if not has_pro_access(subscription):
                 raise HTTPException(
                     status_code=403,
@@ -1638,60 +1585,122 @@ async def export_invoices(
                     }
                 )
         finally:
-            db.close()
+            sub_db.close()
 
-    if is_mock_mode():
-        content = mock_svc.export_invoices(str(current_user.tenant_id), format=format, start_date=start_date, end_date=end_date)
+    # Query invoices directly from PostgreSQL
+    query = """
+        SELECT
+            i.invoice_number, i.amount, i.status, i.currency,
+            i.bank, i.expected_account, i.recipient_name,
+            i.due_date, i.verification_status,
+            i.created_at, i.updated_at,
+            c.name as customer_name
+        FROM invoice.invoice i
+        LEFT JOIN invoice.customer c ON i.customer_id = c.id
+        WHERE i.tenant_id = :tenant_id AND i.merchant_id = :merchant_id
+    """
+    params = {
+        "tenant_id": str(current_user.tenant_id),
+        "merchant_id": str(current_user.id)
+    }
 
-        content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        filename = f"invoices.{format}"
-
-        # Increment export counter after successful export
-        increment_export_counter(current_user.tenant_id, db)
-
-        return Response(
-            content=content,
-            media_type=content_type,
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}"
-            }
-        )
-
-    # Production mode - proxy to external API
-    params = {"format": format}
     if start_date:
+        query += " AND i.created_at >= :start_date::date"
         params["start_date"] = start_date
     if end_date:
+        query += " AND i.created_at < (:end_date::date + interval '1 day')"
         params["end_date"] = end_date
 
-    async with await get_invoice_client(str(current_user.tenant_id), str(current_user.id)) as client:
-        try:
-            response = await client.get("/api/invoices/export", params=params)
-            response.raise_for_status()
+    query += " ORDER BY i.created_at DESC"
 
-            content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            filename = f"invoices.{format}"
+    try:
+        result = db.execute(text(query), params)
+        rows = result.fetchall()
+    except Exception as e:
+        logger.error(f"Error fetching invoices for export: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch invoices for export")
 
-            # Increment export counter after successful export
-            increment_export_counter(current_user.tenant_id, db)
+    headers = [
+        "Invoice Number", "Customer", "Amount", "Currency", "Status",
+        "Verification Status", "Bank", "Account", "Recipient",
+        "Due Date", "Created At", "Updated At"
+    ]
 
-            return Response(
-                content=response.content,
-                media_type=content_type,
-                headers={
-                    "Content-Disposition": f"attachment; filename={filename}"
-                }
-            )
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail="Failed to export invoices"
-            )
-        except httpx.RequestError as e:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Failed to connect to Invoice API: {str(e)}"
-            )
+    def format_row(row):
+        return [
+            row.invoice_number or "",
+            row.customer_name or "Unknown",
+            f"{float(row.amount):.2f}" if row.amount else "0.00",
+            row.currency or "USD",
+            row.status or "",
+            row.verification_status or "",
+            row.bank or "",
+            row.expected_account or "",
+            row.recipient_name or "",
+            row.due_date.strftime("%Y-%m-%d") if row.due_date else "",
+            row.created_at.strftime("%Y-%m-%d %H:%M") if row.created_at else "",
+            row.updated_at.strftime("%Y-%m-%d %H:%M") if row.updated_at else "",
+        ]
+
+    if format == "csv":
+        lines = [",".join(headers)]
+        for row in rows:
+            lines.append(",".join(str(v).replace(",", " ") for v in format_row(row)))
+        content = "\n".join(lines).encode("utf-8")
+        content_type = "text/csv"
+        filename = f"invoices_{start_date or 'all'}.csv"
+    else:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Invoices"
+
+        header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+
+        for col_idx, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        for row_idx, row in enumerate(rows, 2):
+            for col_idx, value in enumerate(format_row(row), 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.border = thin_border
+
+        for col_idx in range(1, len(headers) + 1):
+            max_length = len(headers[col_idx - 1])
+            for row_idx in range(2, len(rows) + 2):
+                cell_value = str(ws.cell(row=row_idx, column=col_idx).value or "")
+                max_length = max(max_length, len(cell_value))
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_length + 3, 40)
+
+        ws.freeze_panes = "A2"
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        content = buffer.getvalue()
+        content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        filename = f"invoices_{start_date or 'all'}.xlsx"
+
+    # Increment export counter after successful generation
+    increment_export_counter(current_user.tenant_id, db)
+
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 @router.get("/invoices/{invoice_id}")
@@ -1736,7 +1745,7 @@ async def get_invoice(
                 "expected_account": row.expected_account,
                 "recipient_name": row.recipient_name,
                 "due_date": row.due_date.isoformat() if row.due_date else None,
-                "currency": row.currency or "KHR",
+                "currency": row.currency or "USD",
                 "verification_status": row.verification_status or "pending",
                 "verified_at": row.verified_at.isoformat() if row.verified_at else None,
                 "verified_by": row.verified_by,
@@ -1745,15 +1754,7 @@ async def get_invoice(
                 "updated_at": row.updated_at.isoformat() if row.updated_at else None
             }
     except Exception as e:
-        # Log but don't fail - fall through to mock/external
-            logging.getLogger(__name__).debug(f"PostgreSQL invoice lookup failed: {e}")
-
-    # Fall back to mock/external
-    if is_mock_mode():
-        invoice = mock_svc.get_invoice(str(current_user.tenant_id), invoice_id)
-        if not invoice:
-            raise HTTPException(status_code=404, detail="Invoice not found")
-        return invoice
+        logger.debug(f"PostgreSQL invoice lookup failed: {e}")
 
     return await proxy_request("GET", f"/api/invoices/{invoice_id}", current_user)
 
@@ -1828,7 +1829,7 @@ async def update_invoice(
                 "total": float(row.amount) if row.amount else 0,
                 "status": row.status,
                 "items": row.items if row.items else [],
-                "currency": row.currency or "KHR",
+                "currency": row.currency or "USD",
                 "bank": row.bank,
                 "expected_account": row.expected_account,
                 "recipient_name": row.recipient_name,
@@ -1847,20 +1848,7 @@ async def update_invoice(
         logger.error(f"Error updating PostgreSQL invoice: {e}")
         db.rollback()
 
-    # 2. Fall back to mock or external API
-    if is_mock_mode():
-        update_data = data.model_dump(exclude_none=True)
-        # Convert InvoiceItem models to dicts
-        if "items" in update_data and update_data["items"]:
-            update_data["items"] = [
-                item.model_dump() if hasattr(item, 'model_dump') else item
-                for item in update_data["items"]
-            ]
-        invoice = mock_svc.update_invoice(str(current_user.tenant_id), invoice_id, update_data)
-        if not invoice:
-            raise HTTPException(status_code=404, detail="Invoice not found")
-        return invoice
-
+    # 2. Fall back to external API
     return await proxy_request("PUT", f"/api/invoices/{invoice_id}", current_user, json_data=data.model_dump(exclude_none=True))
 
 
@@ -1888,12 +1876,6 @@ async def delete_invoice(
     except Exception as e:
         db.rollback()
         logger.debug(f"PostgreSQL invoice delete failed: {e}")
-
-    # Fall back to mock/external
-    if is_mock_mode():
-        if not mock_svc.delete_invoice(str(current_user.tenant_id), invoice_id):
-            raise HTTPException(status_code=404, detail="Invoice not found")
-        return {"status": "deleted", "id": invoice_id}
 
     return await proxy_request("DELETE", f"/api/invoices/{invoice_id}", current_user)
 
@@ -1927,18 +1909,6 @@ async def verify_invoice(
             detail=f"Invalid verification_status. Must be one of: {valid_statuses}"
         )
 
-    if is_mock_mode():
-        invoice = mock_svc.verify_invoice(str(current_user.tenant_id), invoice_id, data.model_dump(exclude_none=True))
-        if not invoice:
-            raise HTTPException(status_code=404, detail="Invoice not found")
-
-        # If payment verified, deduct stock for inventory items
-        if data.verification_status == "verified":
-            await _deduct_inventory_stock(invoice, current_user.tenant_id, current_user.id, db)
-
-        return invoice
-
-    # For external API mode
     result = await proxy_request(
         "PATCH",
         f"/api/invoices/{invoice_id}/verify",
@@ -1985,17 +1955,12 @@ async def upload_invoice_screenshot(
         )
 
     # Get the invoice to build expected payment
-    if is_mock_mode():
-        invoice = mock_svc.get_invoice(str(current_user.tenant_id), invoice_id)
-        if not invoice:
-            raise HTTPException(status_code=404, detail="Invoice not found")
-    else:
-        invoice = await proxy_request("GET", f"/api/invoices/{invoice_id}", current_user)
+    invoice = await proxy_request("GET", f"/api/invoices/{invoice_id}", current_user)
 
     # Build expected payment from invoice
     expected_payment = {
         "amount": invoice.get("total"),
-        "currency": invoice.get("currency", "KHR"),
+        "currency": invoice.get("currency", "USD"),
         "toAccount": invoice.get("expected_account"),
         "bank": invoice.get("bank"),
         "recipientName": invoice.get("recipient_name"),
@@ -2046,15 +2011,12 @@ async def upload_invoice_screenshot(
         "verification_note": f"OCR Record: {ocr_result.get('recordId', 'N/A')}. {verification.get('rejectionReason', '')}"
     }
 
-    if is_mock_mode():
-        updated_invoice = mock_svc.verify_invoice(str(current_user.tenant_id), invoice_id, verify_data)
-    else:
-        updated_invoice = await proxy_request(
-            "PATCH",
-            f"/api/invoices/{invoice_id}/verify",
-            current_user,
-            json_data=verify_data
-        )
+    updated_invoice = await proxy_request(
+        "PATCH",
+        f"/api/invoices/{invoice_id}/verify",
+        current_user,
+        json_data=verify_data
+    )
 
     # Log OCR verification to audit trail
     try:
@@ -2468,20 +2430,6 @@ async def download_invoice_pdf(
     except Exception as e:
         logger.error(f"Error generating PostgreSQL invoice PDF: {e}")
 
-    # 2. Fall back to mock mode
-    if is_mock_mode():
-        pdf_content = mock_svc.generate_pdf(invoice_id, str(current_user.tenant_id))
-        if not pdf_content:
-            raise HTTPException(status_code=404, detail="Invoice not found")
-
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename=invoice-{invoice_id}.pdf"
-            }
-        )
-
     # Production mode - proxy to external API
     async with await get_invoice_client(str(current_user.tenant_id), str(current_user.id)) as client:
         try:
@@ -2535,9 +2483,10 @@ async def send_invoice_to_customer(
         result = db.execute(
             text("""
                 SELECT i.id, i.tenant_id, i.customer_id, i.invoice_number,
-                       i.amount, i.status, i.currency, i.bank, i.expected_account,
+                       i.amount, i.status, i.currency, i.items, i.bank, i.expected_account,
                        i.recipient_name, i.due_date, i.verification_status, i.created_at,
                        c.name as customer_name, c.email as customer_email,
+                       c.phone as customer_phone, c.address as customer_address,
                        c.telegram_chat_id, c.telegram_username
                 FROM invoice.invoice i
                 LEFT JOIN invoice.customer c ON i.customer_id = c.id
@@ -2556,19 +2505,35 @@ async def send_invoice_to_customer(
                 detail="Customer does not have Telegram linked. Cannot send notification."
             )
 
+        # Parse items from JSONB
+        items = []
+        if row.items:
+            if isinstance(row.items, str):
+                items = json.loads(row.items)
+            elif isinstance(row.items, list):
+                items = row.items
+
         # Build invoice data for notification
         invoice_data = {
             "id": str(row.id),
             "invoice_number": row.invoice_number,
             "total": float(row.amount) if row.amount else 0,
             "amount": float(row.amount) if row.amount else 0,
-            "currency": row.currency or "KHR",
+            "currency": row.currency or "USD",
+            "items": items,
             "bank": row.bank,
             "expected_account": row.expected_account,
             "recipient_name": row.recipient_name,
             "due_date": row.due_date.isoformat() if row.due_date else None,
             "status": row.status,
-            "verification_status": row.verification_status
+            "verification_status": row.verification_status,
+            "customer_name": row.customer_name or "Unknown",
+            "customer": {
+                "name": row.customer_name or "Unknown",
+                "email": row.customer_email,
+                "phone": row.customer_phone,
+                "address": row.customer_address
+            }
         }
 
         customer_data = {
@@ -2691,46 +2656,6 @@ async def get_stats(
             status_code=500,
             detail=f"Failed to fetch invoice statistics: {str(e)}"
         )
-
-
-# ============================================================================
-# Admin/Debug endpoints (for testing)
-# ============================================================================
-
-@router.post("/admin/seed")
-async def seed_sample_data(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Seed sample data for testing (mock mode only).
-
-    Only works when INVOICE_MOCK_MODE is enabled.
-    """
-    if not is_mock_mode():
-        raise HTTPException(
-            status_code=400,
-            detail="Seed endpoint only available in mock mode. Set INVOICE_MOCK_MODE=true"
-        )
-
-    return mock_svc.seed_sample_data()
-
-
-@router.post("/admin/clear")
-async def clear_all_data(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Clear all mock data (mock mode only).
-
-    Only works when INVOICE_MOCK_MODE is enabled.
-    """
-    if not is_mock_mode():
-        raise HTTPException(
-            status_code=400,
-            detail="Clear endpoint only available in mock mode. Set INVOICE_MOCK_MODE=true"
-        )
-
-    return mock_svc.clear_all_data()
 
 
 # ============================================================================
