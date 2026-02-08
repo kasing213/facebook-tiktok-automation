@@ -72,8 +72,6 @@ class Settings(BaseSettings):
     STRIPE_PRICE_ID_MONTHLY: str = Field(default="", description="Stripe monthly price ID for Pro subscription")
     STRIPE_PRICE_ID_YEARLY: str = Field(default="", description="Stripe yearly price ID for Pro subscription")
 
-    # Invoice Mock Mode (for testing without external API)
-    INVOICE_MOCK_MODE: bool = Field(default=False, description="Use mock in-memory Invoice API instead of external service")
     INVOICE_TIER_ENFORCEMENT: bool = Field(default=True, description="Enforce Pro tier for PDF/Export features (disable for testing)")
 
     # OCR Verification Service

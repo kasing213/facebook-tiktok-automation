@@ -14,7 +14,6 @@ from datetime import datetime, timezone, timedelta
 from app.core.db import get_db
 from app.core.models import User, SubscriptionTier, SubscriptionStatus
 from app.core.authorization import get_current_owner
-from app.services import invoice_mock_service as invoice_svc
 from app.services.ocr_service import get_ocr_service
 
 
