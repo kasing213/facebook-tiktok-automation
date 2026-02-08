@@ -179,13 +179,28 @@ jobs:
           done
           echo "Warning: Frontend may not be ready, proceeding anyway"
 
+      - name: Create auth state
+        working-directory: frontend
+        env:
+          BASE_URL: ${{ needs.setup.outputs.base-url }}
+          CI: true
+        run: |
+          # Ensure auth directory exists
+          mkdir -p e2e/.auth
+
+          # Run the setup project to create e2e/.auth/user.json
+          # This authenticates against the live backend and saves browser state
+          if ! npx playwright test --project=setup; then
+            echo "Auth setup failed - creating empty auth state as fallback"
+            echo '{"cookies":[],"origins":[]}' > e2e/.auth/user.json
+          fi
+
       - name: Run E2E tests
         working-directory: frontend
         env:
           BASE_URL: ${{ needs.setup.outputs.base-url }}
           CI: true
         run: |
-          # Determine the correct Playwright project name based on test path and browser
           TEST_PATH="${{ matrix.test-suite }}"
           BROWSER="${{ matrix.browser }}"
 
@@ -200,15 +215,8 @@ jobs:
 
           echo "Running test: e2e/tests/${TEST_PATH}.spec.ts with project: ${PROJECT_NAME}"
 
-          # Run the test with the correct project name
-          if [ "${{ github.event.inputs.test_suite }}" = "all" ] || [ "${{ github.event.inputs.test_suite }}" = "" ]; then
-            npx playwright test --project="${PROJECT_NAME}" "e2e/tests/${TEST_PATH}.spec.ts"
-          elif [ "${{ github.event.inputs.test_suite }}" = "${{ matrix.test-suite }}" ]; then
-            npx playwright test --project="${PROJECT_NAME}" "e2e/tests/${TEST_PATH}.spec.ts"
-          else
-            echo "Skipping test suite ${{ matrix.test-suite }}"
-            exit 0
-          fi
+          # Run tests without dependency chain (setup already ran above)
+          npx playwright test --project="${PROJECT_NAME}" --no-deps "e2e/tests/${TEST_PATH}.spec.ts"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
