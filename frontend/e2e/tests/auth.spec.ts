@@ -64,8 +64,8 @@ test.describe('Registration', () => {
 
     await page.getByRole('button', { name: /sign up|register|create/i }).click();
 
-    // Should show error about existing email
-    await expect(page.locator('[class*="error"], [role="alert"]')).toBeVisible({ timeout: 5000 });
+    // Should show error about existing email or missing required field
+    await expect(page.locator('[role="alert"]')).toBeVisible({ timeout: 5000 });
   });
 });
 

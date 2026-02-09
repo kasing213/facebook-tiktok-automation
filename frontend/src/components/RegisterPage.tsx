@@ -345,7 +345,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
         <Title>Let's Get Started!</Title>
         <Subtitle>Create an account on KS to get all features</Subtitle>
 
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
         {success && <SuccessMessage>{success}</SuccessMessage>}
 
         <Form onSubmit={handleSubmit}>

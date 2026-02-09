@@ -16,10 +16,10 @@ export class LoginPage {
     this.page = page;
     this.emailInput = page.getByPlaceholder(/email/i);
     this.passwordInput = page.getByPlaceholder(/password/i);
-    this.loginButton = page.getByRole('button', { name: /sign in|login/i });
-    this.registerLink = page.getByRole('link', { name: /sign up|register/i });
+    this.loginButton = page.getByRole('button', { name: /log in|sign in|login/i });
+    this.registerLink = page.locator('a').filter({ hasText: /sign up|register/i });
     this.forgotPasswordLink = page.getByRole('link', { name: /forgot password/i });
-    this.errorMessage = page.locator('[class*="error"], [role="alert"]');
+    this.errorMessage = page.locator('[role="alert"]');
   }
 
   async goto() {

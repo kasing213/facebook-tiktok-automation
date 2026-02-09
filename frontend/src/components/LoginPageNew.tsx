@@ -329,7 +329,7 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
         <Title>Welcome back!</Title>
         <Subtitle>Log in to existing KS account</Subtitle>
 
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
 
         <Form onSubmit={handleSubmit}>
           <InputGroup>
