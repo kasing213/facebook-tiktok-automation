@@ -1788,7 +1788,7 @@ async def update_invoice(
                 UPDATE invoice.invoice
                 SET items = COALESCE(CAST(:items AS jsonb), items),
                     amount = COALESCE(:amount, amount),
-                    due_date = COALESCE(:due_date::date, due_date),
+                    due_date = COALESCE(CAST(:due_date AS date), due_date),
                     status = COALESCE(:status, status),
                     bank = COALESCE(:bank, bank),
                     expected_account = COALESCE(:expected_account, expected_account),
