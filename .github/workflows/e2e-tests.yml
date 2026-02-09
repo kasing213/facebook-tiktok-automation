@@ -121,17 +121,69 @@ jobs:
           "
         continue-on-error: true
 
+  auth-setup:
+    name: Create Auth State
+    runs-on: ubuntu-latest
+    needs: [setup, backend-health]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for Vercel deployment
+        run: |
+          for i in $(seq 1 10); do
+            if curl -sf "${{ needs.setup.outputs.base-url }}" > /dev/null 2>&1; then
+              echo "Frontend is live"
+              exit 0
+            fi
+            echo "Attempt $i/10 - waiting 10s..."
+            sleep 10
+          done
+          echo "Warning: Frontend may not be ready, proceeding anyway"
+
+      - name: Authenticate and save state
+        working-directory: frontend
+        env:
+          BASE_URL: ${{ needs.setup.outputs.base-url }}
+          CI: true
+        run: |
+          mkdir -p e2e/.auth
+          if ! npx playwright test --project=setup; then
+            echo "Auth setup failed - creating empty auth state as fallback"
+            echo '{"cookies":[],"origins":[]}' > e2e/.auth/user.json
+          fi
+          echo "Auth state file:"
+          ls -la e2e/.auth/
+
+      - name: Upload auth state
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-state
+          path: frontend/e2e/.auth/user.json
+          retention-days: 1
+
   frontend-e2e:
     name: Frontend E2E Tests
     runs-on: ubuntu-latest
-    needs: [setup, backend-health]
-    # Limit concurrency to prevent rate limiting
-    concurrency:
-      group: e2e-tests-${{ github.ref }}
-      cancel-in-progress: false
+    needs: [setup, auth-setup]
     strategy:
       fail-fast: false
-      max-parallel: 1  # Run tests sequentially to avoid rate limits
+      max-parallel: 1
       matrix:
         browser: [chromium, firefox, webkit]
         test-suite:
@@ -141,7 +193,6 @@ jobs:
           - tenant/telegram-bot
           - tenant/security
         exclude:
-          # Skip webkit for complex tests to save resources
           - browser: webkit
             test-suite: tenant/payment-ocr
           - browser: webkit
@@ -166,34 +217,11 @@ jobs:
         working-directory: frontend
         run: npx playwright install --with-deps ${{ matrix.browser }}
 
-      - name: Wait for Vercel deployment
-        run: |
-          echo "Checking frontend is reachable at ${{ needs.setup.outputs.base-url }}..."
-          for i in $(seq 1 10); do
-            if curl -sf "${{ needs.setup.outputs.base-url }}" > /dev/null 2>&1; then
-              echo "Frontend is live"
-              exit 0
-            fi
-            echo "Attempt $i/10 - waiting 10s..."
-            sleep 10
-          done
-          echo "Warning: Frontend may not be ready, proceeding anyway"
-
-      - name: Create auth state
-        working-directory: frontend
-        env:
-          BASE_URL: ${{ needs.setup.outputs.base-url }}
-          CI: true
-        run: |
-          # Ensure auth directory exists
-          mkdir -p e2e/.auth
-
-          # Run the setup project to create e2e/.auth/user.json
-          # This authenticates against the live backend and saves browser state
-          if ! npx playwright test --project=setup; then
-            echo "Auth setup failed - creating empty auth state as fallback"
-            echo '{"cookies":[],"origins":[]}' > e2e/.auth/user.json
-          fi
+      - name: Download auth state
+        uses: actions/download-artifact@v4
+        with:
+          name: auth-state
+          path: frontend/e2e/.auth/
 
       - name: Run E2E tests
         working-directory: frontend
@@ -204,7 +232,6 @@ jobs:
           TEST_PATH="${{ matrix.test-suite }}"
           BROWSER="${{ matrix.browser }}"
 
-          # Map test suite to project category
           if [[ "$TEST_PATH" == tenant/* ]]; then
             PROJECT_NAME="tenant-${BROWSER}"
           elif [[ "$TEST_PATH" == core/* ]]; then
@@ -214,15 +241,18 @@ jobs:
           fi
 
           echo "Running test: e2e/tests/${TEST_PATH}.spec.ts with project: ${PROJECT_NAME}"
-
-          # Run tests without dependency chain (setup already ran above)
           npx playwright test --project="${PROJECT_NAME}" --no-deps "e2e/tests/${TEST_PATH}.spec.ts"
+
+      - name: Set artifact name
+        if: always()
+        id: artifact-name
+        run: echo "safe_suite=$(echo '${{ matrix.test-suite }}' | tr '/' '-')" >> $GITHUB_OUTPUT
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-${{ matrix.browser }}-${{ matrix.test-suite }}
+          name: playwright-report-${{ matrix.browser }}-${{ steps.artifact-name.outputs.safe_suite }}
           path: frontend/playwright-report/
           retention-days: 14
 
@@ -230,7 +260,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: screenshots-${{ matrix.browser }}-${{ matrix.test-suite }}
+          name: screenshots-${{ matrix.browser }}-${{ steps.artifact-name.outputs.safe_suite }}
           path: frontend/test-results/
           retention-days: 7
 
