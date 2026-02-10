@@ -6,8 +6,8 @@ import { InventoryPage } from '../pages/inventory.page';
 
 // Test user credentials - should match seed data
 export const TEST_USER = {
-  email: 'test@example.com',
-  password: 'TestPassword123!',
+  email: 'test@gmail.com',
+  password: 'test1234',
   username: 'testuser',
 };
 
