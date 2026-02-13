@@ -370,7 +370,13 @@ export const authService = {
       return response.data
     } catch (error: any) {
       console.error('Registration failed:', error)
-      throw new Error(`Registration failed: ${error.response?.data?.detail || error.message}`)
+      const detail = error.response?.data?.detail
+      if (typeof detail === 'object' && detail !== null) {
+        const msg = detail.message || 'Registration failed'
+        const errors = detail.errors?.join(', ')
+        throw new Error(errors ? `${msg}: ${errors}` : msg)
+      }
+      throw new Error(`Registration failed: ${detail || error.message}`)
     }
   },
 
