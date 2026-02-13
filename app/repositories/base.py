@@ -20,9 +20,28 @@ class BaseRepository(Generic[T], ABC):
         """Get a single record by ID"""
         return self.db.query(self.model).filter(self.model.id == id).first()
 
+    def get_by_id_and_tenant(self, id: UUID, tenant_id: UUID) -> Optional[T]:
+        """Get a single record by ID with tenant isolation.
+        Returns None if the record belongs to a different tenant."""
+        if not hasattr(self.model, 'tenant_id'):
+            return self.get_by_id(id)
+        return self.db.query(self.model).filter(
+            self.model.id == id,
+            self.model.tenant_id == tenant_id
+        ).first()
+
     def get_all(self, limit: Optional[int] = None, offset: int = 0) -> List[T]:
         """Get all records with optional pagination"""
         query = self.db.query(self.model)
+        if limit:
+            query = query.offset(offset).limit(limit)
+        return query.all()
+
+    def get_all_by_tenant(self, tenant_id: UUID, limit: Optional[int] = None, offset: int = 0) -> List[T]:
+        """Get all records for a specific tenant with optional pagination"""
+        if not hasattr(self.model, 'tenant_id'):
+            return self.get_all(limit=limit, offset=offset)
+        query = self.db.query(self.model).filter(self.model.tenant_id == tenant_id)
         if limit:
             query = query.offset(offset).limit(limit)
         return query.all()

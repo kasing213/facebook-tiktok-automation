@@ -31,6 +31,8 @@ from app.routes.moderation import router as moderation_router
 from app.routes.usage import router as usage_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.mfa import router as mfa_router
+from app.routes.verifications import router as verifications_router
+from app.routes.cloudflare import router as cloudflare_router
 
 
 # Request/Response models
@@ -75,10 +77,6 @@ async def lifespan(app: FastAPI):
     init_db()
     log.info("🚀 FB/TikTok Automation API started (env=%s)", s.ENV)
     log_monitoring_snapshot(log, collect_monitoring_snapshot(s), context="startup")
-
-    # NOTE: Mock seeding removed - using real PostgreSQL data
-    # To re-enable mock mode for local testing, set INVOICE_MOCK_MODE=True
-    # and ensure seed_sample_data() function signature is correct
 
     # Start background tasks
     token_refresh_task = None
@@ -199,6 +197,8 @@ app.include_router(moderation_router)
 app.include_router(usage_router)
 app.include_router(dashboard_router)
 app.include_router(mfa_router)
+app.include_router(verifications_router)
+app.include_router(cloudflare_router)
 
 # Mount static files for policy pages
 import os
@@ -254,8 +254,12 @@ def health_check(settings: SettingsDep):
 
 # Tenant management endpoints
 @app.post("/api/tenants", tags=["tenants"])
-def create_tenant(request: CreateTenantRequest, tenant_service: TenantSvc):
-    """Create a new tenant"""
+def create_tenant(
+    request: CreateTenantRequest,
+    tenant_service: TenantSvc,
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new tenant (requires authentication)"""
     try:
         tenant, admin_user = tenant_service.create_tenant_with_admin(
             name=request.name,
@@ -328,9 +332,16 @@ def create_tenant_for_registration(
         raise HTTPException(status_code=500, detail=f"Failed to create organization: {str(e)}")
 
 @app.get("/api/tenants", tags=["tenants"])
-def list_tenants(tenant_service: TenantSvc):
-    """List all active tenants"""
-    tenants = tenant_service.get_active_tenants()
+def list_tenants(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List tenants for the current user (returns only the user's own tenant)"""
+    from app.repositories import TenantRepository
+    tenant_repo = TenantRepository(db)
+    tenant = tenant_repo.get_by_id(current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     return [
         {
             "id": str(tenant.id),
@@ -339,17 +350,41 @@ def list_tenants(tenant_service: TenantSvc):
             "is_active": tenant.is_active,
             "created_at": tenant.created_at.isoformat(),
         }
-        for tenant in tenants
     ]
 
 @app.get("/api/tenants/{tenant_id}", tags=["tenants"])
-def get_tenant(tenant_id: str, tenant_service: TenantSvc):
-    """Get tenant details by ID"""
-    tenant = tenant_service.get_tenant_by_id(tenant_id)
+def get_tenant(
+    tenant_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get tenant details by ID (only accessible for the user's own tenant)"""
+    from uuid import UUID as _UUID
+    from app.repositories import TenantRepository
+
+    # Resolve tenant_id (UUID or slug)
+    try:
+        tenant_uuid = _UUID(tenant_id)
+    except ValueError:
+        # Try as slug
+        tenant_repo = TenantRepository(db)
+        tenant = tenant_repo.get_by_slug(tenant_id)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        tenant_uuid = tenant.id
+
+    # Enforce tenant isolation: users can only view their own tenant
+    if tenant_uuid != current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied: you can only view your own organization")
+
+    tenant_repo = TenantRepository(db)
+    tenant = tenant_repo.get_by_id(tenant_uuid)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    users = tenant_service.get_tenant_users(tenant.id)
+    from app.repositories import UserRepository
+    user_repo = UserRepository(db)
+    users = user_repo.get_tenant_users(tenant.id)
 
     return {
         "id": str(tenant.id),

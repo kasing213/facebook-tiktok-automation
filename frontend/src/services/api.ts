@@ -216,7 +216,8 @@ export const authService = {
   },
 
   /**
-   * Get list of tenants
+   * Get the current user's tenant (requires authentication).
+   * Returns an array with a single tenant for backward compatibility.
    */
   async getTenants(): Promise<Tenant[]> {
     const response = await api.get('/api/tenants')

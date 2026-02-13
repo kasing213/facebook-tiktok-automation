@@ -99,7 +99,7 @@ const WorkspaceSelector = styled.div`
   position: relative;
 `
 
-const WorkspaceButton = styled.button`
+const WorkspaceLabel = styled.div`
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -110,13 +110,6 @@ const WorkspaceButton = styled.button`
   font-size: 0.875rem;
   font-weight: 500;
   color: ${props => props.theme.textPrimary};
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: ${props => props.theme.accent};
-    box-shadow: 0 2px 8px ${props => props.theme.shadowColor};
-  }
 
   @media (max-width: 480px) {
     padding: 0.5rem 0.75rem;
@@ -222,14 +215,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
   const { t } = useTranslation()
   const { tenants } = useTenants()
   const { mode, toggleTheme } = useTheme()
-  const [workspaceOpen, setWorkspaceOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const workspaceRef = useRef<HTMLDivElement>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
 
-  // Get current tenant from localStorage or use first tenant
-  const currentTenantId = localStorage.getItem('selectedTenantId') || (tenants[0]?.id || '')
-  const currentTenant = tenants.find(t => t.id === currentTenantId) || tenants[0]
+  // The user's own tenant (backend now only returns the user's tenant)
+  const currentTenant = tenants[0]
 
   // Get page title from current route
   const getPageTitle = () => {
@@ -249,12 +239,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
     return 'Dashboard'
   }
 
-  // Close dropdowns when clicking outside
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (workspaceRef.current && !workspaceRef.current.contains(event.target as Node)) {
-        setWorkspaceOpen(false)
-      }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false)
       }
@@ -263,12 +250,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  const handleTenantSwitch = (tenantId: string) => {
-    localStorage.setItem('selectedTenantId', tenantId)
-    setWorkspaceOpen(false)
-    window.location.reload() // Reload to refresh auth status with new tenant
-  }
 
   const handleLogout = async () => {
     await authService.logout()
@@ -302,23 +283,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
 
         <LanguageSwitcher />
 
-        <WorkspaceSelector ref={workspaceRef}>
-          <WorkspaceButton onClick={() => setWorkspaceOpen(!workspaceOpen)}>
-            <span>{currentTenant?.name || t('header.selectWorkspace')}</span>
-            <span style={{ fontSize: '0.625rem' }}>{workspaceOpen ? '\u25B2' : '\u25BC'}</span>
-          </WorkspaceButton>
-          <Dropdown isOpen={workspaceOpen}>
-            {tenants.map(tenant => (
-              <DropdownItem
-                key={tenant.id}
-                onClick={() => handleTenantSwitch(tenant.id)}
-              >
-                {tenant.name}
-                {tenant.id === currentTenantId && <span style={{ marginLeft: 'auto', color: '#4a90e2' }}>&#10003;</span>}
-              </DropdownItem>
-            ))}
-          </Dropdown>
-        </WorkspaceSelector>
+        {/* Display current tenant name (read-only, no switching) */}
+        <WorkspaceLabel>
+          <span>{currentTenant?.name || t('header.selectWorkspace')}</span>
+        </WorkspaceLabel>
 
         <WorkspaceSelector ref={userMenuRef}>
           <UserAvatar onClick={() => setUserMenuOpen(!userMenuOpen)}>

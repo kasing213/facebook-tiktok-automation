@@ -3,15 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { authService } from '../services/api'
 import { AuthStatus, Tenant } from '../types/auth'
 
-const DEMO_TENANTS: Tenant[] = [
-  {
-    id: 'demo-tenant',
-    name: 'Demo Organization',
-    slug: 'demo-organization',
-    is_active: true,
-    created_at: '2024-01-01T00:00:00.000Z'
-  }
-]
+// No demo tenants - backend requires authentication and returns only the user's own tenant
 
 export const useAuth = (tenantId: string | null) => {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
@@ -67,11 +59,11 @@ export const useTenants = () => {
       setTenants(tenantsData)
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        if (!err.response) {
-          setTenants(DEMO_TENANTS)
-          setError('Backend API is unreachable. Using demo organization data until the server is available.')
-        } else if (err.response.status === 404) {
-          setError('No tenants found. Create an organization in the backend to continue.')
+        if (err.response?.status === 401) {
+          // Not authenticated - expected on public pages
+          setError(null)
+        } else if (!err.response) {
+          setError('Backend API is unreachable.')
         } else {
           const detail = (err.response.data as { detail?: string })?.detail
           setError(detail || err.message || 'Failed to fetch tenants')
