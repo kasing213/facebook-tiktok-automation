@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel
 
-from app.core.database import get_db
-from app.core.auth import get_current_user, get_current_member_or_owner
+from app.core.db import get_db
+from app.core.dependencies import get_current_user
+from app.core.authorization import get_current_member_or_owner
 from app.core.models import User
 from app.services.ocr_audit_service import OCRAuditService
 
