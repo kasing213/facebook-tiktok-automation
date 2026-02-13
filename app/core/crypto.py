@@ -83,9 +83,15 @@ class TokenEncryptor:
             raise DecryptionError(f"Failed to decrypt data: {str(e)}")
 
 
+# Module-level cache: ensures PBKDF2 (100K iterations) runs at most once per process
+_cached_encryptor: TokenEncryptor | None = None
+_cached_key_source: str | None = None
+
+
 def load_encryptor(master_key: str | None = None) -> TokenEncryptor:
     """
-    Load encryptor with master key.
+    Load encryptor with master key. Results are cached at module level
+    so PBKDF2 derivation only runs once per process.
 
     Args:
         master_key: Master secret key. If not provided, will try to load from environment.
@@ -96,10 +102,16 @@ def load_encryptor(master_key: str | None = None) -> TokenEncryptor:
     Raises:
         KeyConfigurationError: If master key is missing or invalid
     """
+    global _cached_encryptor, _cached_key_source
+
     key = master_key or os.environ.get("MASTER_SECRET_KEY")
     if not key:
         logger.error("MASTER_SECRET_KEY not found in environment or parameters")
         raise KeyConfigurationError("MASTER_SECRET_KEY missing. Please set this environment variable.")
+
+    # Return cached encryptor if the key hasn't changed
+    if _cached_encryptor is not None and _cached_key_source == key:
+        return _cached_encryptor
 
     # Check if key is already a valid Fernet key (32 bytes base64-encoded = 44 chars with padding)
     try:
@@ -107,7 +119,10 @@ def load_encryptor(master_key: str | None = None) -> TokenEncryptor:
         if len(decoded) == 32:
             # Valid Fernet key, use as-is
             logger.info("Using provided Fernet key")
-            return TokenEncryptor(key)
+            encryptor = TokenEncryptor(key)
+            _cached_encryptor = encryptor
+            _cached_key_source = key
+            return encryptor
     except Exception:
         pass
 
@@ -128,7 +143,10 @@ def load_encryptor(master_key: str | None = None) -> TokenEncryptor:
     derived_key = base64.urlsafe_b64encode(kdf.derive(key.encode()))
 
     try:
-        return TokenEncryptor(derived_key.decode())
+        encryptor = TokenEncryptor(derived_key.decode())
+        _cached_encryptor = encryptor
+        _cached_key_source = key
+        return encryptor
     except KeyConfigurationError:
         raise
     except Exception as e:

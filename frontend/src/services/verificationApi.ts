@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import api from './api';
 
 export interface PendingVerification {
   id: string;
@@ -60,7 +60,7 @@ class VerificationApi {
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.skip) queryParams.append('skip', params.skip.toString());
 
-    const response = await apiClient.get(
+    const response = await api.get(
       `${this.baseUrl}/pending${queryParams.toString() ? '?' + queryParams.toString() : ''}`
     );
 
@@ -75,7 +75,7 @@ class VerificationApi {
    * Get audit trail for a specific invoice
    */
   async getAuditTrail(invoiceId: string): Promise<AuditTrailEntry[]> {
-    const response = await apiClient.get(`${this.baseUrl}/${invoiceId}/history`);
+    const response = await api.get(`${this.baseUrl}/${invoiceId}/history`);
 
     if (response.status !== 200) {
       throw new Error(`Failed to fetch audit trail: ${response.statusText}`);
@@ -88,7 +88,7 @@ class VerificationApi {
    * Approve a payment verification
    */
   async approveVerification(invoiceId: string, notes?: string): Promise<ActionResponse> {
-    const response = await apiClient.post(`${this.baseUrl}/${invoiceId}/approve`, {
+    const response = await api.post(`${this.baseUrl}/${invoiceId}/approve`, {
       notes
     });
 
@@ -103,7 +103,7 @@ class VerificationApi {
    * Reject a payment verification
    */
   async rejectVerification(invoiceId: string, notes?: string): Promise<ActionResponse> {
-    const response = await apiClient.post(`${this.baseUrl}/${invoiceId}/reject`, {
+    const response = await api.post(`${this.baseUrl}/${invoiceId}/reject`, {
       notes
     });
 
@@ -118,7 +118,7 @@ class VerificationApi {
    * Mark verification for manual review
    */
   async markForReview(invoiceId: string, notes?: string): Promise<ActionResponse> {
-    const response = await apiClient.post(`${this.baseUrl}/${invoiceId}/review`, {
+    const response = await api.post(`${this.baseUrl}/${invoiceId}/review`, {
       notes
     });
 
@@ -133,7 +133,7 @@ class VerificationApi {
    * Get verification statistics
    */
   async getStats(days: number = 30): Promise<VerificationStats> {
-    const response = await apiClient.get(`${this.baseUrl}/stats?days=${days}`);
+    const response = await api.get(`${this.baseUrl}/stats?days=${days}`);
 
     if (response.status !== 200) {
       throw new Error(`Failed to fetch verification stats: ${response.statusText}`);

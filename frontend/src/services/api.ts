@@ -343,6 +343,7 @@ export const authService = {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         withCredentials: true, // Accept refresh token cookie
+        timeout: 30000, // Login does bcrypt + multiple DB queries; needs more than the global 10s
       })
 
       // Store access token in localStorage
@@ -362,7 +363,9 @@ export const authService = {
    */
   async register(userData: RegisterRequest): Promise<RegisterResponse> {
     try {
-      const response = await api.post('/auth/register', userData)
+      const response = await api.post('/auth/register', userData, {
+        timeout: 30000, // Registration includes bcrypt hashing
+      })
       return response.data
     } catch (error: any) {
       console.error('Registration failed:', error)

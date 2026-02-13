@@ -1,39 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Card,
-  CardContent,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Typography,
-  Button,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Alert,
-  CircularProgress,
-  IconButton,
-  Badge,
-  Tooltip,
-  Grid,
-  Stack
-} from '@mui/material';
-import {
-  CheckCircle as ApproveIcon,
-  Cancel as RejectIcon,
-  Schedule as PendingIcon,
-  History as HistoryIcon,
-  Refresh as RefreshIcon,
-  Visibility as ViewIcon
-} from '@mui/icons-material';
+import styled from 'styled-components';
+import { FaCheck, FaTimes, FaClock, FaHistory, FaSyncAlt } from 'react-icons/fa';
+import { LoadingSpinner } from '../LoadingSpinner';
+import { LoadingButton } from '../common/LoadingButton';
 import { verificationApi } from '../../services/verificationApi';
 
 interface PendingVerification {
@@ -68,6 +37,432 @@ interface VerificationStats {
   avg_confidence: number;
 }
 
+// Styled components
+
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+`;
+
+const AlertBox = styled.div<{ $type: 'error' | 'success' }>`
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: ${props => props.$type === 'error' ? props.theme.errorLight : props.theme.successLight};
+  color: ${props => props.$type === 'error' ? props.theme.error : props.theme.success};
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.25rem;
+`;
+
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+`;
+
+const Title = styled.h1`
+  font-size: 2rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, ${props => props.theme.accent} 0%, ${props => props.theme.accentDark} 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+`;
+
+const RefreshButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid ${props => props.theme.border};
+  border-radius: 6px;
+  background: ${props => props.theme.card};
+  color: ${props => props.theme.textSecondary};
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: ${props => props.theme.cardHover};
+    color: ${props => props.theme.accent};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+`;
+
+const StatCard = styled.div`
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
+  border-radius: 12px;
+  padding: 1.25rem;
+  transition: box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px ${props => props.theme.shadowColor};
+  }
+`;
+
+const StatValue = styled.div<{ $color?: string }>`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: ${props => props.$color || props.theme.textPrimary};
+`;
+
+const StatLabel = styled.div`
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: ${props => props.theme.textSecondary};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+`;
+
+const Card = styled.div`
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
+  border-radius: 12px;
+  overflow: hidden;
+`;
+
+const CardHeader = styled.div`
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid ${props => props.theme.border};
+`;
+
+const CardTitle = styled.h2`
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: ${props => props.theme.textPrimary};
+  margin: 0;
+`;
+
+const TableWrapper = styled.div`
+  overflow-x: auto;
+`;
+
+const Table = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+`;
+
+const TableHead = styled.thead`
+  background: ${props => props.theme.backgroundTertiary};
+`;
+
+const HeaderCell = styled.th`
+  text-align: left;
+  padding: 0.875rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: ${props => props.theme.textSecondary};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid ${props => props.theme.border};
+  white-space: nowrap;
+
+  &:last-child {
+    text-align: center;
+  }
+`;
+
+const TableRow = styled.tr`
+  border-bottom: 1px solid ${props => props.theme.border};
+
+  &:hover {
+    background-color: ${props => props.theme.backgroundTertiary};
+  }
+`;
+
+const TableCell = styled.td`
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: ${props => props.theme.textPrimary};
+  vertical-align: middle;
+`;
+
+const MonoText = styled.span`
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+  font-size: 0.8125rem;
+`;
+
+const MutedText = styled.span`
+  color: ${props => props.theme.textSecondary};
+  font-size: 0.8125rem;
+`;
+
+const StatusBadge = styled.span<{ $status: string }>`
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+
+  ${props => {
+    switch (props.$status) {
+      case 'verified':
+        return `background: #d4edda; color: #155724;`;
+      case 'pending':
+        return `background: #fff3cd; color: #856404;`;
+      case 'reviewing':
+        return `background: #cce5ff; color: #004085;`;
+      case 'rejected':
+        return `background: #f8d7da; color: #721c24;`;
+      default:
+        return `background: #e2e3e5; color: #383d41;`;
+    }
+  }}
+`;
+
+const ConfidenceBadge = styled.span<{ $high: boolean }>`
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: ${props => props.$high ? '#d4edda' : '#fff3cd'};
+  color: ${props => props.$high ? '#155724' : '#856404'};
+`;
+
+const ActionsCell = styled.td`
+  padding: 1rem;
+  vertical-align: middle;
+`;
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 0.25rem;
+  justify-content: center;
+`;
+
+const IconBtn = styled.button<{ $color?: string }>`
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: ${props => props.theme.textMuted};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.2s ease, transform 0.15s ease, background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    color: ${props => props.$color || props.theme.accent};
+    background: ${props => props.theme.mode === 'dark'
+      ? 'rgba(62, 207, 142, 0.1)'
+      : 'rgba(74, 144, 226, 0.08)'};
+    transform: scale(1.1);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 3rem 1rem;
+  color: ${props => props.theme.textSecondary};
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+`;
+
+// Modal styles
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: ${props => props.theme.overlay};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+`;
+
+const ModalContent = styled.div<{ $wide?: boolean }>`
+  background: ${props => props.theme.card};
+  border-radius: 12px;
+  padding: 0;
+  max-width: ${props => props.$wide ? '700px' : '500px'};
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: scaleIn 0.3s ease-out;
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+`;
+
+const ModalHeader = styled.div`
+  padding: 1.5rem 1.5rem 1rem;
+  border-bottom: 1px solid ${props => props.theme.border};
+`;
+
+const ModalTitle = styled.h2`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: ${props => props.theme.textPrimary};
+  margin: 0;
+`;
+
+const ModalSubtitle = styled.div`
+  font-size: 0.8125rem;
+  color: ${props => props.theme.textSecondary};
+  margin-top: 0.25rem;
+`;
+
+const ModalBody = styled.div`
+  padding: 1.5rem;
+`;
+
+const ModalFooter = styled.div`
+  padding: 1rem 1.5rem;
+  border-top: 1px solid ${props => props.theme.border};
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+`;
+
+const DetailRow = styled.div`
+  font-size: 0.875rem;
+  color: ${props => props.theme.textSecondary};
+  margin-bottom: 0.25rem;
+`;
+
+const FormTextarea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid ${props => props.theme.border};
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: ${props => props.theme.textPrimary};
+  background: ${props => props.theme.background};
+  min-height: 80px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: ${props => props.theme.textMuted};
+  }
+
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.accent};
+    box-shadow: 0 0 0 2px ${props => props.theme.mode === 'dark'
+      ? 'rgba(62, 207, 142, 0.1)'
+      : 'rgba(74, 144, 226, 0.1)'};
+  }
+`;
+
+const FormLabel = styled.label`
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: ${props => props.theme.textPrimary};
+  margin-bottom: 0.5rem;
+`;
+
+const AuditTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+`;
+
+const AuditHeaderCell = styled.th`
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: ${props => props.theme.textSecondary};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid ${props => props.theme.border};
+`;
+
+const AuditRow = styled.tr`
+  border-bottom: 1px solid ${props => props.theme.border};
+`;
+
+const AuditCell = styled.td`
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+  color: ${props => props.theme.textPrimary};
+  vertical-align: top;
+`;
+
+const Arrow = styled.span`
+  color: ${props => props.theme.textMuted};
+  margin: 0 0.25rem;
+`;
+
+const ConfidenceCaption = styled.div`
+  font-size: 0.6875rem;
+  color: ${props => props.theme.textMuted};
+  margin-top: 0.125rem;
+`;
+
+// Component
+
 const VerificationsPage: React.FC = () => {
   const [verifications, setVerifications] = useState<PendingVerification[]>([]);
   const [stats, setStats] = useState<VerificationStats | null>(null);
@@ -96,8 +491,9 @@ const VerificationsPage: React.FC = () => {
 
       setVerifications(verificationsData);
       setStats(statsData);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load verifications');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load verifications';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -107,7 +503,7 @@ const VerificationsPage: React.FC = () => {
     loadVerifications();
   }, []);
 
-  const handleAction = async (verification: PendingVerification, action: 'approve' | 'reject' | 'review') => {
+  const handleAction = (verification: PendingVerification, action: 'approve' | 'reject' | 'review') => {
     setSelectedInvoice(verification);
     setActionType(action);
     setNotes('');
@@ -139,10 +535,10 @@ const VerificationsPage: React.FC = () => {
       setSelectedInvoice(null);
       setNotes('');
 
-      // Reload data
       await loadVerifications();
-    } catch (err: any) {
-      setError(err.message || 'Action failed');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Action failed';
+      setError(message);
     } finally {
       setProcessing(null);
     }
@@ -154,8 +550,9 @@ const VerificationsPage: React.FC = () => {
       const trail = await verificationApi.getAuditTrail(verification.id);
       setAuditTrail(trail);
       setAuditDialogOpen(true);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load audit trail');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to load audit trail';
+      setError(message);
     }
   };
 
@@ -173,16 +570,6 @@ const VerificationsPage: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'reviewing': return 'info';
-      case 'verified': return 'success';
-      case 'rejected': return 'error';
-      default: return 'default';
-    }
-  };
-
   const getActionLabel = (action: string) => {
     switch (action) {
       case 'auto_verified': return 'Auto Verified';
@@ -195,329 +582,282 @@ const VerificationsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight={400}>
-        <CircularProgress />
-      </Box>
+      <LoadingContainer>
+        <LoadingSpinner size="large" />
+      </LoadingContainer>
     );
   }
 
   return (
-    <Box>
+    <Container>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
+        <AlertBox $type="error">
+          <span>{error}</span>
+          <CloseButton onClick={() => setError(null)}>&times;</CloseButton>
+        </AlertBox>
       )}
 
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
-          {success}
-        </Alert>
+        <AlertBox $type="success">
+          <span>{success}</span>
+          <CloseButton onClick={() => setSuccess(null)}>&times;</CloseButton>
+        </AlertBox>
       )}
 
-      {/* Header with Stats */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Payment Verifications</Typography>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={loadVerifications}
-          disabled={loading}
-        >
+      {/* Header */}
+      <Header>
+        <Title>Payment Verifications</Title>
+        <RefreshButton onClick={loadVerifications} disabled={loading}>
+          <FaSyncAlt />
           Refresh
-        </Button>
-      </Box>
+        </RefreshButton>
+      </Header>
 
       {/* Stats Cards */}
       {stats && (
-        <Grid container spacing={2} mb={3}>
-          <Grid item xs={12} sm={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color="primary">
-                  {verifications.length}
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Pending Reviews
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color="success.main">
-                  {stats.auto_verified}
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Auto Verified
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color="info.main">
-                  {stats.manual_actions}
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Manual Actions
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color="warning.main">
-                  {stats.avg_confidence.toFixed(1)}%
-                </Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Avg Confidence
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        <StatsGrid>
+          <StatCard>
+            <StatValue $color="#4a90e2">{verifications.length}</StatValue>
+            <StatLabel>Pending Reviews</StatLabel>
+          </StatCard>
+          <StatCard>
+            <StatValue $color="#28a745">{stats.auto_verified}</StatValue>
+            <StatLabel>Auto Verified</StatLabel>
+          </StatCard>
+          <StatCard>
+            <StatValue $color="#17a2b8">{stats.manual_actions}</StatValue>
+            <StatLabel>Manual Actions</StatLabel>
+          </StatCard>
+          <StatCard>
+            <StatValue $color="#ffc107">{stats.avg_confidence.toFixed(1)}%</StatValue>
+            <StatLabel>Avg Confidence</StatLabel>
+          </StatCard>
+        </StatsGrid>
       )}
 
       {/* Verifications Table */}
       <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Pending Payment Verifications
-          </Typography>
+        <CardHeader>
+          <CardTitle>Pending Payment Verifications</CardTitle>
+        </CardHeader>
 
-          {verifications.length === 0 ? (
-            <Typography color="textSecondary" textAlign="center" py={4}>
-              No pending verifications found.
-            </Typography>
-          ) : (
-            <TableContainer component={Paper} elevation={0}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Invoice #</TableCell>
-                    <TableCell>Customer</TableCell>
-                    <TableCell>Amount</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Confidence</TableCell>
-                    <TableCell>Submitted</TableCell>
-                    <TableCell align="center">Actions</TableCell>
+        {verifications.length === 0 ? (
+          <EmptyState>No pending verifications found.</EmptyState>
+        ) : (
+          <TableWrapper>
+            <Table>
+              <TableHead>
+                <tr>
+                  <HeaderCell>Invoice #</HeaderCell>
+                  <HeaderCell>Customer</HeaderCell>
+                  <HeaderCell>Amount</HeaderCell>
+                  <HeaderCell>Status</HeaderCell>
+                  <HeaderCell>Confidence</HeaderCell>
+                  <HeaderCell>Submitted</HeaderCell>
+                  <HeaderCell>Actions</HeaderCell>
+                </tr>
+              </TableHead>
+              <tbody>
+                {verifications.map((verification) => (
+                  <TableRow key={verification.id}>
+                    <TableCell>
+                      <MonoText>{verification.invoice_number}</MonoText>
+                    </TableCell>
+                    <TableCell>{verification.customer_name}</TableCell>
+                    <TableCell>
+                      {formatCurrency(verification.amount, verification.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge $status={verification.verification_status}>
+                        {verification.verification_status}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      {verification.confidence_score ? (
+                        <ConfidenceBadge $high={verification.confidence_score >= 80}>
+                          {verification.confidence_score.toFixed(0)}%
+                        </ConfidenceBadge>
+                      ) : (
+                        <MutedText>&mdash;</MutedText>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <MutedText>{formatDateTime(verification.created_at)}</MutedText>
+                    </TableCell>
+                    <ActionsCell>
+                      <ActionButtons>
+                        <IconBtn
+                          $color="#28a745"
+                          title="Approve Payment"
+                          onClick={() => handleAction(verification, 'approve')}
+                          disabled={processing === verification.id}
+                        >
+                          {processing === verification.id ? (
+                            <LoadingSpinner size="small" />
+                          ) : (
+                            <FaCheck />
+                          )}
+                        </IconBtn>
+
+                        <IconBtn
+                          $color="#17a2b8"
+                          title="Mark for Review"
+                          onClick={() => handleAction(verification, 'review')}
+                          disabled={processing === verification.id}
+                        >
+                          <FaClock />
+                        </IconBtn>
+
+                        <IconBtn
+                          $color="#dc3545"
+                          title="Reject Payment"
+                          onClick={() => handleAction(verification, 'reject')}
+                          disabled={processing === verification.id}
+                        >
+                          <FaTimes />
+                        </IconBtn>
+
+                        <IconBtn
+                          title="View Audit Trail"
+                          onClick={() => showAuditTrail(verification)}
+                        >
+                          <FaHistory />
+                        </IconBtn>
+                      </ActionButtons>
+                    </ActionsCell>
                   </TableRow>
-                </TableHead>
-                <TableBody>
-                  {verifications.map((verification) => (
-                    <TableRow key={verification.id}>
-                      <TableCell>
-                        <Typography variant="body2" fontFamily="monospace">
-                          {verification.invoice_number}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{verification.customer_name}</TableCell>
-                      <TableCell>
-                        {formatCurrency(verification.amount, verification.currency)}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={verification.verification_status}
-                          color={getStatusColor(verification.verification_status) as any}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {verification.confidence_score ? (
-                          <Badge
-                            badgeContent={`${verification.confidence_score.toFixed(0)}%`}
-                            color={verification.confidence_score >= 80 ? 'success' : 'warning'}
-                          />
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="textSecondary">
-                          {formatDateTime(verification.created_at)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1} justifyContent="center">
-                          <Tooltip title="Approve Payment">
-                            <IconButton
-                              color="success"
-                              size="small"
-                              onClick={() => handleAction(verification, 'approve')}
-                              disabled={processing === verification.id}
-                            >
-                              {processing === verification.id ? (
-                                <CircularProgress size={16} />
-                              ) : (
-                                <ApproveIcon />
-                              )}
-                            </IconButton>
-                          </Tooltip>
-
-                          <Tooltip title="Mark for Review">
-                            <IconButton
-                              color="info"
-                              size="small"
-                              onClick={() => handleAction(verification, 'review')}
-                              disabled={processing === verification.id}
-                            >
-                              <PendingIcon />
-                            </IconButton>
-                          </Tooltip>
-
-                          <Tooltip title="Reject Payment">
-                            <IconButton
-                              color="error"
-                              size="small"
-                              onClick={() => handleAction(verification, 'reject')}
-                              disabled={processing === verification.id}
-                            >
-                              <RejectIcon />
-                            </IconButton>
-                          </Tooltip>
-
-                          <Tooltip title="View Audit Trail">
-                            <IconButton
-                              size="small"
-                              onClick={() => showAuditTrail(verification)}
-                            >
-                              <HistoryIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </CardContent>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrapper>
+        )}
       </Card>
 
       {/* Action Confirmation Dialog */}
-      <Dialog open={actionDialogOpen} onClose={() => setActionDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {actionType === 'approve' && 'Approve Payment'}
-          {actionType === 'reject' && 'Reject Payment'}
-          {actionType === 'review' && 'Mark for Review'}
-        </DialogTitle>
-        <DialogContent>
-          {selectedInvoice && (
-            <Box mb={2}>
-              <Typography variant="body2" color="textSecondary">
-                Invoice: {selectedInvoice.invoice_number}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Customer: {selectedInvoice.customer_name}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Amount: {formatCurrency(selectedInvoice.amount, selectedInvoice.currency)}
-              </Typography>
-            </Box>
-          )}
-
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="Notes (Optional)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Add any notes about this verification..."
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setActionDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={confirmAction}
-            disabled={processing !== null}
-            color={actionType === 'reject' ? 'error' : 'primary'}
-          >
-            {processing !== null ? 'Processing...' : 'Confirm'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {actionDialogOpen && (
+        <ModalOverlay onClick={() => setActionDialogOpen(false)}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>
+                {actionType === 'approve' && 'Approve Payment'}
+                {actionType === 'reject' && 'Reject Payment'}
+                {actionType === 'review' && 'Mark for Review'}
+              </ModalTitle>
+            </ModalHeader>
+            <ModalBody>
+              {selectedInvoice && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <DetailRow>Invoice: {selectedInvoice.invoice_number}</DetailRow>
+                  <DetailRow>Customer: {selectedInvoice.customer_name}</DetailRow>
+                  <DetailRow>Amount: {formatCurrency(selectedInvoice.amount, selectedInvoice.currency)}</DetailRow>
+                </div>
+              )}
+              <FormLabel>Notes (Optional)</FormLabel>
+              <FormTextarea
+                value={notes}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
+                placeholder="Add any notes about this verification..."
+              />
+            </ModalBody>
+            <ModalFooter>
+              <LoadingButton
+                variant="secondary"
+                size="small"
+                onClick={() => setActionDialogOpen(false)}
+              >
+                Cancel
+              </LoadingButton>
+              <LoadingButton
+                variant={actionType === 'reject' ? 'danger' : 'primary'}
+                size="small"
+                loading={processing !== null}
+                onClick={confirmAction}
+              >
+                Confirm
+              </LoadingButton>
+            </ModalFooter>
+          </ModalContent>
+        </ModalOverlay>
+      )}
 
       {/* Audit Trail Dialog */}
-      <Dialog open={auditDialogOpen} onClose={() => setAuditDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Verification Audit Trail
-          {selectedInvoice && (
-            <Typography variant="subtitle2" color="textSecondary">
-              Invoice: {selectedInvoice.invoice_number}
-            </Typography>
-          )}
-        </DialogTitle>
-        <DialogContent>
-          {auditTrail.length === 0 ? (
-            <Typography color="textSecondary">No audit trail found.</Typography>
-          ) : (
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date/Time</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>Status Change</TableCell>
-                  <TableCell>By</TableCell>
-                  <TableCell>Notes</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {auditTrail.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {formatDateTime(entry.created_at)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={getActionLabel(entry.action)} size="small" />
-                    </TableCell>
-                    <TableCell>
-                      {entry.previous_status && (
-                        <span>
-                          <Chip label={entry.previous_status} size="small" color="default" />
-                          {' → '}
-                        </span>
-                      )}
-                      <Chip
-                        label={entry.new_status}
-                        size="small"
-                        color={getStatusColor(entry.new_status) as any}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {entry.verified_by_name}
-                        {entry.confidence_score && (
-                          <Typography variant="caption" display="block" color="textSecondary">
-                            Confidence: {entry.confidence_score.toFixed(1)}%
-                          </Typography>
-                        )}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="textSecondary">
-                        {entry.notes || '—'}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAuditDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+      {auditDialogOpen && (
+        <ModalOverlay onClick={() => setAuditDialogOpen(false)}>
+          <ModalContent $wide onClick={e => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>Verification Audit Trail</ModalTitle>
+              {selectedInvoice && (
+                <ModalSubtitle>Invoice: {selectedInvoice.invoice_number}</ModalSubtitle>
+              )}
+            </ModalHeader>
+            <ModalBody>
+              {auditTrail.length === 0 ? (
+                <MutedText>No audit trail found.</MutedText>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <AuditTable>
+                    <thead>
+                      <tr>
+                        <AuditHeaderCell>Date/Time</AuditHeaderCell>
+                        <AuditHeaderCell>Action</AuditHeaderCell>
+                        <AuditHeaderCell>Status Change</AuditHeaderCell>
+                        <AuditHeaderCell>By</AuditHeaderCell>
+                        <AuditHeaderCell>Notes</AuditHeaderCell>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditTrail.map((entry) => (
+                        <AuditRow key={entry.id}>
+                          <AuditCell>{formatDateTime(entry.created_at)}</AuditCell>
+                          <AuditCell>
+                            <StatusBadge $status={entry.new_status}>
+                              {getActionLabel(entry.action)}
+                            </StatusBadge>
+                          </AuditCell>
+                          <AuditCell>
+                            {entry.previous_status && (
+                              <>
+                                <StatusBadge $status={entry.previous_status}>
+                                  {entry.previous_status}
+                                </StatusBadge>
+                                <Arrow>&rarr;</Arrow>
+                              </>
+                            )}
+                            <StatusBadge $status={entry.new_status}>
+                              {entry.new_status}
+                            </StatusBadge>
+                          </AuditCell>
+                          <AuditCell>
+                            {entry.verified_by_name}
+                            {entry.confidence_score && (
+                              <ConfidenceCaption>
+                                Confidence: {entry.confidence_score.toFixed(1)}%
+                              </ConfidenceCaption>
+                            )}
+                          </AuditCell>
+                          <AuditCell>
+                            <MutedText>{entry.notes || '\u2014'}</MutedText>
+                          </AuditCell>
+                        </AuditRow>
+                      ))}
+                    </tbody>
+                  </AuditTable>
+                </div>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <LoadingButton
+                variant="secondary"
+                size="small"
+                onClick={() => setAuditDialogOpen(false)}
+              >
+                Close
+              </LoadingButton>
+            </ModalFooter>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+    </Container>
   );
 };
 
