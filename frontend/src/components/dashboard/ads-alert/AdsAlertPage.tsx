@@ -103,6 +103,10 @@ const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   }
 
   ${reduceMotion}
+
+  @media (max-width: 480px) {
+    padding: 14px;
+  }
 `
 
 const StatValue = styled.div`
@@ -192,6 +196,16 @@ const TabContent = styled.div<{ $isVisible?: boolean }>`
               border-color 0.3s ease;
   transition-delay: 300ms;
   ${reduceMotion}
+
+  @media (max-width: 768px) {
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 12px;
+    border-radius: 8px;
+  }
 `
 
 const BackButton = styled.button`
@@ -220,6 +234,11 @@ const DetailHeader = styled.div`
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
 `
 
 const DetailTitle = styled.h2`
@@ -301,6 +320,11 @@ const DetailActions = styled.div`
   gap: 12px;
   padding-top: 24px;
   border-top: 1px solid ${props => props.theme.border};
+  flex-wrap: wrap;
+
+  @media (max-width: 480px) {
+    gap: 8px;
+  }
 `
 
 const ActionButton = styled.button<{ $variant?: 'primary' | 'danger' }>`

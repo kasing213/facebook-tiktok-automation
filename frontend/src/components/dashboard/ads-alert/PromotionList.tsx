@@ -21,6 +21,7 @@ const Filters = styled.div`
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 `
 
 const FilterButton = styled.button<{ $active: boolean }>`
@@ -70,6 +71,12 @@ const PromotionCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   }
 
   ${reduceMotion}
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px;
+  }
 `
 
 const MediaPreview = styled.div`
@@ -105,6 +112,10 @@ const PreviewIcon = styled.span`
 const Content = styled.div`
   flex: 1;
   min-width: 0;
+
+  @media (max-width: 640px) {
+    flex-basis: calc(100% - 76px);
+  }
 `
 
 const Title = styled.h3`
@@ -131,6 +142,11 @@ const Meta = styled.div`
   gap: 16px;
   font-size: 12px;
   color: #9ca3af;
+  flex-wrap: wrap;
+
+  @media (max-width: 640px) {
+    gap: 8px 12px;
+  }
 `
 
 const MetaItem = styled.span`
@@ -227,6 +243,11 @@ const ModerationBadge = styled.span<{ $status: string }>`
 const Actions = styled.div`
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+
+  @media (max-width: 640px) {
+    width: 100%;
+  }
 `
 
 const ActionButton = styled.button<{ $variant?: 'primary' | 'danger' }>`

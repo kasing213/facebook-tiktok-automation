@@ -25,6 +25,10 @@ const Header = styled.div`
   margin-bottom: 2rem;
   flex-wrap: wrap;
   gap: 1rem;
+
+  @media (max-width: 768px) {
+    margin-bottom: 1.25rem;
+  }
 `
 
 const Title = styled.h1`
@@ -95,6 +99,11 @@ const StatsGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
+
+  @media (max-width: 480px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
 `
 
 const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
@@ -115,6 +124,10 @@ const StatCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
   }
 
   ${reduceMotion}
+
+  @media (max-width: 480px) {
+    padding: 1rem;
+  }
 `
 
 const StatLabel = styled.div`

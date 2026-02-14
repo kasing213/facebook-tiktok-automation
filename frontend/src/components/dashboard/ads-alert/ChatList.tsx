@@ -16,12 +16,18 @@ const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
 `
 
 const Title = styled.h3`
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary || '#1f2937'};
   margin: 0;
 `
 
@@ -30,7 +36,7 @@ const AddButton = styled.button`
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  background: #4A90E2;
+  background: ${props => props.theme.accent || '#4A90E2'};
   color: white;
   border: none;
   border-radius: 8px;
@@ -40,31 +46,45 @@ const AddButton = styled.button`
   transition: background 0.2s;
 
   &:hover {
-    background: #357ABD;
+    background: ${props => props.theme.accentDark || '#357ABD'};
   }
 `
 
 const SearchBar = styled.input`
   padding: 10px 14px;
-  border: 1px solid #d1d5db;
+  border: 1px solid ${props => props.theme.border || '#d1d5db'};
   border-radius: 8px;
   font-size: 14px;
   width: 100%;
   max-width: 300px;
+  color: ${props => props.theme.textPrimary || '#374151'};
+  background: ${props => props.theme.card || 'white'};
 
   &:focus {
     outline: none;
-    border-color: #4A90E2;
+    border-color: ${props => props.theme.accent || '#4A90E2'};
+  }
+
+  &::placeholder {
+    color: ${props => props.theme.textMuted || '#9ca3af'};
+  }
+
+  @media (max-width: 640px) {
+    max-width: none;
   }
 `
 
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
-  background: white;
+  background: ${props => props.theme.card || 'white'};
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px ${props => props.theme.shadowColor || 'rgba(0, 0, 0, 0.1)'};
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `
 
 const Th = styled.th`
@@ -72,17 +92,17 @@ const Th = styled.th`
   text-align: left;
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: ${props => props.theme.textSecondary || '#6b7280'};
   text-transform: uppercase;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  background: ${props => props.theme.backgroundTertiary || '#f9fafb'};
+  border-bottom: 1px solid ${props => props.theme.border || '#e5e7eb'};
 `
 
 const Td = styled.td`
   padding: 12px 16px;
   font-size: 14px;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
+  color: ${props => props.theme.textPrimary || '#374151'};
+  border-bottom: 1px solid ${props => props.theme.border || '#e5e7eb'};
 `
 
 const Tr = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
@@ -106,12 +126,12 @@ const Tr = styled.tr<{ $isVisible?: boolean; $delay?: number }>`
 
 const ChatName = styled.div`
   font-weight: 500;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary || '#1f2937'};
 `
 
 const ChatId = styled.div`
   font-size: 12px;
-  color: #9ca3af;
+  color: ${props => props.theme.textMuted || '#9ca3af'};
   margin-top: 2px;
 `
 
@@ -177,10 +197,14 @@ const EmptyState = styled.div`
   flex-direction: column;
   align-items: center;
   padding: 48px;
-  color: #9ca3af;
-  background: white;
+  color: ${props => props.theme.textMuted || '#9ca3af'};
+  background: ${props => props.theme.card || 'white'};
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid ${props => props.theme.border || '#e5e7eb'};
+
+  @media (max-width: 480px) {
+    padding: 32px 16px;
+  }
 `
 
 const EmptyIcon = styled.div`
@@ -215,13 +239,19 @@ const Modal = styled.div`
 `
 
 const ModalContent = styled.div`
-  background: white;
+  background: ${props => props.theme.card || 'white'};
   border-radius: 12px;
   padding: 24px;
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
+
+  @media (max-width: 480px) {
+    padding: 16px;
+    margin: 0 12px;
+    border-radius: 10px;
+  }
 `
 
 const ModalHeader = styled.div`
@@ -234,7 +264,7 @@ const ModalHeader = styled.div`
 const ModalTitle = styled.h2`
   font-size: 18px;
   font-weight: 600;
-  color: #1f2937;
+  color: ${props => props.theme.textPrimary || '#1f2937'};
   margin: 0;
 `
 
@@ -265,18 +295,20 @@ const FormGroup = styled.div`
 const Label = styled.label`
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: ${props => props.theme.textPrimary || '#374151'};
 `
 
 const Input = styled.input`
   padding: 10px 14px;
-  border: 1px solid #d1d5db;
+  border: 1px solid ${props => props.theme.border || '#d1d5db'};
   border-radius: 8px;
   font-size: 14px;
+  color: ${props => props.theme.textPrimary || '#374151'};
+  background: ${props => props.theme.card || 'white'};
 
   &:focus {
     outline: none;
-    border-color: #4A90E2;
+    border-color: ${props => props.theme.accent || '#4A90E2'};
   }
 `
 
@@ -333,7 +365,7 @@ const Checkbox = styled.label`
   gap: 8px;
   cursor: pointer;
   font-size: 14px;
-  color: #374151;
+  color: ${props => props.theme.textPrimary || '#374151'};
 `
 
 const ModalActions = styled.div`
@@ -373,6 +405,46 @@ const Button = styled.button<{ $variant?: 'primary' }>`
       background: #f3f4f6;
     }
   `}
+`
+
+/* Mobile card view - shown only on small screens */
+const MobileChatList = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+`
+
+const MobileChatCard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: ${props => props.theme.card || 'white'};
+  border: 1px solid ${props => props.theme.border || '#e5e7eb'};
+  border-radius: 10px;
+`
+
+const MobileChatInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+const MobileChatMeta = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  align-items: center;
+`
+
+const MobileChatActions = styled.div`
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
 `
 
 interface ChatFormData {
@@ -546,7 +618,7 @@ const ChatList: React.FC = () => {
     <Container>
       <Header>
         <Title>Registered Chats ({chats.length})</Title>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end' }}>
           <SearchBar
             type="text"
             placeholder="Search chats..."
@@ -575,6 +647,7 @@ const ChatList: React.FC = () => {
           </EmptyText>
         </EmptyState>
       ) : (
+        <>
         <Table>
           <thead>
             <tr>
@@ -627,6 +700,38 @@ const ChatList: React.FC = () => {
             ))}
           </tbody>
         </Table>
+
+        <MobileChatList>
+          {filteredChats.map((chat) => (
+            <MobileChatCard key={chat.id}>
+              <MobileChatInfo>
+                <ChatName>{chat.chat_name || 'Unnamed Chat'}</ChatName>
+                <ChatId>{chat.platform}: {chat.chat_id}</ChatId>
+                <MobileChatMeta>
+                  <StatusBadge
+                    $subscribed={chat.subscribed}
+                    onClick={() => toggleSubscription(chat)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {chat.subscribed ? '✓ Subscribed' : 'Unsubscribed'}
+                  </StatusBadge>
+                  {chat.customer_name && (
+                    <span style={{ fontSize: '12px', color: 'inherit' }}>{chat.customer_name}</span>
+                  )}
+                </MobileChatMeta>
+              </MobileChatInfo>
+              <MobileChatActions>
+                <ActionButton onClick={() => openEditModal(chat)}>
+                  Edit
+                </ActionButton>
+                <ActionButton $variant="danger" onClick={() => handleDelete(chat)}>
+                  Delete
+                </ActionButton>
+              </MobileChatActions>
+            </MobileChatCard>
+          ))}
+        </MobileChatList>
+        </>
       )}
 
       {showModal && (

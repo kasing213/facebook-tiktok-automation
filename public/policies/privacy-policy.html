@@ -16,19 +16,56 @@
         h1 { color: #1877f2; }
         h2 { color: #444; margin-top: 30px; }
         .last-updated { color: #666; font-style: italic; }
+        a { color: #1877f2; }
+
+        @media (prefers-color-scheme: dark) {
+            body { background: #171717; color: #f8f8f8; }
+            h1 { color: #3ECF8E; }
+            h2 { color: #e0e0e0; }
+            .last-updated { color: #6b6b6b; }
+            a { color: #3ECF8E; }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 16px; }
+            h1 { font-size: 24px; }
+            h2 { font-size: 20px; margin-top: 20px; }
+            h3 { font-size: 16px; }
+        }
     </style>
 </head>
 <body>
     <h1>Privacy Policy</h1>
-    <p class="last-updated">Last Updated: January 2025</p>
+    <p class="last-updated">Last Updated: February 2026</p>
 
     <h2>1. What Data We Collect</h2>
+
+    <h3>Account Information</h3>
     <p>When you connect your Facebook account, we collect:</p>
     <ul>
         <li>Your public profile (name, profile picture)</li>
         <li>Email address</li>
         <li>List of Facebook Pages you manage</li>
         <li>Page access tokens (to post on your behalf)</li>
+    </ul>
+
+    <h3>Invoice and Business Data</h3>
+    <p>For our invoice management features, we collect:</p>
+    <ul>
+        <li>Customer information (names, contact details)</li>
+        <li>Invoice details (amounts, products, due dates)</li>
+        <li>Payment verification records (verification status, timestamps)</li>
+        <li>Inventory data (product catalogs, stock levels)</li>
+    </ul>
+
+    <h3>Payment Verification Screenshots</h3>
+    <p><strong>Important:</strong> When you upload payment screenshots for verification:</p>
+    <ul>
+        <li><strong>Screenshots are processed temporarily</strong> using OCR (Optical Character Recognition)</li>
+        <li><strong>Images are NOT permanently stored</strong> in our database</li>
+        <li>We only retain verification metadata (confidence score, verification status, timestamp)</li>
+        <li>Screenshots may be cached in memory for up to 24 hours for manual review, then automatically deleted</li>
+        <li>All processing is done securely within our encrypted systems</li>
     </ul>
 
     <h2>2. How We Use Your Data</h2>
@@ -38,23 +75,67 @@
         <li>Post content to your Facebook Pages</li>
         <li>Show you analytics from your Pages</li>
         <li>Manage automated posting schedules</li>
+        <li>Process invoices and manage customer relationships</li>
+        <li>Verify payments through OCR analysis (temporary processing only)</li>
+        <li>Provide inventory management and stock tracking</li>
+        <li>Send notifications via Telegram when linked</li>
     </ul>
 
     <h2>3. Data Security</h2>
     <p>All access tokens are encrypted and stored securely. We use industry-standard security practices to protect your data.</p>
 
+    <h3>Payment Screenshot Security</h3>
+    <p>For payment verification screenshots:</p>
+    <ul>
+        <li>All uploads are transmitted over encrypted HTTPS connections</li>
+        <li>Screenshots are processed in secure, isolated environments</li>
+        <li>No permanent storage of payment images on our servers</li>
+        <li>OCR processing happens in memory and results are immediately returned</li>
+        <li>Any temporary caching is encrypted and automatically purged within 24 hours</li>
+        <li>Access to verification systems is restricted to authorized personnel only</li>
+    </ul>
+
     <h2>4. Data Sharing</h2>
     <p>We do NOT sell or share your data with third parties. Your data is only used within our application.</p>
 
-    <h2>5. Your Rights</h2>
+    <h3>Payment Screenshot Data</h3>
+    <p><strong>We NEVER share payment screenshots or extracted payment information with third parties.</strong> OCR processing is done entirely within our secure infrastructure.</p>
+
+    <h2>5. Data Retention</h2>
+    <h3>General Data</h3>
+    <p>We retain your data as long as your account is active. Upon account deletion, most data is removed within 30 days.</p>
+
+    <h3>Payment Verification Records</h3>
+    <p>For compliance and audit purposes, we retain verification metadata (non-sensitive information only):</p>
+    <ul>
+        <li><strong>Kept:</strong> Verification timestamps, confidence scores, approval status, invoice references</li>
+        <li><strong>NOT kept:</strong> Actual payment screenshots, account numbers, transaction details</li>
+        <li><strong>Retention period:</strong> Up to 7 years for financial audit compliance</li>
+        <li><strong>Access:</strong> Limited to authorized personnel for dispute resolution only</li>
+    </ul>
+
+    <h2>6. Your Rights</h2>
     <p>You can:</p>
     <ul>
         <li>Disconnect your Facebook account anytime</li>
         <li>Request deletion of your data (see <a href="/policies/data-deletion.html">Data Deletion</a>)</li>
-        <li>Access your stored data</li>
+        <li>Access your stored data, including verification records</li>
+        <li>Opt out of automated payment verification (manual review only)</li>
+        <li>Request export of your verification history (metadata only)</li>
     </ul>
 
+    <h2>7. Consent for Payment Verification</h2>
+    <p>By uploading payment screenshots, you explicitly consent to:</p>
+    <ul>
+        <li>Temporary processing of your payment screenshot using OCR technology</li>
+        <li>Extraction of payment information for verification purposes</li>
+        <li>Retention of verification metadata (non-sensitive information)</li>
+        <li>Automatic deletion of the screenshot after processing</li>
+    </ul>
+    <p>You can withdraw this consent anytime by disabling payment verification in your account settings.</p>
+
     <h2>Contact</h2>
-    <p>Email: privacy@yourdomain.com</p>
+    <p>For privacy questions or data requests, contact us at: <strong>privacy@ks-integration.com</strong></p>
+    <p>For payment verification questions: <strong>support@ks-integration.com</strong></p>
 </body>
 </html>

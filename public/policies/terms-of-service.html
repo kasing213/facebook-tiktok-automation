@@ -16,25 +16,50 @@
         h1 { color: #1877f2; }
         h2 { color: #444; margin-top: 30px; }
         .last-updated { color: #666; font-style: italic; }
+        a { color: #1877f2; }
+
+        @media (prefers-color-scheme: dark) {
+            body { background: #171717; color: #f8f8f8; }
+            h1 { color: #3ECF8E; }
+            h2 { color: #e0e0e0; }
+            .last-updated { color: #6b6b6b; }
+            a { color: #3ECF8E; }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 16px; }
+            h1 { font-size: 24px; }
+            h2 { font-size: 20px; margin-top: 20px; }
+        }
     </style>
 </head>
 <body>
     <h1>Terms of Service</h1>
-    <p class="last-updated">Last Updated: January 2025</p>
+    <p class="last-updated">Last Updated: February 2026</p>
 
     <h2>1. Acceptance of Terms</h2>
-    <p>By using this application, you agree to these Terms of Service and our Privacy Policy.</p>
+    <p>By using this application, you agree to these Terms of Service and our Privacy Policy. Your continued use of our payment verification features constitutes acceptance of our data processing practices.</p>
 
     <h2>2. Service Description</h2>
-    <p>Our application helps you manage and automate content posting to your Facebook Pages. We provide tools for scheduling posts and viewing analytics.</p>
+    <p>Our application provides business automation tools including:</p>
+    <ul>
+        <li>Social media content management and posting to Facebook Pages</li>
+        <li>Invoice management and customer relationship tools</li>
+        <li>Payment verification using OCR (Optical Character Recognition) technology</li>
+        <li>Inventory management and stock tracking</li>
+        <li>Marketing campaign management and customer communication</li>
+    </ul>
 
     <h2>3. Your Responsibilities</h2>
     <p>You agree to:</p>
     <ul>
-        <li>Provide accurate information</li>
+        <li>Provide accurate information for your account and business details</li>
         <li>Comply with Facebook's Terms of Service and Community Standards</li>
-        <li>Not use the service for spam or malicious purposes</li>
-        <li>Keep your account credentials secure</li>
+        <li>Not use the service for spam, malicious, or illegal purposes</li>
+        <li>Keep your account credentials secure and not share access</li>
+        <li>Only upload payment screenshots that you have legal authority to share</li>
+        <li>Ensure payment screenshots do not contain information of third parties without consent</li>
+        <li>Use verification features only for legitimate business payment processing</li>
     </ul>
 
     <h2>4. Our Rights</h2>
@@ -45,16 +70,55 @@
         <li>Update these terms with notice</li>
     </ul>
 
-    <h2>5. Data and Privacy</h2>
-    <p>Your use of this service is subject to our <a href="/policies/privacy-policy.html">Privacy Policy</a>.</p>
+    <h2>5. Payment Verification Service</h2>
+    <p><strong>By using our payment verification features, you explicitly consent to:</strong></p>
+    <ul>
+        <li><strong>Temporary Processing:</strong> OCR analysis of payment screenshots you upload</li>
+        <li><strong>Data Extraction:</strong> Automated extraction of payment information for verification purposes</li>
+        <li><strong>Temporary Storage:</strong> Screenshots cached in secure memory for up to 24 hours for manual review</li>
+        <li><strong>Automatic Deletion:</strong> Permanent deletion of screenshot images after processing</li>
+        <li><strong>Metadata Retention:</strong> Storage of non-sensitive verification data (confidence scores, timestamps, approval status) for audit and compliance purposes</li>
+    </ul>
 
-    <h2>6. Limitation of Liability</h2>
-    <p>We provide this service "as is" without warranties. We are not liable for any damages arising from your use of the service.</p>
+    <p><strong>Important Guarantees:</strong></p>
+    <ul>
+        <li>Payment screenshots are <strong>never permanently stored</strong> on our servers</li>
+        <li>All processing occurs in secure, encrypted environments</li>
+        <li>Only verification metadata is retained for audit compliance</li>
+        <li>You can opt out of automated verification at any time in settings</li>
+        <li>Manual review is available for all payment verifications</li>
+    </ul>
 
-    <h2>7. Termination</h2>
-    <p>You may terminate your account at any time by disconnecting your Facebook account and requesting data deletion.</p>
+    <h2>6. Data and Privacy</h2>
+    <p>Your use of this service is subject to our <a href="/policies/privacy-policy.html">Privacy Policy</a>. Payment verification processing is governed by additional privacy protections detailed in Section 5 above and in our Privacy Policy.</p>
+
+    <h2>7. Limitation of Liability</h2>
+    <p>We provide this service "as is" without warranties. We are not liable for any damages arising from your use of the service. Regarding payment verification specifically:</p>
+    <ul>
+        <li>OCR technology may not be 100% accurate; manual verification is recommended for important transactions</li>
+        <li>You remain responsible for validating all payment information</li>
+        <li>We are not liable for incorrect automatic approvals or rejections</li>
+        <li>Payment verification is a convenience tool and does not replace your business payment validation processes</li>
+    </ul>
+
+    <h2>8. Termination</h2>
+    <p>You may terminate your account at any time by disconnecting your Facebook account and requesting data deletion. Upon termination:</p>
+    <ul>
+        <li>All verification settings and preferences will be deleted</li>
+        <li>Any temporarily cached screenshots will be immediately purged</li>
+        <li>Verification audit logs may be retained for up to 7 years for financial compliance</li>
+        <li>You can request complete data deletion per our Privacy Policy</li>
+    </ul>
+
+    <h2>9. Changes to Terms</h2>
+    <p>We may update these Terms of Service periodically. Significant changes affecting payment verification will be communicated via email and/or dashboard notification at least 30 days before taking effect.</p>
 
     <h2>Contact</h2>
-    <p>Email: support@yourdomain.com</p>
+    <p>For questions about these Terms or payment verification:</p>
+    <ul>
+        <li>General Support: <strong>support@ks-integration.com</strong></li>
+        <li>Privacy Questions: <strong>privacy@ks-integration.com</strong></li>
+        <li>Legal Concerns: <strong>legal@ks-integration.com</strong></li>
+    </ul>
 </body>
 </html>
