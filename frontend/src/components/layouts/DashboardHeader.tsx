@@ -39,8 +39,8 @@ const HamburgerButton = styled.button`
   cursor: pointer;
   padding: 0.5rem;
   color: ${props => props.theme.textSecondary};
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
 
   &:hover {
     color: ${props => props.theme.accent};
@@ -79,9 +79,17 @@ const PageTitle = styled.h1`
   color: ${props => props.theme.textPrimary};
   margin: 0;
   transition: color 0.3s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (max-width: 768px) {
+    max-width: 150px;
+  }
 
   @media (max-width: 480px) {
     font-size: 1rem;
+    max-width: 100px;
   }
 `
 
@@ -90,8 +98,12 @@ const RightSection = styled.div`
   align-items: center;
   gap: 1.5rem;
 
+  @media (max-width: 768px) {
+    gap: 0.75rem;
+  }
+
   @media (max-width: 480px) {
-    gap: 1rem;
+    gap: 0.5rem;
   }
 `
 
@@ -111,9 +123,8 @@ const WorkspaceLabel = styled.div`
   font-weight: 500;
   color: ${props => props.theme.textPrimary};
 
-  @media (max-width: 480px) {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
+  @media (max-width: 640px) {
+    display: none;
   }
 `
 
@@ -206,6 +217,11 @@ const ThemeToggle = styled.button`
   svg {
     width: 18px;
     height: 18px;
+  }
+
+  @media (max-width: 768px) {
+    width: 44px;
+    height: 44px;
   }
 `
 

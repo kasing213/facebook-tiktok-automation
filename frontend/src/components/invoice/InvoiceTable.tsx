@@ -25,6 +25,10 @@ const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   min-width: 800px;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `
 
 const TableHeader = styled.thead`
@@ -261,6 +265,66 @@ const MenuWrapper = styled.div`
   position: relative;
 `
 
+/* Mobile card view - shown only on small screens */
+const MobileCardList = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+`
+
+const MobileCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
+  background: ${props => props.theme.card};
+  border: 1px solid ${props => props.theme.border};
+  border-radius: 10px;
+  padding: 1rem;
+  opacity: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 1 : 0) : 1};
+  transform: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 'translateY(0)' : 'translateY(8px)') : 'translateY(0)'};
+  transition: opacity 0.3s ${easings.easeOutCubic},
+              transform 0.3s ${easings.easeOutCubic};
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  ${reduceMotion}
+`
+
+const MobileCardHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+`
+
+const MobileCardBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+`
+
+const MobileCardRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`
+
+const MobileCardLabel = styled.span`
+  font-size: 0.75rem;
+  color: ${props => props.theme.textMuted};
+`
+
+const MobileCardActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid ${props => props.theme.border};
+  flex-wrap: wrap;
+  align-items: center;
+`
+
 const EmptyState = styled.div`
   text-align: center;
   padding: 3rem;
@@ -461,6 +525,63 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
           ))}
         </TableBody>
       </Table>
+
+      {/* Mobile card view */}
+      <MobileCardList>
+        {invoices.map((invoice, index) => (
+          <MobileCard key={invoice.id} $isVisible={rowsVisible[index]} $delay={index * 50}>
+            <MobileCardHeader>
+              <InvoiceNumber onClick={() => onView(invoice)}>
+                {invoice.invoice_number}
+              </InvoiceNumber>
+              <InvoiceStatusBadge status={invoice.status} />
+            </MobileCardHeader>
+            <MobileCardBody>
+              <CustomerName>{invoice.customer?.name || 'Unknown'}</CustomerName>
+              <MobileCardRow>
+                <MobileCardLabel>Due</MobileCardLabel>
+                <DateCell>{invoice.due_date ? formatDate(invoice.due_date) : '-'}</DateCell>
+              </MobileCardRow>
+              <MobileCardRow>
+                <MobileCardLabel>Amount</MobileCardLabel>
+                <Amount style={{ textAlign: 'left' }}>{formatCurrency(invoice.total)}</Amount>
+              </MobileCardRow>
+            </MobileCardBody>
+            <MobileCardActions>
+              {onSendToCustomer && showSendButton(invoice) && (
+                <SendButton
+                  onClick={() => onSendToCustomer(invoice)}
+                  disabled={sendingInvoiceId === invoice.id}
+                >
+                  {sendingInvoiceId === invoice.id ? 'Sending...' : 'Send'}
+                </SendButton>
+              )}
+              {onDuplicate && (
+                <IconButton title="Duplicate" onClick={() => onDuplicate(invoice)}>
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </IconButton>
+              )}
+              <IconButton title="Edit" onClick={() => onEdit(invoice)}>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </IconButton>
+              <IconButton title="Download PDF" onClick={() => onDownloadPDF(invoice)}>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </IconButton>
+              <IconButton title="Delete" onClick={() => onDelete(invoice)}>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </IconButton>
+            </MobileCardActions>
+          </MobileCard>
+        ))}
+      </MobileCardList>
     </TableWrapper>
   )
 }

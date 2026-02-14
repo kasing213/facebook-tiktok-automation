@@ -14,13 +14,8 @@ import { useStaggeredAnimation } from '../../hooks/useScrollAnimation'
 
 // Styled Components
 const Container = styled.div`
-  padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
-
-  @media (max-width: 768px) {
-    padding: 1rem;
-  }
 `
 
 const Header = styled.div`
@@ -302,7 +297,7 @@ const TableHeader = styled.div`
 
 const SearchInput = styled.input`
   flex: 1;
-  min-width: 200px;
+  min-width: 150px;
   max-width: 400px;
   padding: 0.5rem 1rem 0.5rem 2.5rem;
   border: 1px solid ${props => props.theme.border};
@@ -362,6 +357,10 @@ const FilterButton = styled.button<{ isActive: boolean }>`
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `
 
 const Th = styled.th`
@@ -468,6 +467,48 @@ const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
     opacity: 0.5;
     cursor: not-allowed;
   }
+`
+
+/* Mobile card view - shown only on small screens */
+const MobileClientList = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+  }
+`
+
+const MobileClientCard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid ${props => props.theme.borderLight};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`
+
+const MobileClientInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+const MobileClientMeta = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+`
+
+const MobileClientActions = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
 `
 
 const EmptyState = styled.div`
@@ -998,6 +1039,7 @@ const ClientsPage: React.FC = () => {
             <EmptyText>{t('clients.noClients')}</EmptyText>
           </EmptyState>
         ) : (
+          <>
           <Table>
             <thead>
               <tr>
@@ -1070,6 +1112,52 @@ const ClientsPage: React.FC = () => {
               })}
             </tbody>
           </Table>
+
+          {/* Mobile card view */}
+          <MobileClientList>
+            {filteredClients.map((client) => {
+              const pendingAmount = client.pending_invoices?.reduce((sum, inv) => sum + (inv.amount || 0), 0) || 0
+              return (
+                <MobileClientCard key={client.id}>
+                  <ClientAvatar>{client.name.charAt(0).toUpperCase()}</ClientAvatar>
+                  <MobileClientInfo>
+                    <ClientName>{client.name}</ClientName>
+                    <MobileClientMeta>
+                      <TelegramStatus>
+                        <StatusDot status={client.telegram_linked ? 'linked' : 'not_linked'} />
+                        {client.telegram_linked ? (
+                          <TelegramUsername>@{client.telegram_username}</TelegramUsername>
+                        ) : (
+                          <NotLinkedText>{t('clients.notLinked')}</NotLinkedText>
+                        )}
+                      </TelegramStatus>
+                      {pendingAmount > 0 && (
+                        <Amount type="pending">{formatKHR(pendingAmount)}</Amount>
+                      )}
+                    </MobileClientMeta>
+                  </MobileClientInfo>
+                  <MobileClientActions>
+                    {!client.telegram_linked && (
+                      <ActionButton
+                        variant="primary"
+                        onClick={() => handleGenerateQR(client)}
+                        disabled={!isTelegramConnected}
+                      >
+                        QR
+                      </ActionButton>
+                    )}
+                    <ActionButton
+                      onClick={() => navigate(`/dashboard/invoices/new?client_id=${client.id}`)}
+                      disabled={!isTelegramConnected}
+                    >
+                      Invoice
+                    </ActionButton>
+                  </MobileClientActions>
+                </MobileClientCard>
+              )
+            })}
+          </MobileClientList>
+          </>
         )}
       </TableContainer>
 

@@ -35,12 +35,30 @@ const Title = styled.h1`
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
 `
 
 const HeaderActions = styled.div`
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 480px) {
+    gap: 0.5rem;
+  }
 `
 
 
@@ -112,6 +130,13 @@ const StatValue = styled.div<{ $color?: string }>`
   font-size: 1.5rem;
   font-weight: 700;
   color: ${props => props.$color || props.theme.textPrimary};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
 `
 
 const FilterToolbar = styled.div`
@@ -124,12 +149,22 @@ const FilterToolbar = styled.div`
   gap: 1rem;
   flex-wrap: wrap;
   align-items: center;
+
+  @media (max-width: 480px) {
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+  }
 `
 
 const SearchBox = styled.div`
   flex: 1;
   min-width: 200px;
   position: relative;
+
+  @media (max-width: 480px) {
+    min-width: 0;
+    width: 100%;
+  }
 `
 
 const SearchIcon = styled.span`
@@ -184,6 +219,10 @@ const FilterSelect = styled.select`
     outline: none;
     border-color: ${props => props.theme.accent};
   }
+
+  @media (max-width: 480px) {
+    width: 100%;
+  }
 `
 
 const TableSection = styled.section`
@@ -191,6 +230,15 @@ const TableSection = styled.section`
   border: 1px solid ${props => props.theme.border};
   border-radius: 12px;
   padding: 1.5rem;
+
+  @media (max-width: 768px) {
+    padding: 0.75rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.5rem;
+    border-radius: 8px;
+  }
 `
 
 const ErrorMessage = styled.div`

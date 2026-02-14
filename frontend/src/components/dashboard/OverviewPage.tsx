@@ -98,6 +98,13 @@ const StatValue = styled.p`
   font-weight: 600;
   color: ${props => props.theme.textPrimary};
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
 `
 
 const StatSubtext = styled.p`

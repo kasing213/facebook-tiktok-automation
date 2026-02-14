@@ -45,11 +45,11 @@ const MainContentArea = styled.main`
   overflow-y: auto;
 
   @media (max-width: 768px) {
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 
   @media (max-width: 480px) {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 `
 

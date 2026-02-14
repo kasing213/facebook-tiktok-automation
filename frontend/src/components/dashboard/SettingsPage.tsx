@@ -17,6 +17,16 @@ const Title = styled.h1`
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin-bottom: 2rem;
+
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
 `
 
 const TabNavigation = styled.div`
@@ -43,6 +53,11 @@ const Tab = styled.button<{ $active: boolean }>`
   &:hover {
     color: #10b981;
   }
+
+  @media (max-width: 480px) {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+  }
 `
 
 const TabContent = styled.div`
@@ -53,6 +68,11 @@ const TabContent = styled.div`
 
   @media (max-width: 768px) {
     padding: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1rem;
+    border-radius: 8px;
   }
 `
 
@@ -215,6 +235,11 @@ const ButtonGroup = styled.div`
   display: flex;
   gap: 1rem;
   margin-top: 2rem;
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
 `
 
 const InfoBox = styled.div`
@@ -247,6 +272,12 @@ const MemberItem = styled.div`
 
   &:last-child {
     margin-bottom: 0;
+  }
+
+  @media (max-width: 480px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 `
 
@@ -337,7 +368,7 @@ const LoadingSpinner = styled.div`
 
 const SettingsPage: React.FC = () => {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState<'account' | 'workspace' | 'notifications'>('account')
+  const [activeTab, setActiveTab] = useState<'account' | 'workspace' | 'verification' | 'notifications'>('account')
 
   // User state
   const [user, setUser] = useState<User | null>(null)
@@ -366,6 +397,14 @@ const SettingsPage: React.FC = () => {
   const [weeklyReports, setWeeklyReports] = useState(false)
   const [notificationSaved, setNotificationSaved] = useState(false)
 
+  // Verification settings
+  const [autoApprovalEnabled, setAutoApprovalEnabled] = useState(true)
+  const [confidenceThreshold, setConfidenceThreshold] = useState(80)
+  const [manualReviewRequired, setManualReviewRequired] = useState(false)
+  const [notifyOnVerification, setNotifyOnVerification] = useState(true)
+  const [verificationSettingsSaved, setVerificationSettingsSaved] = useState(false)
+  const [savingVerificationSettings, setSavingVerificationSettings] = useState(false)
+
   // Load user data on mount
   useEffect(() => {
     const fetchUser = async () => {
@@ -390,6 +429,22 @@ const SettingsPage: React.FC = () => {
         setEmailNotifications(settings.emailNotifications ?? true)
         setCampaignNotifications(settings.campaignNotifications ?? true)
         setWeeklyReports(settings.weeklyReports ?? false)
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, [])
+
+  // Load verification settings from localStorage
+  useEffect(() => {
+    const savedVerificationSettings = localStorage.getItem('verification_settings')
+    if (savedVerificationSettings) {
+      try {
+        const settings = JSON.parse(savedVerificationSettings)
+        setAutoApprovalEnabled(settings.autoApprovalEnabled ?? true)
+        setConfidenceThreshold(settings.confidenceThreshold ?? 80)
+        setManualReviewRequired(settings.manualReviewRequired ?? false)
+        setNotifyOnVerification(settings.notifyOnVerification ?? true)
       } catch {
         // Ignore parse errors
       }
@@ -521,6 +576,31 @@ const SettingsPage: React.FC = () => {
     localStorage.setItem('notification_settings', JSON.stringify(settings))
     setNotificationSaved(true)
     setTimeout(() => setNotificationSaved(false), 3000)
+  }
+
+  const handleSaveVerificationSettings = async () => {
+    setSavingVerificationSettings(true)
+    try {
+      const settings = {
+        autoApprovalEnabled,
+        confidenceThreshold,
+        manualReviewRequired,
+        notifyOnVerification
+      }
+
+      // Save to localStorage for immediate UI feedback
+      localStorage.setItem('verification_settings', JSON.stringify(settings))
+
+      // TODO: In a real implementation, also send to backend API
+      // await verificationApi.updateSettings(settings)
+
+      setVerificationSettingsSaved(true)
+      setTimeout(() => setVerificationSettingsSaved(false), 3000)
+    } catch (error) {
+      console.error('Failed to save verification settings:', error)
+    } finally {
+      setSavingVerificationSettings(false)
+    }
   }
 
   const renderTabContent = () => {
@@ -717,6 +797,110 @@ const SettingsPage: React.FC = () => {
           </TabContent>
         )
 
+      case 'verification':
+        return (
+          <TabContent>
+            <FormSection>
+              <SectionTitle>Automatic Verification Settings</SectionTitle>
+              <InfoBox>
+                <InfoText>
+                  Configure how payment screenshots are automatically verified using OCR technology.
+                  Higher confidence thresholds are more secure but may require more manual reviews.
+                </InfoText>
+              </InfoBox>
+
+              {verificationSettingsSaved && (
+                <SuccessMessage>Verification settings saved successfully!</SuccessMessage>
+              )}
+
+              <ToggleWrapper>
+                <ToggleLabel>
+                  <ToggleLabelText>Enable Auto-Approval</ToggleLabelText>
+                  <ToggleLabelDescription>
+                    Automatically approve payments when OCR confidence is above the threshold
+                  </ToggleLabelDescription>
+                </ToggleLabel>
+                <Toggle
+                  $active={autoApprovalEnabled}
+                  onClick={() => setAutoApprovalEnabled(!autoApprovalEnabled)}
+                />
+              </ToggleWrapper>
+
+              <FormRow>
+                <Label htmlFor="confidenceThreshold">
+                  OCR Confidence Threshold ({confidenceThreshold}%)
+                </Label>
+                <Input
+                  id="confidenceThreshold"
+                  type="range"
+                  min="50"
+                  max="95"
+                  step="5"
+                  value={confidenceThreshold}
+                  onChange={(e) => setConfidenceThreshold(parseInt(e.target.value))}
+                  disabled={!autoApprovalEnabled}
+                  style={{
+                    background: autoApprovalEnabled ? '#10b981' : '#d1d5db'
+                  }}
+                />
+                <div style={{fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem'}}>
+                  Recommended: 80%. Higher values require more manual reviews but are more secure.
+                </div>
+              </FormRow>
+
+              <ToggleWrapper>
+                <ToggleLabel>
+                  <ToggleLabelText>Always Require Manual Review</ToggleLabelText>
+                  <ToggleLabelDescription>
+                    Send all payments for manual review regardless of confidence score
+                  </ToggleLabelDescription>
+                </ToggleLabel>
+                <Toggle
+                  $active={manualReviewRequired}
+                  onClick={() => setManualReviewRequired(!manualReviewRequired)}
+                />
+              </ToggleWrapper>
+
+              <ToggleWrapper>
+                <ToggleLabel>
+                  <ToggleLabelText>Telegram Notifications</ToggleLabelText>
+                  <ToggleLabelDescription>
+                    Receive Telegram notifications for verification results
+                  </ToggleLabelDescription>
+                </ToggleLabel>
+                <Toggle
+                  $active={notifyOnVerification}
+                  onClick={() => setNotifyOnVerification(!notifyOnVerification)}
+                />
+              </ToggleWrapper>
+            </FormSection>
+
+            <FormSection>
+              <SectionTitle>Privacy & Data Handling</SectionTitle>
+              <InfoBox>
+                <InfoText>
+                  <strong>Important:</strong> Payment screenshots are processed temporarily for verification only.
+                  Images are NOT permanently stored. Only verification metadata (confidence scores, timestamps)
+                  are retained for audit purposes. See our{' '}
+                  <a href="/policies/privacy-policy.html" target="_blank" style={{color: '#10b981', textDecoration: 'underline'}}>
+                    Privacy Policy
+                  </a>{' '}
+                  for details.
+                </InfoText>
+              </InfoBox>
+            </FormSection>
+
+            <ButtonGroup>
+              <PrimaryButton
+                onClick={handleSaveVerificationSettings}
+                disabled={savingVerificationSettings}
+              >
+                {savingVerificationSettings ? 'Saving...' : 'Save Settings'}
+              </PrimaryButton>
+            </ButtonGroup>
+          </TabContent>
+        )
+
       case 'notifications':
         return (
           <TabContent>
@@ -791,6 +975,12 @@ const SettingsPage: React.FC = () => {
           onClick={() => setActiveTab('workspace')}
         >
           {t('settings.workspace')}
+        </Tab>
+        <Tab
+          $active={activeTab === 'verification'}
+          onClick={() => setActiveTab('verification')}
+        >
+          Payment Verification
         </Tab>
         <Tab
           $active={activeTab === 'notifications'}

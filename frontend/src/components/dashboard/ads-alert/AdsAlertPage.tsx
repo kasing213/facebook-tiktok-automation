@@ -11,7 +11,6 @@ import { easings, reduceMotion } from '../../../styles/animations'
 import { useStaggeredAnimation } from '../../../hooks/useScrollAnimation'
 
 const Container = styled.div`
-  padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
 `
@@ -26,6 +25,12 @@ const Header = styled.div<{ $isVisible?: boolean }>`
   transition: opacity 0.4s ${easings.easeOutCubic},
               transform 0.4s ${easings.easeOutCubic};
   ${reduceMotion}
+
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 `
 
 const TitleSection = styled.div``
@@ -105,6 +110,10 @@ const StatValue = styled.div`
   font-weight: 700;
   color: ${props => props.theme.textPrimary};
   margin-bottom: 4px;
+
+  @media (max-width: 480px) {
+    font-size: 22px;
+  }
 `
 
 const StatLabel = styled.div`
@@ -138,6 +147,11 @@ const Tabs = styled.div<{ $isVisible?: boolean }>`
               background-color 0.3s ease;
   transition-delay: 200ms;
   ${reduceMotion}
+
+  @media (max-width: 480px) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 `
 
 const Tab = styled.button<{ $active: boolean }>`

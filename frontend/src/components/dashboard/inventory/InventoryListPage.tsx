@@ -32,11 +32,24 @@ const Title = styled.h1`
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
 `
 
 const HeaderActions = styled.div`
   display: flex;
   gap: 0.75rem;
+  flex-wrap: wrap;
+
+  @media (max-width: 480px) {
+    width: 100%;
+  }
 `
 
 const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
@@ -134,6 +147,13 @@ const StatValue = styled.div<{ $color?: string }>`
   font-size: 1.5rem;
   font-weight: 700;
   color: ${props => props.$color || props.theme.textPrimary};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  @media (max-width: 480px) {
+    font-size: 1.25rem;
+  }
 `
 
 const FilterToolbar = styled.div`
@@ -146,12 +166,21 @@ const FilterToolbar = styled.div`
   gap: 1rem;
   flex-wrap: wrap;
   align-items: center;
+
+  @media (max-width: 480px) {
+    padding: 0.75rem 1rem;
+  }
 `
 
 const SearchBox = styled.div`
   flex: 1;
   min-width: 200px;
   position: relative;
+
+  @media (max-width: 480px) {
+    min-width: 0;
+    width: 100%;
+  }
 `
 
 const SearchIcon = styled.span`
@@ -214,6 +243,10 @@ const TableSection = styled.section`
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `
 
 const TableHeader = styled.thead`
@@ -399,6 +432,53 @@ const SuccessMessage = styled.div`
   ${reduceMotion}
 `
 
+/* Mobile card view - shown only on small screens */
+const MobileProductList = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+  }
+`
+
+const MobileProductCard = styled.div<{ $isVisible?: boolean; $delay?: number }>`
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid ${props => props.theme.border};
+  opacity: ${props => props.$isVisible !== undefined ? (props.$isVisible ? 1 : 0) : 1};
+  transition: opacity 0.3s ${easings.easeOutCubic};
+  transition-delay: ${props => props.$delay || 0}ms;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  ${reduceMotion}
+`
+
+const MobileProductInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+const MobileProductMeta = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: ${props => props.theme.textSecondary};
+`
+
+const MobileProductActions = styled.div`
+  display: flex;
+  gap: 0.25rem;
+  align-items: flex-start;
+`
+
 const EmptyState = styled.div`
   text-align: center;
   padding: 3rem;
@@ -452,6 +532,15 @@ const ModalContent = styled.div`
     margin: 0 0 1.5rem 0;
     color: ${props => props.theme.textPrimary};
     font-size: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1.25rem;
+    width: 95%;
+
+    h2 {
+      font-size: 1.25rem;
+    }
   }
 
   ${reduceMotion}
@@ -552,6 +641,10 @@ const FormRow = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 const InventoryListPage: React.FC = () => {
@@ -961,6 +1054,7 @@ const InventoryListPage: React.FC = () => {
             </LoadingButton>
           </EmptyState>
         ) : (
+          <>
           <Table>
             <TableHeader>
               <tr>
@@ -1065,6 +1159,73 @@ const InventoryListPage: React.FC = () => {
               })}
             </TableBody>
           </Table>
+
+          {/* Mobile card view */}
+          {!loading && products.length > 0 && (
+            <MobileProductList>
+              {products.map((product, index) => {
+                const isLowStock = product.track_stock && product.current_stock <= product.low_stock_threshold
+                return (
+                  <MobileProductCard key={product.id} $isVisible={rowsVisible[index]} $delay={index * 40}>
+                    {product.image_url && imageBlobs[product.id] ? (
+                      <ProductThumbnail
+                        src={imageBlobs[product.id]}
+                        alt={product.name}
+                        onClick={() => setZoomImageUrl(imageBlobs[product.id])}
+                      />
+                    ) : (
+                      <NoImagePlaceholder>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                      </NoImagePlaceholder>
+                    )}
+                    <MobileProductInfo>
+                      <ProductName>{product.name}</ProductName>
+                      {product.sku && <ProductSku>SKU: {product.sku}</ProductSku>}
+                      <MobileProductMeta>
+                        <span>{formatCurrency(product.unit_price, product.currency)}</span>
+                        {product.track_stock ? (
+                          <StockBadge $isLow={isLowStock}>
+                            {product.current_stock} {t('inventory.units')}
+                          </StockBadge>
+                        ) : (
+                          <MutedText>{t('inventory.notTracked')}</MutedText>
+                        )}
+                        <StatusText $active={product.is_active}>
+                          {product.is_active ? t('inventory.active') : t('inventory.inactive')}
+                        </StatusText>
+                      </MobileProductMeta>
+                    </MobileProductInfo>
+                    <MobileProductActions>
+                      <IconButton title={t('inventory.edit')} onClick={() => openEditModal(product)}>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </IconButton>
+                      <IconButton title={t('inventory.adjustStock')} onClick={() => openStockModal(product)}>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                      </IconButton>
+                      <IconButton
+                        title={t('common.delete')}
+                        onClick={() => {
+                          setSelectedProduct(product)
+                          setShowDeleteModal(true)
+                        }}
+                      >
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </IconButton>
+                    </MobileProductActions>
+                  </MobileProductCard>
+                )
+              })}
+            </MobileProductList>
+          )}
+          </>
         )}
       </TableSection>
 
