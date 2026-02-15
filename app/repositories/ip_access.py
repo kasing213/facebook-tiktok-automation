@@ -28,7 +28,7 @@ class IPAccessRepository:
                 )
             )
         )
-        result = self.session.execute(stmt).scalar_one_or_none()
+        result = self.session.execute(stmt).scalars().first()
         return result is not None
 
     def is_ip_blacklisted(self, ip: str) -> bool:
@@ -44,7 +44,7 @@ class IPAccessRepository:
                 )
             )
         )
-        result = self.session.execute(stmt).scalar_one_or_none()
+        result = self.session.execute(stmt).scalars().first()
         return result is not None
 
     def is_ip_auto_banned(self, ip: str) -> bool:
@@ -60,7 +60,7 @@ class IPAccessRepository:
                 )
             )
         )
-        result = self.session.execute(stmt).scalar_one_or_none()
+        result = self.session.execute(stmt).scalars().first()
         return result is not None
 
     def add_ip_rule(
@@ -95,7 +95,7 @@ class IPAccessRepository:
                 IPAccessRule.is_active == True
             )
         )
-        rule = self.session.execute(stmt).scalar_one_or_none()
+        rule = self.session.execute(stmt).scalars().first()
         if rule:
             rule.is_active = False
             rule.updated_at = datetime.utcnow()
@@ -129,7 +129,7 @@ class IPAccessRepository:
                 RateLimitViolation.endpoint == endpoint
             )
         )
-        violation = self.session.execute(stmt).scalar_one_or_none()
+        violation = self.session.execute(stmt).scalars().first()
 
         if violation:
             # Update existing violation
@@ -180,6 +180,18 @@ class IPAccessRepository:
         """
         expires_at = datetime.utcnow() + timedelta(seconds=duration_seconds)
 
+        # Deactivate existing auto-bans for this IP to prevent duplicates
+        existing_bans_stmt = select(IPAccessRule).where(
+            and_(
+                IPAccessRule.ip_address == ip,
+                IPAccessRule.rule_type == IPRuleType.auto_banned,
+                IPAccessRule.is_active == True
+            )
+        )
+        for existing_rule in self.session.execute(existing_bans_stmt).scalars().all():
+            existing_rule.is_active = False
+            existing_rule.updated_at = datetime.utcnow()
+
         # Mark all violations for this IP as auto-banned
         stmt = select(RateLimitViolation).where(RateLimitViolation.ip_address == ip)
         violations = self.session.execute(stmt).scalars().all()
@@ -229,4 +241,4 @@ class IPAccessRepository:
         if rule_type:
             stmt = stmt.where(IPAccessRule.rule_type == rule_type)
 
-        return self.session.execute(stmt).scalar_one_or_none()
+        return self.session.execute(stmt).scalars().first()
