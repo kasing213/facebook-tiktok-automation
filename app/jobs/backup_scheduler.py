@@ -118,6 +118,7 @@ async def run_backup_scheduler(backup_hour_utc: int = 2, check_interval: int = 3
     log.info(f"Backup scheduler started (backup hour: {backup_hour_utc:02d}:00 UTC, check interval: {check_interval}s)")
 
     last_backup_date: datetime | None = None
+    last_screenshot_cleanup_date: datetime | None = None
     consecutive_failures = 0
     max_consecutive_failures = 5
 
@@ -154,8 +155,33 @@ async def run_backup_scheduler(backup_hour_utc: int = 2, check_interval: int = 3
                         last_backup_date = datetime.now(timezone.utc)
                         consecutive_failures = 0
 
-            # Also run weekly backup on Sundays at the same hour
+            # Run screenshot cleanup daily at backup hour + 1
             now = datetime.now(timezone.utc)
+            cleanup_hour = (backup_hour_utc + 1) % 24
+            if (now.hour == cleanup_hour and
+                (last_screenshot_cleanup_date is None or
+                 last_screenshot_cleanup_date.date() != now.date())):
+                log.info("Starting scheduled screenshot cleanup...")
+
+                try:
+                    from app.jobs.screenshot_cleanup import run_daily_cleanup
+                    cleanup_results = await run_daily_cleanup()
+
+                    if cleanup_results["success"]:
+                        last_screenshot_cleanup_date = now
+                        log.info(
+                            f"Screenshot cleanup completed: {cleanup_results['deleted_count']} "
+                            f"screenshots deleted in {cleanup_results.get('duration_seconds', 0):.1f}s"
+                        )
+                    else:
+                        log.error(f"Screenshot cleanup failed: {cleanup_results.get('error', 'Unknown error')}")
+
+                except ImportError as e:
+                    log.warning(f"Screenshot cleanup not available: {e}")
+                except Exception as e:
+                    log.error(f"Screenshot cleanup error: {e}", exc_info=True)
+
+            # Also run weekly backup on Sundays at the same hour
             if (now.weekday() == 6 and  # Sunday
                 now.hour == backup_hour_utc and
                 (last_backup_date is None or

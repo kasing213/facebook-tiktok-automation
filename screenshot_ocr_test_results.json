@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-02-15T07:27:36.227901+00:00",
+  "tests": {
+    "screenshot_service": {
+      "status": "skipped",
+      "reason": "GridFS dependencies not available",
+      "error": "No module named 'src'"
+    },
+    "ocr_audit": {
+      "status": "skipped",
+      "reason": "Screenshot service failed"
+    },
+    "cleanup": {
+      "status": "success",
+      "preview": {
+        "error": "(psycopg.OperationalError) connection failed: connection to server at \"127.0.0.1\", port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n(Background on this error at: https://sqlalche.me/e/20/e3q8)",
+        "screenshots_to_delete": 0,
+        "storage_to_free_mb": 0.0
+      }
+    },
+    "api_endpoints": {
+      "status": "error",
+      "error": "No module named 'src'"
+    },
+    "database_schema": {
+      "status": "error",
+      "error": "(psycopg.OperationalError) connection failed: connection to server at \"127.0.0.1\", port 5432 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n(Background on this error at: https://sqlalche.me/e/20/e3q8)"
+    }
+  }
+}

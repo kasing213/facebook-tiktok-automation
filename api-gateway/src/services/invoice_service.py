@@ -292,12 +292,32 @@ class InvoiceService:
         verification_status: str,
         tenant_id: str,
         verified_by: str = "telegram-ocr-bot",
-        verification_note: Optional[str] = None
+        verification_note: Optional[str] = None,
+        screenshot_id: Optional[str] = None
     ) -> bool:
-        """Update invoice verification status with mandatory tenant isolation."""
+        """
+        Update invoice verification status with mandatory tenant isolation.
+
+        Enhanced to track screenshot linkage for audit trail and evidence linking.
+
+        Args:
+            invoice_id: Invoice ID to update
+            verification_status: Status (verified, rejected, pending)
+            tenant_id: Tenant ID for security isolation
+            verified_by: Who performed the verification
+            verification_note: Additional notes
+            screenshot_id: Associated screenshot ID for audit trail (NEW)
+        """
         try:
             with get_db_session() as db:
                 verified_at = datetime.utcnow() if verification_status == "verified" else None
+
+                # Build metadata to include screenshot reference
+                metadata_update = {}
+                if screenshot_id:
+                    metadata_update["screenshot_id"] = screenshot_id
+                    metadata_update["has_screenshot_evidence"] = True
+                    metadata_update["verification_with_screenshot"] = True
 
                 # SECURITY: Always include tenant_id in WHERE clause to prevent cross-tenant updates
                 result = db.execute(
@@ -325,6 +345,181 @@ class InvoiceService:
         except Exception as e:
             logger.error(f"Error updating invoice verification: {e}")
             return False
+
+    async def get_invoice_with_screenshots(
+        self,
+        invoice_id: str,
+        tenant_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get invoice details with associated screenshot information.
+
+        Returns invoice data enhanced with screenshot metadata for
+        comprehensive payment verification tracking.
+
+        Args:
+            invoice_id: Invoice ID to retrieve
+            tenant_id: Tenant ID for security isolation
+
+        Returns:
+            Dict with invoice data and screenshots list
+        """
+        try:
+            with get_db_session() as db:
+                # Get invoice details
+                invoice_result = db.execute(
+                    text("""
+                        SELECT
+                            i.id, i.tenant_id, i.customer_id, i.merchant_id,
+                            i.invoice_number, i.amount, i.currency, i.status,
+                            i.verification_status, i.verified_at, i.verified_by,
+                            i.verification_note, i.meta, i.created_at, i.updated_at,
+                            c.name as customer_name, c.telegram_chat_id
+                        FROM invoice.invoice i
+                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                        WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
+                    """),
+                    {"invoice_id": invoice_id, "tenant_id": tenant_id}
+                ).fetchone()
+
+                if not invoice_result:
+                    return None
+
+                # Get associated screenshots
+                screenshots_result = db.execute(
+                    text("""
+                        SELECT
+                            s.id, s.file_path as gridfs_file_id, s.file_url,
+                            s.verified, s.verified_at, s.verified_by,
+                            s.meta, s.created_at
+                        FROM scriptclient.screenshot s
+                        WHERE s.tenant_id = :tenant_id
+                        AND s.meta->>'invoice_id' = :invoice_id
+                        ORDER BY s.created_at DESC
+                    """),
+                    {"tenant_id": tenant_id, "invoice_id": invoice_id}
+                ).fetchall()
+
+                # Build response
+                invoice_data = {
+                    "id": str(invoice_result.id),
+                    "tenant_id": str(invoice_result.tenant_id),
+                    "customer_id": str(invoice_result.customer_id),
+                    "merchant_id": str(invoice_result.merchant_id),
+                    "invoice_number": invoice_result.invoice_number,
+                    "amount": float(invoice_result.amount) if invoice_result.amount else 0.0,
+                    "currency": invoice_result.currency,
+                    "status": invoice_result.status,
+                    "verification_status": invoice_result.verification_status,
+                    "verified_at": invoice_result.verified_at.isoformat() if invoice_result.verified_at else None,
+                    "verified_by": invoice_result.verified_by,
+                    "verification_note": invoice_result.verification_note,
+                    "customer_name": invoice_result.customer_name,
+                    "customer_telegram_chat_id": invoice_result.telegram_chat_id,
+                    "meta": invoice_result.meta or {},
+                    "created_at": invoice_result.created_at.isoformat(),
+                    "updated_at": invoice_result.updated_at.isoformat(),
+                    "screenshots": []
+                }
+
+                # Add screenshot information
+                for screenshot_row in screenshots_result:
+                    screenshot_meta = screenshot_row.meta or {}
+                    screenshot_data = {
+                        "screenshot_id": str(screenshot_row.id),
+                        "gridfs_file_id": screenshot_row.gridfs_file_id,
+                        "verified": screenshot_row.verified,
+                        "verified_at": screenshot_row.verified_at.isoformat() if screenshot_row.verified_at else None,
+                        "verified_by": str(screenshot_row.verified_by) if screenshot_row.verified_by else None,
+                        "created_at": screenshot_row.created_at.isoformat(),
+                        "ocr_confidence": screenshot_meta.get("ocr_confidence"),
+                        "verification_status": screenshot_meta.get("verification_status"),
+                        "verification_method": screenshot_meta.get("verification_method"),
+                        "file_size": screenshot_meta.get("file_size"),
+                        "filename": screenshot_meta.get("filename")
+                    }
+                    invoice_data["screenshots"].append(screenshot_data)
+
+                # Add computed fields
+                invoice_data["has_screenshots"] = len(invoice_data["screenshots"]) > 0
+                invoice_data["screenshot_count"] = len(invoice_data["screenshots"])
+                invoice_data["has_verified_screenshots"] = any(s["verified"] for s in invoice_data["screenshots"])
+
+                logger.info(f"Retrieved invoice with {len(invoice_data['screenshots'])} screenshots: {invoice_id}")
+                return invoice_data
+
+        except Exception as e:
+            logger.error(f"Error getting invoice with screenshots: {e}")
+            return None
+
+    async def get_pending_verifications_with_screenshots(
+        self,
+        tenant_id: str,
+        limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """
+        Get invoices requiring manual verification with screenshot information.
+
+        Returns invoices that have low-confidence OCR results and need
+        merchant review, along with their associated screenshots.
+
+        Args:
+            tenant_id: Tenant ID for filtering
+            limit: Maximum number of results
+
+        Returns:
+            List of invoices with screenshot data requiring manual verification
+        """
+        try:
+            with get_db_session() as db:
+                result = db.execute(
+                    text("""
+                        SELECT DISTINCT
+                            i.id, i.invoice_number, i.amount, i.currency,
+                            i.verification_status, i.created_at,
+                            c.name as customer_name,
+                            COUNT(s.id) as screenshot_count,
+                            MAX(s.created_at) as latest_screenshot_at,
+                            MAX(s.meta->>'ocr_confidence') as max_ocr_confidence
+                        FROM invoice.invoice i
+                        LEFT JOIN invoice.customer c ON i.customer_id = c.id
+                        LEFT JOIN scriptclient.screenshot s ON (
+                            s.tenant_id = i.tenant_id
+                            AND s.meta->>'invoice_id' = i.id::text
+                        )
+                        WHERE i.tenant_id = :tenant_id
+                        AND i.verification_status IN ('pending', 'review_required')
+                        AND s.id IS NOT NULL  -- Only invoices with screenshots
+                        GROUP BY i.id, i.invoice_number, i.amount, i.currency,
+                                 i.verification_status, i.created_at, c.name
+                        ORDER BY MAX(s.created_at) DESC
+                        LIMIT :limit
+                    """),
+                    {"tenant_id": tenant_id, "limit": limit}
+                ).fetchall()
+
+                pending_verifications = []
+                for row in result:
+                    verification_data = {
+                        "invoice_id": str(row.id),
+                        "invoice_number": row.invoice_number,
+                        "amount": float(row.amount) if row.amount else 0.0,
+                        "currency": row.currency,
+                        "verification_status": row.verification_status,
+                        "customer_name": row.customer_name,
+                        "screenshot_count": row.screenshot_count,
+                        "latest_screenshot_at": row.latest_screenshot_at.isoformat() if row.latest_screenshot_at else None,
+                        "max_ocr_confidence": float(row.max_ocr_confidence) if row.max_ocr_confidence else None,
+                        "created_at": row.created_at.isoformat()
+                    }
+                    pending_verifications.append(verification_data)
+
+                logger.info(f"Found {len(pending_verifications)} pending verifications with screenshots")
+                return pending_verifications
+
+        except Exception as e:
+            logger.error(f"Error getting pending verifications: {e}")
+            return []
 
     async def calculate_early_payment_discount(
         self,
