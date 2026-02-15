@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { authService } from '../services/api'
 import { createTenant } from '../services/tenant'
 import {
@@ -274,6 +275,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -311,10 +314,16 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
       return
     }
 
+    const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY
+    if (siteKey && !turnstileToken) {
+      setError('Please complete the CAPTCHA verification')
+      return
+    }
+
     setLoading(true)
     try {
       // Step 1: Create a new organization/tenant
-      const tenantId = await createTenant(organizationName.trim())
+      const tenantId = await createTenant(organizationName.trim(), turnstileToken || undefined)
       console.log('[RegisterPage] Created tenant:', tenantId)
 
       // Step 2: Register user in the new tenant
@@ -322,7 +331,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
         tenant_id: tenantId,
         username,
         password,
-        email
+        email,
+        turnstile_token: turnstileToken || undefined
       })
       setSuccess('Account created successfully! Redirecting to login...')
       // Redirect to login after 2 seconds
@@ -331,6 +341,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
       }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
+      turnstileRef.current?.reset()
+      setTurnstileToken(null)
     } finally {
       setLoading(false)
     }
@@ -435,6 +447,18 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onSignIn }) => {
               />
             </InputWithIcon>
           </InputGroup>
+
+          {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 8px' }}>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken(null)}
+                onExpire={() => setTurnstileToken(null)}
+              />
+            </div>
+          )}
 
           <RegisterButton type="submit" disabled={loading}>
             {loading ? 'Creating Account...' : 'REGISTER'}

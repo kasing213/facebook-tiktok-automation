@@ -168,6 +168,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add security headers middleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 # Add rate limiting middleware
 from app.middleware.rate_limit import RateLimitMiddleware
 app.add_middleware(RateLimitMiddleware)
@@ -176,6 +180,53 @@ app.add_middleware(RateLimitMiddleware)
 # Users are auto-verified on registration
 # from app.middleware.email_verification import email_verification_middleware
 # app.middleware("http")(email_verification_middleware)
+
+# --- Global Exception Handlers ---
+import logging as _logging
+from fastapi.responses import JSONResponse as _JSONResponse
+from starlette.exceptions import HTTPException as _StarletteHTTPException
+from fastapi.exceptions import RequestValidationError as _RequestValidationError
+
+_exc_logger = _logging.getLogger("app.exceptions")
+
+
+@app.exception_handler(_StarletteHTTPException)
+async def http_exception_handler(request, exc: _StarletteHTTPException):
+    """Return clean JSON for all HTTP errors and log suspicious 404 paths."""
+    if exc.status_code == 404:
+        _exc_logger.info("404 %s %s from %s",
+                         request.method, request.url.path,
+                         request.client.host if request.client else "unknown")
+    return _JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail or "Error"},
+    )
+
+
+@app.exception_handler(_RequestValidationError)
+async def validation_exception_handler(request, exc: _RequestValidationError):
+    """Return consistent 422 format for validation errors."""
+    return _JSONResponse(
+        status_code=422,
+        content={"detail": "Validation error", "errors": exc.errors()},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc: Exception):
+    """Catch-all: log full traceback but never leak it to the client."""
+    _exc_logger.error(
+        "Unhandled %s on %s %s from %s",
+        type(exc).__name__, request.method, request.url.path,
+        request.client.host if request.client else "unknown",
+        exc_info=True,
+    )
+    content = {"detail": "Internal server error"}
+    if settings.ENV == "dev":
+        content["error_type"] = type(exc).__name__
+        content["error"] = str(exc)
+    return _JSONResponse(status_code=500, content=content)
+
 
 # Include routers
 app.include_router(auth_router)
@@ -284,6 +335,7 @@ def create_tenant(
 class TenantRegistrationRequest(BaseModel):
     """Request for creating a tenant during registration"""
     name: str = Field(..., min_length=1, max_length=100, description="Organization name")
+    turnstile_token: str | None = Field(default=None, description="Cloudflare Turnstile CAPTCHA token")
 
 
 def generate_tenant_slug(name: str) -> str:
@@ -300,7 +352,7 @@ def generate_tenant_slug(name: str) -> str:
 
 
 @app.post("/api/tenants/register", tags=["tenants"])
-def create_tenant_for_registration(
+async def create_tenant_for_registration(
     request: TenantRegistrationRequest,
     db: Session = Depends(get_db)
 ):
@@ -310,6 +362,10 @@ def create_tenant_for_registration(
     Each new user registration creates their own organization/tenant.
     The registering user will become the owner (admin) of this tenant.
     """
+    # Verify Turnstile CAPTCHA before creating tenant
+    from app.services.turnstile_service import verify_turnstile
+    await verify_turnstile(request.turnstile_token)
+
     from app.repositories import TenantRepository
 
     tenant_repo = TenantRepository(db)

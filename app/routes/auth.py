@@ -75,6 +75,7 @@ class UserRegister(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=12, description="Password must meet security requirements")
+    turnstile_token: str | None = Field(default=None, description="Cloudflare Turnstile CAPTCHA token")
 
 
 class UserLogin(BaseModel):
@@ -146,6 +147,10 @@ async def register_user(
     Raises:
         HTTPException: If username or email already exists
     """
+    # Verify Turnstile CAPTCHA before any DB operations
+    from app.services.turnstile_service import verify_turnstile
+    await verify_turnstile(user_data.turnstile_token)
+
     user_repo = UserRepository(db)
     email_verification_service = EmailVerificationService()
     email_service = EmailService()
@@ -232,6 +237,11 @@ async def login(
     Raises:
         HTTPException: If credentials are invalid or account is locked
     """
+    # Verify Turnstile CAPTCHA (token passed via X-Turnstile-Token header)
+    from app.services.turnstile_service import verify_turnstile
+    turnstile_token = request.headers.get("X-Turnstile-Token")
+    await verify_turnstile(turnstile_token)
+
     # Initialize services
     user_repo = UserRepository(db)
     login_service = LoginAttemptService(db)
@@ -662,7 +672,8 @@ async def logout(
                     jti=jti,
                     user_id=current_user.id,
                     expires_at=expires_at,
-                    reason="logout"
+                    reason="logout",
+                    tenant_id=current_user.tenant_id,
                 )
 
     # Revoke refresh token from cookie
@@ -936,7 +947,8 @@ async def send_verification_email_endpoint(
     verification_repo.create_token(
         user_id=current_user.id,
         token_hash=token_hash,
-        expires_at=expires_at
+        expires_at=expires_at,
+        tenant_id=current_user.tenant_id,
     )
 
     db.commit()
@@ -1084,7 +1096,8 @@ async def forgot_password(
     reset_repo.create_token(
         user_id=user.id,
         token_hash=token_hash,
-        expires_at=expires_at
+        expires_at=expires_at,
+        tenant_id=user.tenant_id,
     )
 
     db.commit()

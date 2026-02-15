@@ -339,10 +339,15 @@ export const authService = {
       formData.append('username', credentials.username)
       formData.append('password', credentials.password)
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }
+      if (credentials.turnstileToken) {
+        headers['X-Turnstile-Token'] = credentials.turnstileToken
+      }
+
       const response = await api.post('/auth/login', formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers,
         withCredentials: true, // Accept refresh token cookie
         timeout: 30000, // Login does bcrypt + multiple DB queries; needs more than the global 10s
       })

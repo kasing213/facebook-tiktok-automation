@@ -4,11 +4,11 @@ import api from './api'
  * Create a new tenant/organization for user registration
  * Each new user gets their own organization with isolated data
  */
-export const createTenant = async (name: string): Promise<string> => {
+export const createTenant = async (name: string, turnstileToken?: string): Promise<string> => {
   try {
     const response = await api.post<{ id: string; name: string; slug: string }>(
       '/api/tenants/register',
-      { name }
+      { name, turnstile_token: turnstileToken }
     )
 
     if (response.data && response.data.id) {

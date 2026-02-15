@@ -44,6 +44,7 @@ export interface Tenant {
 export interface LoginRequest {
   username: string
   password: string
+  turnstileToken?: string
 }
 
 export interface LoginResponse {
@@ -62,6 +63,7 @@ export interface RegisterRequest {
   username: string
   password: string
   tenant_id?: string
+  turnstile_token?: string
 }
 
 export interface RegisterResponse {

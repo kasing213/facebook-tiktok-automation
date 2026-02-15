@@ -113,6 +113,34 @@ class Settings(BaseSettings):
     # MongoDB GridFS for Ads Alert Media Storage
     MONGO_URL_ADS_ALERT: str = Field(default="", description="MongoDB connection string for ads alert media storage (GridFS)")
 
+    # Cloudflare Integration Configuration
+    CLOUDFLARE_INTEGRATION_ENABLED: bool = Field(default=False, description="Enable Cloudflare integration")
+    CLOUDFLARE_DOMAIN: str = Field(default="", description="Cloudflare domain to manage")
+    CLOUDFLARE_API_TOKEN: SecretStr = Field(default=SecretStr(""), description="Cloudflare API token (preferred)")
+    CLOUDFLARE_EMAIL: str = Field(default="", description="Cloudflare account email (for legacy API key auth)")
+    CLOUDFLARE_API_KEY: SecretStr = Field(default=SecretStr(""), description="Cloudflare Global API Key (legacy)")
+    CLOUDFLARE_ZONE_ID: str = Field(default="", description="Cloudflare Zone ID for the domain")
+    CLOUDFLARE_TEST_MODE: bool = Field(default=True, description="Run Cloudflare operations in test mode")
+    CLOUDFLARE_REQUEST_TIMEOUT: int = Field(default=30, description="API request timeout in seconds", ge=5, le=300)
+    CLOUDFLARE_MAX_REQUESTS_PER_MINUTE: int = Field(default=60, description="Rate limiting for Cloudflare API", ge=1, le=1200)
+    CLOUDFLARE_LOG_LEVEL: str = Field(default="INFO", description="Log level for Cloudflare operations")
+    CLOUDFLARE_AUDIT_LOGGING: bool = Field(default=True, description="Enable audit logging for Cloudflare operations")
+    CLOUDFLARE_SYNC_TO_DB: bool = Field(default=True, description="Sync DNS records to local database")
+    CLOUDFLARE_CACHE_TTL: int = Field(default=300, description="Cache TTL for DNS records in seconds", ge=60, le=86400)
+    CLOUDFLARE_AUTO_UPDATE_ENABLED: bool = Field(default=False, description="Enable automatic DNS updates")
+    CLOUDFLARE_WEBHOOK_SECRET: SecretStr = Field(default=SecretStr(""), description="Webhook secret for Cloudflare notifications")
+    CLOUDFLARE_DEFAULT_TTL: int = Field(default=300, description="Default TTL for new DNS records", ge=120, le=86400)
+    CLOUDFLARE_ALLOWED_IPS: str = Field(default="127.0.0.1", description="Allowed IPs for Cloudflare management (comma-separated)")
+    CLOUDFLARE_REQUIRE_SUPERUSER: bool = Field(default=True, description="Require superuser role for Cloudflare operations")
+    FACEBOOK_DOMAIN_VERIFICATION_ENABLED: bool = Field(default=True, description="Enable Facebook domain verification automation")
+    FACEBOOK_AUTO_DNS_VERIFICATION: bool = Field(default=True, description="Auto-create DNS records for Facebook verification")
+    FACEBOOK_VERIFICATION_PREFIX: str = Field(default="facebook-domain-verification", description="Facebook verification TXT record prefix")
+
+    # Cloudflare Turnstile CAPTCHA
+    TURNSTILE_ENABLED: bool = Field(default=False, description="Enable Cloudflare Turnstile CAPTCHA on login and registration")
+    TURNSTILE_SITE_KEY: str = Field(default="", description="Cloudflare Turnstile site key (public)")
+    TURNSTILE_SECRET_KEY: SecretStr = Field(default=SecretStr(""), description="Cloudflare Turnstile secret key")
+
     # API Server settings
     API_HOST: str = Field(default="0.0.0.0", description="API server host")
     API_PORT: int = Field(default=8000, description="API server port", ge=1024, le=65535)

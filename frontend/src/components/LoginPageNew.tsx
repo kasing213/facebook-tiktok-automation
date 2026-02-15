@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { authService } from '../services/api'
 import {
   fadeIn,
@@ -286,6 +287,8 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -296,9 +299,15 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
       return
     }
 
+    const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY
+    if (siteKey && !turnstileToken) {
+      setError('Please complete the CAPTCHA verification')
+      return
+    }
+
     setLoading(true)
     try {
-      await authService.login({ username, password })
+      await authService.login({ username, password, turnstileToken: turnstileToken || undefined })
       // Get user info to extract tenant_id
       const user = await authService.getCurrentUser()
 
@@ -313,6 +322,8 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
+      turnstileRef.current?.reset()
+      setTurnstileToken(null)
     } finally {
       setLoading(false)
     }
@@ -365,6 +376,18 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
               />
             </InputWithIcon>
           </InputGroup>
+
+          {import.meta.env.VITE_TURNSTILE_SITE_KEY && (
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '12px 0 4px' }}>
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken(null)}
+                onExpire={() => setTurnstileToken(null)}
+              />
+            </div>
+          )}
 
           <ForgotPassword href="/forgot-password">
             Forgot Password?
