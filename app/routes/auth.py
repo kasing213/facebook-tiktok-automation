@@ -436,8 +436,17 @@ async def login(
     family_id = uuid4()  # New token family for this login session
     refresh_expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
 
-    # Store refresh token in database
+    # Single-device enforcement: revoke all existing sessions before creating new one
     refresh_repo = RefreshTokenRepository(db)
+    revoked_count = refresh_repo.revoke_user_tokens(user.id)
+    if revoked_count > 0:
+        import logging
+        logging.getLogger(__name__).info(
+            "Single-device enforcement: revoked %d existing session(s) for user %s",
+            revoked_count, user.id,
+        )
+
+    # Store new refresh token in database (after revoking old ones)
     refresh_repo.create_token(
         user_id=user.id,
         tenant_id=user.tenant_id,
@@ -548,8 +557,17 @@ async def login_with_mfa(
     family_id = uuid4()  # New token family for this login session
     refresh_expires_at = dt.datetime.now(dt.timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
 
-    # Store refresh token in database
+    # Single-device enforcement: revoke all existing sessions before creating new one
     refresh_repo = RefreshTokenRepository(db)
+    revoked_count = refresh_repo.revoke_user_tokens(user.id)
+    if revoked_count > 0:
+        import logging
+        logging.getLogger(__name__).info(
+            "Single-device enforcement (MFA): revoked %d existing session(s) for user %s",
+            revoked_count, user.id,
+        )
+
+    # Store new refresh token in database (after revoking old ones)
     refresh_repo.create_token(
         user_id=user.id,
         tenant_id=user.tenant_id,

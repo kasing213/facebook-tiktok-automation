@@ -156,13 +156,13 @@ api.interceptors.response.use(
         } else {
           // Refresh failed - redirect to login
           onTokenRefreshed('')
-          window.location.href = '/login'
+          window.location.href = '/login?reason=session_ended'
           return Promise.reject(error)
         }
       } catch (refreshError) {
         isRefreshing = false
         onTokenRefreshed('')
-        window.location.href = '/login'
+        window.location.href = '/login?reason=session_ended'
         return Promise.reject(refreshError)
       }
     }

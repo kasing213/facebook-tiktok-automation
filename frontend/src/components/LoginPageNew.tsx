@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { authService } from '../services/api'
@@ -277,18 +277,43 @@ const ErrorMessage = styled.div`
   ${reduceMotion}
 `
 
+const InfoMessage = styled.div`
+  background: ${props => props.theme.mode === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)'};
+  color: ${props => props.theme.mode === 'dark' ? '#93bbfc' : '#1d4ed8'};
+  padding: 0.75rem 1rem;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  border-left: 3px solid #3b82f6;
+  animation: ${fadeInDown} 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  ${reduceMotion}
+`
+
 interface LoginPageNewProps {
   onSignUp?: () => void
 }
 
 const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sessionEndedMessage, setSessionEndedMessage] = useState<string | null>(null)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
+
+  // Check if user was redirected due to session ending on another device
+  useEffect(() => {
+    if (searchParams.get('reason') === 'session_ended') {
+      setSessionEndedMessage('Your session ended because this account logged in on another device.')
+      // Clean up the URL param
+      searchParams.delete('reason')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -340,6 +365,7 @@ const LoginPageNew: React.FC<LoginPageNewProps> = ({ onSignUp }) => {
         <Title>Welcome back!</Title>
         <Subtitle>Log in to existing KS account</Subtitle>
 
+        {sessionEndedMessage && <InfoMessage role="status">{sessionEndedMessage}</InfoMessage>}
         {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
 
         <Form onSubmit={handleSubmit}>
