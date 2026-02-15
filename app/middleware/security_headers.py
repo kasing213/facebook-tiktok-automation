@@ -31,6 +31,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
 
         # Hide server implementation details
-        response.headers.pop("Server", None)
+        if "Server" in response.headers:
+            del response.headers["Server"]
 
         return response
